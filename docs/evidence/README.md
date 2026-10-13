@@ -41,7 +41,7 @@ Executed 2026-09-07 America/Vancouver (2026-09-08 UTC). These are live provider 
 | Evidence | Result |
 | --- | --- |
 | [Original client run](boat-contract-live.json) | Creation, idempotency, working directories, and required tools passed. File writing failed with HTTP 404. |
-| [Isolated dependency patch](boat-client-file-write.patch) and [build fingerprint](boat-client-build.json) | Changed file writes from `POST` to `PUT` in a copied `boat_client`. The shared dependency checkout was not changed. |
+| [Isolated dependency patch](boat-client-file-write.patch) and [build fingerprint](boat-client-build.json) | Zero-context excerpt of the historical `POST` to `PUT` correction in a copied `boat_client`. The shared dependency checkout was not changed. |
 | [First corrected run](boat-contract-corrected.json) | Binary transfer, reconnect, duplicate-payload prevention, and output-tail checks passed. Bundle restoration found a harness bug: its branch needed to be explicit. |
 | [Full checkpoint/run suite](boat-contract-final.json) | 17 of 18 checks passed. Includes both file round trips and independent Boat-to-Boat transfer. The original cookie-less hosting assertion failed. |
 | [Initial hosting diagnostic](port-diagnostic.json) | The service worked inside the Boat, but cookie-less external requests ended at HTTP 403. |
@@ -101,8 +101,8 @@ Before public source publication, live resource identifiers and local account
 paths in these JSON reports were replaced with private aliases. Original reports
 are retained locally outside the publication tree. Outcome counts and measured
 results are preserved; `publication-redactions.json` inventories modified reports.
-The archived original build digests describe their historical sources, not the
-renamed current tree. Public aliases cannot be used to reconnect or inspect
+Published report labels and paths are normalized. The archived build digests
+describe historical source contents, not the current tree. Public aliases cannot be used to reconnect or inspect
 cleanup; no completed cleanup is inferred from redaction.
 
 Publication checks passed: 112 all-feature tests, 103

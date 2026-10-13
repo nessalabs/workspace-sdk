@@ -1,6 +1,6 @@
 {
   "started_at": "2026-09-08T00:24:43.637858+00:00",
-  "scope": "Synthetic fixtures; no model calls; real Box API through Rust box_client",
+  "scope": "Synthetic fixtures; no model calls; real Boat API through Rust boat_client",
   "checks": [
     {
       "name": "create_and_ready",
@@ -12,7 +12,7 @@
       "name": "create_idempotency",
       "status": "passed",
       "details": {
-        "same_box": true
+        "same_boat": true
       },
       "seconds": 0.188
     },
@@ -78,7 +78,7 @@
       "seconds": 2.792
     },
     {
-      "name": "local_to_box_git_checkpoint",
+      "name": "local_to_boat_git_checkpoint",
       "status": "failed",
       "error": "fixture command exit=128 stderr=fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree.\nUse '--' to separate paths from revisions, like this:\n'git <command> [<revision>...] -- [<file>...]'\n",
       "seconds": 1.41
@@ -86,13 +86,13 @@
   ],
   "fixtures": [
     {
-      "box_id": "private-resource-008",
+      "boat_id": "private-resource-008",
       "ttl_seconds": 900
     }
   ],
   "cleanup": [
     {
-      "box_id": "private-resource-008",
+      "boat_id": "private-resource-008",
       "status": "unconfirmed",
       "error": "bounded wait expired"
     }
@@ -104,7 +104,7 @@
     "source_after_sha256": "9fe81e293a7d6b3f00eb9aa1464a70a04f7a3d4f16f0d34bd08235709681f94f",
     "change": "write_file HTTP POST -> PUT in isolated dependency copy only",
     "binary": "private-resource-005",
-    "copied_sources": "/var/folders/1w/wp9n0wwd22qgrf0zkhb2fk6r0000gn/T/workspace-sdk-box-build-r2o6ukwm"
+    "copied_sources": "/var/folders/1w/wp9n0wwd22qgrf0zkhb2fk6r0000gn/T/workspace-sdk-boat-build-r2o6ukwm"
   },
   "dependency_sha256": "90378e315498746ec60aa0f130998f3dac8e0fc382548681fc960e27045b703e",
   "finished_at": "2026-09-08T00:28:20.809484+00:00",

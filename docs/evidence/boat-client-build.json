@@ -3,7 +3,7 @@
   "source_after_sha256": "9fe81e293a7d6b3f00eb9aa1464a70a04f7a3d4f16f0d34bd08235709681f94f",
   "change": "write_file HTTP POST -> PUT in isolated dependency copy only",
   "binary": "private-resource-005",
-  "copied_sources": "/var/folders/1w/wp9n0wwd22qgrf0zkhb2fk6r0000gn/T/workspace-sdk-box-build-r2o6ukwm",
+  "copied_sources": "/var/folders/1w/wp9n0wwd22qgrf0zkhb2fk6r0000gn/T/workspace-sdk-boat-build-r2o6ukwm",
   "publication_redactions": {
     "private_identity_fields": 1,
     "note": "Public evidence omits live resource identifiers and local account paths; original measurements and outcomes remain."

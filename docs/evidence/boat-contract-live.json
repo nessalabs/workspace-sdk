@@ -1,6 +1,6 @@
 {
   "started_at": "2026-09-08T00:22:22.529840+00:00",
-  "scope": "Synthetic fixtures; no model calls; real Box API through Rust box_client",
+  "scope": "Synthetic fixtures; no model calls; real Boat API through Rust boat_client",
   "checks": [
     {
       "name": "create_and_ready",
@@ -12,7 +12,7 @@
       "name": "create_idempotency",
       "status": "passed",
       "details": {
-        "same_box": true
+        "same_boat": true
       },
       "seconds": 0.197
     },
@@ -46,13 +46,13 @@
   ],
   "fixtures": [
     {
-      "box_id": "private-resource-006",
+      "boat_id": "private-resource-006",
       "ttl_seconds": 900
     }
   ],
   "cleanup": [
     {
-      "box_id": "private-resource-006",
+      "boat_id": "private-resource-006",
       "status": "unconfirmed",
       "error": "bounded wait expired"
     }

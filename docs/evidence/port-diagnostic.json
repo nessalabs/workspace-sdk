@@ -1,9 +1,9 @@
 {
-  "box_id": "private-resource-002",
+  "boat_id": "private-resource-002",
   "state": {
     "state": "idle"
   },
-  "in_box_http_matches": true,
+  "in_boat_http_matches": true,
   "url_scheme": "https",
   "url_has_query": true,
   "query_parameter_names": [

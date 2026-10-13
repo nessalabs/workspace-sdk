@@ -20,7 +20,7 @@
       "name": "native_three_way_return_sync"
     },
     {
-      "name": "native_box_to_box_handoff"
+      "name": "native_boat_to_boat_handoff"
     },
     {
       "name": "native_managed_cancellation"
@@ -32,7 +32,7 @@
       "reference": {
         "version": 1,
         "id": "private-resource-033",
-        "provider": "ascii-box",
+        "provider": "boat",
         "locator": {
           "control": "private-resource-034",
           "ownership": "sdk_owned",
@@ -46,7 +46,7 @@
       "reference": {
         "version": 1,
         "id": "private-resource-037",
-        "provider": "ascii-box",
+        "provider": "boat",
         "locator": {
           "control": "private-resource-038",
           "ownership": "sdk_owned",
@@ -61,7 +61,7 @@
       "workspace": {
         "version": 1,
         "id": "private-resource-037",
-        "provider": "ascii-box",
+        "provider": "boat",
         "locator": {
           "control": "private-resource-038",
           "ownership": "sdk_owned",
@@ -75,7 +75,7 @@
           "workspace": {
             "version": 1,
             "id": "private-resource-037",
-            "provider": "ascii-box",
+            "provider": "boat",
             "locator": {
               "control": "private-resource-038",
               "ownership": "sdk_owned",
@@ -94,7 +94,7 @@
       "workspace": {
         "version": 1,
         "id": "private-resource-033",
-        "provider": "ascii-box",
+        "provider": "boat",
         "locator": {
           "control": "private-resource-034",
           "ownership": "sdk_owned",
@@ -108,7 +108,7 @@
           "workspace": {
             "version": 1,
             "id": "private-resource-033",
-            "provider": "ascii-box",
+            "provider": "boat",
             "locator": {
               "control": "private-resource-034",
               "ownership": "sdk_owned",

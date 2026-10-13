@@ -11,7 +11,7 @@
             "root": "private-resource-012",
             "target": "private-resource-015"
           },
-          "provider": "ascii-box",
+          "provider": "boat",
           "version": 1
         }
       },
@@ -56,7 +56,7 @@
           "status": "exited"
         }
       },
-      "name": "box_to_box_handoff",
+      "name": "boat_to_boat_handoff",
       "passed": true
     },
     {
@@ -81,7 +81,7 @@
               "root": "private-resource-019",
               "target": "private-resource-020"
             },
-            "provider": "ascii-box",
+            "provider": "boat",
             "version": 1
           }
         },
@@ -96,7 +96,7 @@
           "root": "private-resource-019",
           "target": "private-resource-020"
         },
-        "provider": "ascii-box",
+        "provider": "boat",
         "version": 1
       }
     },
@@ -113,7 +113,7 @@
               "root": "private-resource-012",
               "target": "private-resource-015"
             },
-            "provider": "ascii-box",
+            "provider": "boat",
             "version": 1
           }
         },
@@ -128,7 +128,7 @@
           "root": "private-resource-012",
           "target": "private-resource-015"
         },
-        "provider": "ascii-box",
+        "provider": "boat",
         "version": 1
       }
     }
@@ -145,7 +145,7 @@
           "root": "private-resource-012",
           "target": "private-resource-015"
         },
-        "provider": "ascii-box",
+        "provider": "boat",
         "version": 1
       },
       "requested_id": "private-resource-013"
@@ -159,7 +159,7 @@
           "root": "private-resource-019",
           "target": "private-resource-020"
         },
-        "provider": "ascii-box",
+        "provider": "boat",
         "version": 1
       },
       "requested_id": "private-resource-017"
@@ -167,7 +167,7 @@
   ],
   "functional_passed": true,
   "schema": 1,
-  "scope": "real Ascii Box adapter, synthetic files/workers, no model calls",
+  "scope": "real Boat adapter, synthetic files/workers, no model calls",
   "sdk": "0.2.0",
   "publication_redactions": {
     "private_identity_fields": 33,

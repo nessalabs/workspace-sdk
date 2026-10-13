@@ -1,8 +1,8 @@
 {
-  "scope": "real Box protected preview; browser-style cookies versus plain urllib",
-  "box_id": "private-resource-010",
+  "scope": "real Boat protected preview; browser-style cookies versus plain urllib",
+  "boat_id": "private-resource-010",
   "ttl_seconds": 900,
-  "in_box_http_matches": true,
+  "in_boat_http_matches": true,
   "url_scheme": "https",
   "query_parameter_names": [
     "_token"
@@ -36,7 +36,7 @@
   },
   "passed": true,
   "cleanup": {
-    "box_id": "private-resource-010",
+    "boat_id": "private-resource-010",
     "compute_archived_before_delete": true,
     "operation_id": "private-resource-011",
     "status": "unconfirmed",
