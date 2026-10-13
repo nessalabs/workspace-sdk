@@ -1,3 +1,40 @@
+# Vercel-hosted Linux PTY qualification — 2026-10-12
+
+[Live PTY evidence](vercel-linux-pty-live.json), [auditable artifacts and exact reproduction commands](vercel-linux-pty-artifacts/README.md) qualify SDK revision
+`e3465f9afa71cac37dd23326651c8c6ddf939f45` and the reusable
+[three-phase probe](../../examples/pty_live_probe.rs) inside one disposable Vercel
+Linux x86_64 VM. This uses LocalProvider and BackendRuntimeHost inside the VM;
+it does not certify Boat, SSH/container transport or a production Vercel adapter.
+Boat compute was unavailable for this qualification.
+
+Separate completed remote commands started the terminal, reconstructed the host
+and session, then canceled and cleaned it. The owner and workload retained the
+same boot/PID/start identities, and the duplicate launch key produced one launch.
+The child confirmed real foreground terminals, acknowledged input without echo,
+and observed the requested 120-column, 40-row size. Exact retained cursors moved
+40 → 67 → 67 bytes; cancellation returned code 130 and stable gap-free EOF.
+Both owned directories were independently confirmed absent after deletion.
+
+This VM's default command environment supplied UID 1000 with permission-bypass capabilities. The initial
+unchanged gate therefore failed its owner-permission-denial fixture. A direct
+OS probe confirmed the cause. Removing all capability sets with `setpriv` and
+setting `NoNewPrivs=1` restored that test's precondition; no assertion or exclusion
+was changed. Both complete SDK and SDK-plus-probe gates then passed, including
+four native and sixteen adversarial PTY cases in each feature configuration and
+the existing managed-run performance gate. The
+[PTY performance samples](vercel-linux-pty-performance.json) cover fifteen sessions
+at one- and four-session populations. They measure calls inside the VM, excluding
+WAN round trips, and are not a statistical regression baseline.
+
+A deliberate lagging-state case remained a failing verification while cleanup
+still stopped and removed its owned workspace. All 281 original tracked source
+files matched the committed SDK, and the uploaded probe matched its recorded
+SHA-256. Full gate logs and successful-run artifacts were downloaded and verified before stopping the
+nonpersistent VM; a separate provider read confirmed `stopped`. Independent
+quality and adversarial findings, fixes and acceptance decisions are recorded
+under `docs/reviews`. Real account login and long-duration resource behavior
+remain outside this qualification.
+
 # Native Rust implementation
 
 The current SDK uses a Rust supervisor and Rust file-tree/runtime helpers. The opt-in [native Boat integration test](../../tests/boat_live.rs) accepts explicit target paths and compatible supervisor/workload artifacts. Current native results are recorded separately from the earlier implementation below.

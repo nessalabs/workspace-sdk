@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"result\": {\n    \"command\": {\n      \"id\": \"private-command-010\",\n      \"name\": \"setpriv\",\n      \"args\": [\n        \"--bounding-set=-all\",\n        \"--inh-caps=-all\",\n        \"--ambient-caps=-all\",\n        \"--no-new-privs\",\n        \"--\",\n        \"bash\",\n        \"-lc\",\n        \"set -eu\\nexport PATH=/vercel/sdk-cargo/bin:$PATH\\nscripts/quality-gate.sh > /vercel/sdk-capfree-gate.log 2>&1\"\n      ],\n      \"cwd\": \"/vercel/workspace-sdk\",\n      \"sessionId\": \"private-session-001\",\n      \"startedAt\": 1791858738121,\n      \"exitCode\": 0,\n      \"durationMs\": 71726\n    }\n  }\n}"
+    }
+  ],
+  "isError": false
+}

@@ -1,0 +1,267 @@
+{
+  "schema_version": 1,
+  "sdk_revision": "e3465f9afa71cac37dd23326651c8c6ddf939f45",
+  "original_probe_commit": "3e19915d4453a76471e3b7106515c088ac934bce",
+  "original_probe_sha256": "1b83890199cdfa5e75f1473bc000f4ffedb04adcea5bafed41c248ea5129d734",
+  "normalization": "Cloud session/project/team/command identifiers, UUID references, host scopes and the private hostname are consistently replaced with aliases. Measurements, process IDs/start ticks, outcomes, command bodies other than these aliases, and source/binary digests remain intact. Original and published byte hashes are distinct. Numeric performance files and original probe source are unchanged.",
+  "diagnostic_provenance": "diagnostic-observations.rpc.json is an operator transcription of observed tool output, not an independently re-fetched receipt; the server returned 410 after shutdown.",
+  "files": [
+    {
+      "path": "capfree-permission-probe.rpc.json",
+      "original_sha256": "9b6ce87745be7e4bdf7540382adccc0b9fc5dd214bfca8b82a75aabdb35db263",
+      "published_sha256": "b2aa6a79bf6b9e1c248d0c080d3970162870c5246a931db7170f5c0095e591c1",
+      "identifier_replacements": {
+        "session": 2,
+        "command": 2
+      }
+    },
+    {
+      "path": "creation.rpc.json",
+      "original_sha256": "cd766eaa294e6f69952a3fc6e3c0d5d287c66cf909f4faf3678d8a90c494bd56",
+      "published_sha256": "b6b51f72769f7b8ddfaa8909b3dcd1b009202c3c705708e5658484face3b4913",
+      "identifier_replacements": {
+        "session": 2,
+        "project": 1
+      }
+    },
+    {
+      "path": "diagnostic-observations.rpc.json",
+      "original_sha256": "4759f1e3def9013f23bdf0a5c51c8a83b4041ddf9999ae846de8c225dd6bd7a4",
+      "published_sha256": "e51731bb3fe1740f761e784656ffa90573f408d34b9c9344a0aacc4bcda9ef18",
+      "identifier_replacements": {
+        "command": 2
+      }
+    },
+    {
+      "path": "phase-cleanup.rpc.json",
+      "original_sha256": "7038bac55b3228c6cc266f25c59d0a22a8af5a82d54cc5d0ebe7af550655e624",
+      "published_sha256": "6c8db2416bc91ca6ad32c0f47c5616640798a13a9b91db5238f4f83ec1919c44",
+      "identifier_replacements": {
+        "session": 2,
+        "command": 2,
+        "reference": 5,
+        "host_scope": 1
+      }
+    },
+    {
+      "path": "phase-reconnect.rpc.json",
+      "original_sha256": "e59fb6fd5212f7b2c8aa9c070155a37100c5646827294dbd4058efb2e98b791d",
+      "published_sha256": "cc81aad77275008964ee29fc4ad2418655f62bd007627823f9a692059ce1a80a",
+      "identifier_replacements": {
+        "session": 2,
+        "command": 2,
+        "reference": 5,
+        "host_scope": 1
+      }
+    },
+    {
+      "path": "phase-start.rpc.json",
+      "original_sha256": "14daed9a140ab3ecd2534692677154471e3f77d7634679d725d95e19a269505f",
+      "published_sha256": "9ba9316a5dbbc59a181e2c98bfed75626876c4849cadff6aa0ad15bebadec414",
+      "identifier_replacements": {
+        "session": 2,
+        "command": 2,
+        "reference": 5,
+        "host_scope": 1
+      }
+    },
+    {
+      "path": "probe-build-receipt.rpc.json",
+      "original_sha256": "e1a99a29d2cd38adc8e9bc203973aab5cdd6eb08e423d0aec41abd078962ea5d",
+      "published_sha256": "bee015c08a92c151e76326875603a6b1b21a19fabd3a7c83d4a1dc89e017c8cd",
+      "identifier_replacements": {
+        "session": 1,
+        "command": 1
+      }
+    },
+    {
+      "path": "pty-environment.json",
+      "original_sha256": "72d96f05e9ca6690fc71d1913487861fb44c7d908969f26e86037a1c23fa76b0",
+      "published_sha256": "3461c7d358f9a890e72f4f1ed924d3a5e802227536d495811f3b0f1dff1bd883",
+      "identifier_replacements": {
+        "hostname": 1
+      }
+    },
+    {
+      "path": "pty-phase-cleanup.json",
+      "original_sha256": "60dd033645d30781b3d1ebfdf8e6a69c23fd6cb6445c22d0fbb4910fde52f384",
+      "published_sha256": "beded768f2e80db9b696758ec2d8f8f081b650462865190c2af7ca7b25d9ce75",
+      "identifier_replacements": {
+        "reference": 5,
+        "host_scope": 1
+      }
+    },
+    {
+      "path": "pty-phase-reconnect.json",
+      "original_sha256": "b8f1d95e4b9dd5c1a4d8fd76b23a202d9f17c68884dfb728c18629c2690377dd",
+      "published_sha256": "8ebad59fe92d165bfcfcbf7b271e712909b02ab06f432d72adc58ac6b03486c8",
+      "identifier_replacements": {
+        "reference": 5,
+        "host_scope": 1
+      }
+    },
+    {
+      "path": "pty-phase-start.json",
+      "original_sha256": "74c09061887e5bae5b652dbfe57ae3cabb7d952e72bdc327393add6cd6d83560",
+      "published_sha256": "0f93f2867ab9f29b34db7db57f8b00ae7c2e9c0a8611821777f59278fa13b2f9",
+      "identifier_replacements": {
+        "reference": 5,
+        "host_scope": 1
+      }
+    },
+    {
+      "path": "pty-recovery-cleanup.err",
+      "original_sha256": "16872840974ef8fe5cd6c5b2824e0035408333a5c80d03b853b015f9e4c97399",
+      "published_sha256": "16872840974ef8fe5cd6c5b2824e0035408333a5c80d03b853b015f9e4c97399",
+      "identifier_replacements": {}
+    },
+    {
+      "path": "pty-recovery-cleanup.out",
+      "original_sha256": "c3c52e4b9de22d8a09b0d6521929c8c351390456d1bb8f66ccd96e8f456ac183",
+      "published_sha256": "d24a1ce32ab4da2cc5081af4cec8cd9a3d7cfd91f243598efd5565ea95b3e93f",
+      "identifier_replacements": {
+        "reference": 5,
+        "host_scope": 1
+      }
+    },
+    {
+      "path": "pty-recovery-start.json",
+      "original_sha256": "2c80a27b48f3920cbe46fd12e2b306b4386f9456039d1923993652dc20e241b3",
+      "published_sha256": "7e76c9370ffc1b1ae716749e623551d018dce10e1bf2f6475b77a6b32afed106",
+      "identifier_replacements": {
+        "reference": 5,
+        "host_scope": 1
+      }
+    },
+    {
+      "path": "recovery-cleanup.rpc.json",
+      "original_sha256": "2b6f27771d11c15f161d608cd693a4b0811c534c5fcaba67ba1776c27f0cf521",
+      "published_sha256": "e1570c3357ea575a7183f865a5eed3a0d4da2eb90733b0bbc4bd5761c4b7cc04",
+      "identifier_replacements": {
+        "session": 2,
+        "command": 2
+      }
+    },
+    {
+      "path": "recovery-start.rpc.json",
+      "original_sha256": "a23e9756db19696be7f3cfdaea75c6c3e2e75c5f874451dfdc19b50da1c4a22c",
+      "published_sha256": "97c3f41633ff82e592b923df0f7439a24b03ea59881957bfe71eb9b9e04fce01",
+      "identifier_replacements": {
+        "session": 2,
+        "command": 2,
+        "reference": 5,
+        "host_scope": 1
+      }
+    },
+    {
+      "path": "runtime-performance.json",
+      "original_sha256": "1c6c5243aff517bb67705a05d91c85f2eab89d714ece7c85f2495c24b186a9a8",
+      "published_sha256": "1c6c5243aff517bb67705a05d91c85f2eab89d714ece7c85f2495c24b186a9a8",
+      "identifier_replacements": {}
+    },
+    {
+      "path": "runtime-pty-performance.json",
+      "original_sha256": "3253cc5381e8bed10b9d997324346446ac2ad47e00639de20b5d079dbe61964d",
+      "published_sha256": "3253cc5381e8bed10b9d997324346446ac2ad47e00639de20b5d079dbe61964d",
+      "identifier_replacements": {}
+    },
+    {
+      "path": "sdk-capfree-gate-receipt.rpc.json",
+      "original_sha256": "84eeeffa8042a6c8bfe9ed7aafee74c09e0ae2dc50b6ca448b888d50b1a2717f",
+      "published_sha256": "522009de2f0599f738a4226f8fadd1207a42e23345df9a17385963aab11ea94f",
+      "identifier_replacements": {
+        "session": 1,
+        "command": 1
+      }
+    },
+    {
+      "path": "sdk-capfree-gate.log",
+      "original_sha256": "f30b958bb522a8ca8b190b1d0afe2b9328063a3a708fc7d7fd054bb6a69b0c22",
+      "published_sha256": "f30b958bb522a8ca8b190b1d0afe2b9328063a3a708fc7d7fd054bb6a69b0c22",
+      "identifier_replacements": {}
+    },
+    {
+      "path": "sdk-full-gate.log",
+      "original_sha256": "0abee161ca35f2662bf6ff90826798bee4d29d4cb1e05c5c85acae66f1440ddc",
+      "published_sha256": "0abee161ca35f2662bf6ff90826798bee4d29d4cb1e05c5c85acae66f1440ddc",
+      "identifier_replacements": {}
+    },
+    {
+      "path": "sdk-initial-gate-receipt.rpc.json",
+      "original_sha256": "071511892a3c20dba846aaa26098156c14744289e37451e6a404cc5ee06267ac",
+      "published_sha256": "1ac9497a33be6095d616b2fbb2f82fe2dbb124c09ac24fd0eaeb27e6bd0cc7bb",
+      "identifier_replacements": {
+        "session": 1,
+        "command": 1
+      }
+    },
+    {
+      "path": "sdk-probe-build.log",
+      "original_sha256": "a5f4c585ee974ca44916ac30a98bbc189e067a7e0a6bc6d2e8d6bc525be724af",
+      "published_sha256": "a5f4c585ee974ca44916ac30a98bbc189e067a7e0a6bc6d2e8d6bc525be724af",
+      "identifier_replacements": {}
+    },
+    {
+      "path": "sdk-probe-gate.log",
+      "original_sha256": "7e897bd1d57254882ab43f00a743f242c2d5f9c64b0ee917623e94d52d2fdce1",
+      "published_sha256": "7e897bd1d57254882ab43f00a743f242c2d5f9c64b0ee917623e94d52d2fdce1",
+      "identifier_replacements": {}
+    },
+    {
+      "path": "stop-receipt.rpc.json",
+      "original_sha256": "52f2731e5d2f138204556d3f8fa0a754eaee270d675c543beeb0cf989e368d23",
+      "published_sha256": "f6ce3bfbb2eb39664dd2b09fe3e601c0c4125f2460e7b5ca8a6d6b85441f8fb5",
+      "identifier_replacements": {
+        "session": 2,
+        "project": 1
+      }
+    },
+    {
+      "path": "stopped-state.rpc.json",
+      "original_sha256": "67f7e4bf06923ca3e7a7dc4ecbc6994f88a14b7cde7fdc25fc829ef5ab4a4c82",
+      "published_sha256": "ad3ca0d1b9ba6f1de7f33960b67880465dc8113a3f1c598afbdf38a0ce17a82c",
+      "identifier_replacements": {
+        "session": 1,
+        "project": 1
+      }
+    },
+    {
+      "path": "original-probe-source.rs",
+      "original_sha256": "1b83890199cdfa5e75f1473bc000f4ffedb04adcea5bafed41c248ea5129d734",
+      "published_sha256": "1b83890199cdfa5e75f1473bc000f4ffedb04adcea5bafed41c248ea5129d734",
+      "identifier_replacements": {}
+    },
+    {
+      "path": "pr2-rollback-red.log",
+      "original_sha256": "263600cc39f97628668ddbc27241d98b6b184262e3a23e48352164d9631c63e2",
+      "published_sha256": "bcffc38d04935c56b79218e3f21d3484a424a22db86cf89d24ce1e41f603bb44",
+      "identifier_replacements": {
+        "developer_paths": "literal checkout/home path aliases"
+      }
+    },
+    {
+      "path": "pr2-rollback-green.log",
+      "original_sha256": "a06b30cdb769461307154fe0adf22c05426a996fee5118149a3e49e2c4906ced",
+      "published_sha256": "b9deaaf8cfc5afa6dab5efee0d1b09959b18b10c8d0790f51c4ae8e8546e9592",
+      "identifier_replacements": {
+        "developer_paths": "literal checkout/home path aliases"
+      }
+    },
+    {
+      "path": "pr2-final-gate.log",
+      "original_sha256": "a83148d150c00cb0de319cc00b665497ea2ef79f3311fac165be14b7fc934593",
+      "published_sha256": "3d113b10b3f1fb8c142fd4e74477ec246fc7574ad769441259d542056eec65ff",
+      "identifier_replacements": {
+        "developer_paths": "literal checkout/home path aliases"
+      }
+    },
+    {
+      "path": "pr2-tested-source.json",
+      "original_sha256": "64dd795a5511c226b4bd190258511030263908a73e83e1099c80c2a750c2a482",
+      "published_sha256": "64dd795a5511c226b4bd190258511030263908a73e83e1099c80c2a750c2a482",
+      "identifier_replacements": {},
+      "provenance": "Generated follow-up tested-source identity record, not a historical VM artifact."
+    }
+  ],
+  "followup_note": "PR2 rollback red/green and final gate logs are later local evidence, separate from the completed Vercel run. Developer account paths use aliases; assertions/results are preserved."
+}

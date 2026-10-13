@@ -1,0 +1,47 @@
+{
+  "source": "Transcribed from the observed run_session_command tool outputs; these are operator-observed diagnostics, not a later API re-fetch. Historical logs could not be fetched after the sandbox stopped (410 sandbox_stopped).",
+  "capability_command_id": "private-command-002",
+  "permission_command_id": "private-command-003",
+  "uid": [
+    1000,
+    1000,
+    1000,
+    1000
+  ],
+  "gid": [
+    1000,
+    1000,
+    1000,
+    1000
+  ],
+  "original_capabilities": {
+    "CapInh": "000001ffffffffff",
+    "CapPrm": "000001ffffffffff",
+    "CapEff": "000001ffffffffff",
+    "CapBnd": "000001ffffffffff",
+    "CapAmb": "000001ffffffffff"
+  },
+  "faccessat_AT_EACCESS_rows": [
+    {
+      "mode": "0010",
+      "owner_uid": 1000,
+      "owner_gid": 1000,
+      "result": 0,
+      "errno": 0
+    },
+    {
+      "mode": "0600",
+      "owner_uid": 1000,
+      "owner_gid": 1000,
+      "result": -1,
+      "errno": 13
+    },
+    {
+      "mode": "0755",
+      "owner_uid": 1000,
+      "owner_gid": 1000,
+      "result": 0,
+      "errno": 0
+    }
+  ]
+}

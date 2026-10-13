@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "sdk_revision": "e3465f9afa71cac37dd23326651c8c6ddf939f45",
+  "pty_runtime_revision": "c68837e2b7bf1c9009e1a4587a1a58107ec0425c",
+  "scope": "LocalProvider and BackendRuntimeHost executed with Linux capabilities removed inside a real Vercel VM; separate completed controller RPCs. No Boat, SSH, container or production Vercel adapter certification.",
+  "environment": {
+    "operating_system": "Ubuntu 26.04.1 LTS",
+    "architecture": "x86_64",
+    "kernel_release": "6.18.49",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "region": "iad1",
+    "vcpus": 2,
+    "memory_mib": 4096,
+    "effective_uid": 1000,
+    "capabilities": [
+      "CapInh:\t0000000000000000",
+      "CapPrm:\t0000000000000000",
+      "CapEff:\t0000000000000000",
+      "CapBnd:\t0000000000000000",
+      "CapAmb:\t0000000000000000",
+      "NoNewPrivs:\t1"
+    ],
+    "persistent": false
+  },
+  "source_integrity": {
+    "original_tracked_files_verified": 281,
+    "source_manifest_sha256": "63145115e59fb36a49a23e566c488f1b462d4be2947c7eb02395f17e9671561e",
+    "supervisor_sha256": "126469b6dae408cfff098f52ed305021c11af5a1a11511999b93668b7dad9f28",
+    "probe_source_sha256": "1b83890199cdfa5e75f1473bc000f4ffedb04adcea5bafed41c248ea5129d734",
+    "probe_binary_sha256": "1e8f55fbe21fd997f40b5746ac42ad0048b1bf090f0db612214e97b9a4f70152",
+    "environment_record_sha256": "72d96f05e9ca6690fc71d1913487861fb44c7d908969f26e86037a1c23fa76b0"
+  },
+  "gates": {
+    "initial_default_privilege_run": {
+      "passed": false,
+      "reason": "CAP_DAC_OVERRIDE defeated the owner-permission denial fixture; direct OS probe confirmed mode 0010 was executable for the default fully capable UID 1000."
+    },
+    "capability_free_sdk_gate_passed": true,
+    "capability_free_sdk_and_probe_gate_passed": true,
+    "local_sdk_and_probe_gate_passed": true,
+    "test_assertions_or_exclusions_changed": false,
+    "cloud_native_tests_per_feature_phase": 4,
+    "cloud_adversarial_tests_per_feature_phase": 16,
+    "cloud_pty_performance_sessions": 15
+  },
+  "phases": [
+    {
+      "phase": "started",
+      "controller_pid": 23881,
+      "owner_pid": 23887,
+      "owner_start_ticks": "117595",
+      "workload_pid": 23894,
+      "workload_start_ticks": "117596",
+      "cursor": {
+        "stderr": 0,
+        "stdout": 40
+      },
+      "transcript": "tty:111\nforeground:yes\nsize:80x24\nready\n",
+      "command_exit_code": 0
+    },
+    {
+      "phase": "reconnected",
+      "controller_pid": 23906,
+      "owner_pid": 23887,
+      "owner_start_ticks": "117595",
+      "workload_pid": 23894,
+      "workload_start_ticks": "117596",
+      "cursor": {
+        "stderr": 0,
+        "stdout": 67
+      },
+      "transcript": "tty:111\nforeground:yes\nsize:80x24\nready\ninput:accepted\nsize:120x40\n",
+      "command_exit_code": 0
+    },
+    {
+      "phase": "cleaned",
+      "controller_pid": 23926,
+      "owner_pid": 23887,
+      "owner_start_ticks": "117595",
+      "workload_pid": 23894,
+      "workload_start_ticks": "117596",
+      "cursor": {
+        "stderr": 0,
+        "stdout": 67
+      },
+      "transcript": "tty:111\nforeground:yes\nsize:80x24\nready\ninput:accepted\nsize:120x40\n",
+      "command_exit_code": 0
+    }
+  ],
+  "checks": {
+    "true_terminal_and_foreground": true,
+    "same_owner_workload_and_launch_identity_after_controller_exit": true,
+    "one_launch_after_duplicate_key": true,
+    "exact_replay_and_cursor_continuity": true,
+    "input_acknowledged_by_child_without_echo": true,
+    "resize_observed_by_child_120x40": true,
+    "cancellation_exit_130": true,
+    "settled_gap_free_eof": true,
+    "workload_stopped_and_owner_released": true,
+    "owned_project_and_control_deleted": true,
+    "lagging_state_cleanup_returns_failure_but_removes_owned_workspace": true
+  },
+  "cleanup": {
+    "sandbox_status": "stopped",
+    "confirmed_by_separate_read": true,
+    "stopped_at_unix_ms": 1791859246941,
+    "duration_ms": 1465071
+  },
+  "private_evidence_archive_sha256": "ec87e5a84e8825e73d0fb864df509c8bbcdae5d40bbf163a57462aaab11f1295",
+  "limitations": [
+    "Boat compute unavailable; live Boat PTY transport remains unverified.",
+    "No live SSH/container transport or production Vercel provider adapter was exercised.",
+    "No real agent authentication, inference, rendering, peak memory or long-duration leak qualification.",
+    "Performance measured SDK calls inside the VM, not WAN round-trip latency or a statistical regression baseline."
+  ]
+}

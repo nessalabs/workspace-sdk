@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"result\": {\n    \"command\": {\n      \"id\": \"private-command-011\",\n      \"name\": \"bash\",\n      \"args\": [\n        \"-lc\",\n        \"set -eu\\nexport PATH=/vercel/sdk-cargo/bin:$PATH\\nrustc --version\\ncargo --version\\nuname -a\\ngit rev-parse HEAD\\nscripts/quality-gate.sh > /vercel/sdk-full-gate.log 2>&1\"\n      ],\n      \"cwd\": \"/vercel/workspace-sdk\",\n      \"sessionId\": \"private-session-001\",\n      \"startedAt\": 1791858094106,\n      \"exitCode\": 101,\n      \"durationMs\": 115434\n    }\n  }\n}"
+    }
+  ],
+  "isError": false
+}

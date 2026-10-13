@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"result\": {\n    \"sandbox\": {\n      \"name\": \"workspace-pty-verification-20261012\",\n      \"currentSessionId\": \"private-session-001\",\n      \"status\": \"stopped\",\n      \"statusUpdatedAt\": 1791859247294,\n      \"persistent\": false,\n      \"region\": \"iad1\",\n      \"failoverRegions\": [],\n      \"vcpus\": 2,\n      \"memory\": 4096,\n      \"runtime\": \"node22\",\n      \"architecture\": \"amd64\",\n      \"image\": \"vercel/sandbox/universal@sha256:c77f7436b9bc0a8b01ef7b09dbcea2de6a18a9fe2aafa89996d2da193da72cf0\",\n      \"timeout\": 1800000,\n      \"snapshotExpiration\": 604800000,\n      \"totalEgressBytes\": 2019092,\n      \"totalIngressBytes\": 504597393,\n      \"totalActiveCpuDurationMs\": 352250,\n      \"totalDurationMs\": 1465071,\n      \"cwd\": \"/vercel\",\n      \"createdAt\": 1791857782308,\n      \"updatedAt\": 1791857782308\n    },\n    \"session\": {\n      \"id\": \"private-session-001\",\n      \"runtime\": \"node22\",\n      \"architecture\": \"amd64\",\n      \"requestedAt\": 1791857781846,\n      \"startedAt\": 1791857781870,\n      \"requestedStopAt\": 1791859245669,\n      \"stoppedAt\": 1791859246941,\n      \"status\": \"stopped\",\n      \"duration\": 1465071,\n      \"vcpus\": 2,\n      \"memory\": 4096,\n      \"timeout\": 1800000,\n      \"region\": \"iad1\",\n      \"cwd\": \"/vercel\",\n      \"createdAt\": 1791857781846,\n      \"updatedAt\": 1791857781882,\n      \"interactivePort\": 26661,\n      \"activeCpuDurationMs\": 352250,\n      \"networkTransfer\": {\n        \"ingress\": 504597393,\n        \"egress\": 2019092\n      },\n      \"sourceSandboxName\": \"workspace-pty-verification-20261012\",\n      \"projectId\": \"private-project-001\"\n    }\n  }\n}"
+    }
+  ],
+  "isError": false
+}

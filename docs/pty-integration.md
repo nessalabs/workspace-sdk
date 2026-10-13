@@ -3,8 +3,10 @@
 Workspace SDK integrates the merged `pty-runtime` public API at revision
 `c68837e2b7bf1c9009e1a4587a1a58107ec0425c`, with rendering features disabled.
 A dedicated target-side supervisor owns each raw PTY session independently of
-SDK handles and individual control requests. Synthetic local fixtures qualify
-terminal behavior; real agent sign-in and live remote PTYs remain unvalidated.
+SDK handles and individual control requests. Synthetic local fixtures and capability-free SDK execution inside a Vercel Linux VM qualify
+terminal behavior, including reconnect between completed remote command calls.
+Boat/SSH/container transports and real agent sign-in remain unvalidated live.
+The Vercel run uses LocalProvider inside the VM; it adds no Vercel provider adapter.
 
 ## Current public controls
 

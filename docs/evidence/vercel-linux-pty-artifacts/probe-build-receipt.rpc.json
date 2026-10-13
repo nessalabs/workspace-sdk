@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"result\": {\n    \"command\": {\n      \"id\": \"private-command-007\",\n      \"name\": \"setpriv\",\n      \"args\": [\n        \"--bounding-set=-all\",\n        \"--inh-caps=-all\",\n        \"--ambient-caps=-all\",\n        \"--no-new-privs\",\n        \"--\",\n        \"bash\",\n        \"-lc\",\n        \"set -eu\\nexport PATH=/vercel/sdk-cargo/bin:$PATH\\ngit diff --exit-code\\nsha256sum examples/pty_live_probe.rs\\nscripts/quality-gate.sh > /vercel/sdk-probe-gate.log 2>&1\\ncargo build --locked --example pty_live_probe > /vercel/sdk-probe-build.log 2>&1\"\n      ],\n      \"cwd\": \"/vercel/workspace-sdk\",\n      \"sessionId\": \"private-session-001\",\n      \"startedAt\": 1791858850325,\n      \"exitCode\": 0,\n      \"durationMs\": 39308\n    }\n  }\n}"
+    }
+  ],
+  "isError": false
+}

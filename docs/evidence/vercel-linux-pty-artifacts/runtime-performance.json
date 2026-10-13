@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "unix_timestamp_seconds": 1791858884,
+  "operating_system": "linux",
+  "architecture": "x86_64",
+  "debug_assertions": true,
+  "retention_bytes": 32768,
+  "minimum_load_bytes_per_stream": 131072,
+  "poll_interval_ms": 10,
+  "samples": [
+    {
+      "launch_ms": 3.0197819999999997,
+      "launch_to_first_output_ms": 19.072277,
+      "reconnect_ms": 0.048645,
+      "idempotent_retry_ms": 1.482125,
+      "loaded_read_ms": 1.439595,
+      "cancel_ms": 52.124165,
+      "final_stdout_offset": 196608,
+      "final_stderr_offset": 196608,
+      "retained_stdout_bytes": 16384,
+      "retained_stderr_bytes": 16384
+    },
+    {
+      "launch_ms": 3.077098,
+      "launch_to_first_output_ms": 17.525261,
+      "reconnect_ms": 0.036770000000000004,
+      "idempotent_retry_ms": 1.8213000000000001,
+      "loaded_read_ms": 1.635068,
+      "cancel_ms": 51.934447,
+      "final_stdout_offset": 192512,
+      "final_stderr_offset": 192512,
+      "retained_stdout_bytes": 16384,
+      "retained_stderr_bytes": 16384
+    },
+    {
+      "launch_ms": 2.065511,
+      "launch_to_first_output_ms": 18.010196999999998,
+      "reconnect_ms": 0.038778,
+      "idempotent_retry_ms": 1.570039,
+      "loaded_read_ms": 1.5197509999999999,
+      "cancel_ms": 51.866139,
+      "final_stdout_offset": 196608,
+      "final_stderr_offset": 196608,
+      "retained_stdout_bytes": 16384,
+      "retained_stderr_bytes": 16384
+    }
+  ]
+}
