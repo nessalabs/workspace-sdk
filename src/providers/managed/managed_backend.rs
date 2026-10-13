@@ -4,7 +4,7 @@ use crate::{
     ports::IBackend,
     supervisor::protocol::{
         SupervisorContext, SupervisorExecution, SupervisorOperation, SupervisorRequest,
-        WorkingDirectory,
+        SupervisorValue, WorkingDirectory,
     },
     Error, Result,
 };
@@ -247,8 +247,8 @@ impl IBackend for ManagedBackend {
             }))
             .await
         {
+            Ok(SupervisorValue::InputRejected(fault)) => return Err(fault.into_error()),
             Ok(value) => value.input().unwrap_or(InputOutcome::Unknown),
-            Err(error @ Error::Unsupported(_)) => return Err(error),
             Err(_) => return Ok(InputOutcome::Unknown),
         };
         if matches!(outcome, InputOutcome::Accepted { bytes } if bytes > input.expose().len()) {

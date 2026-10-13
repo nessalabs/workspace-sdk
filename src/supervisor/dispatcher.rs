@@ -1,6 +1,6 @@
 use super::{
     filesystem,
-    protocol::{SupervisorOperation, SupervisorRequest, SupervisorValue},
+    protocol::{SupervisorFault, SupervisorOperation, SupervisorRequest, SupervisorValue},
     run_record, workload,
 };
 use crate::{
@@ -19,7 +19,18 @@ pub(super) fn handle(request: SupervisorRequest) -> Result<SupervisorValue> {
         filesystem::initialize(context, create_project)?;
         return Ok(SupervisorValue::Empty);
     }
-    filesystem::check(context)?;
+    if let Err(error) = filesystem::check(context) {
+        return if matches!(
+            &request.operation,
+            SupervisorOperation::TerminalInput { .. }
+        ) {
+            Ok(SupervisorValue::InputRejected(SupervisorFault::from_error(
+                error,
+            )))
+        } else {
+            Err(error)
+        };
+    }
     let root = Path::new(&context.root);
     let control = Path::new(&context.control);
     match request.operation {
@@ -64,15 +75,26 @@ pub(super) fn handle(request: SupervisorRequest) -> Result<SupervisorValue> {
             output_limit_bytes,
             size,
         )?)),
-        operation @ (SupervisorOperation::TerminalInput { .. }
-        | SupervisorOperation::TerminalResize { .. }) => {
-            let id = match &operation {
-                SupervisorOperation::TerminalInput { id, .. }
-                | SupervisorOperation::TerminalResize { id, .. } => id,
-                _ => unreachable!(),
+        SupervisorOperation::TerminalInput { id, input } => {
+            let path = match run_record::run_directory(context, &id, false) {
+                Ok(path) => path,
+                Err(error) => {
+                    return Ok(SupervisorValue::InputRejected(SupervisorFault::from_error(
+                        error,
+                    )))
+                }
             };
-            let path = run_record::run_directory(context, id, false)?;
-            super::terminal_control::request(&path, operation)
+            super::terminal_control::request(
+                &path,
+                SupervisorOperation::TerminalInput { id, input },
+            )
+        }
+        SupervisorOperation::TerminalResize { id, size } => {
+            let path = run_record::run_directory(context, &id, false)?;
+            super::terminal_control::request(
+                &path,
+                SupervisorOperation::TerminalResize { id, size },
+            )
         }
         SupervisorOperation::Inspect { id } => Ok(SupervisorValue::Run(run_record::inspect(
             &run_record::run_directory(context, &id, false)?,

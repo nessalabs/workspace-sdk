@@ -74,7 +74,9 @@ A durable launch claim binds execution intent, retention, terminal mode and
 initial dimensions. Reconnecting after dropping SDK handles attaches to the
 same run; changing intent under that key conflicts. An owner that disappears
 becomes `Lost`; its claim remains retained and cannot silently launch replacement
-work. Deletion stays blocked while termination is uncertain.
+work. Deletion stays blocked while termination is uncertain. A missing bare
+executable discovered before native launch instead retains an exit-127 receipt
+and a bounded diagnostic, permitting safe lifecycle operations.
 
 Terminal stdout and stderr share one PTY stream, exposed through the stdout
 cursor; stderr is empty. Absolute byte positions survive retention loss. A gap
@@ -88,7 +90,9 @@ Control sockets are private to the run. Connection, request writes and incoming
 frames each have a 250 ms total budget; trickling a frame does not extend it.
 Native input and resize waits are bounded to 500 ms, and replies have a separate
 two-second budget. Once input may have been dispatched, missing or malformed
-acknowledgement becomes `Unknown` without automatic replay. Remote transport
+acknowledgement becomes `Unknown` without automatic replay. A typed refusal
+from the supervisor before dispatch preserves definite errors such as a missing
+run; transport errors never establish that refusal by their error variant alone. Remote transport
 uses protected request files or private standard input rather than command
 history. An uncertain remote cleanup can leave a protected transient request
 file; this is not a promise of secure deletion.

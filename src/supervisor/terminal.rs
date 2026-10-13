@@ -24,7 +24,25 @@ pub(super) fn work(
     limit: usize,
     size: TerminalSize,
 ) -> Result<()> {
-    let command = terminal_command::command(cwd, execution)?;
+    let command = match terminal_command::command(cwd, execution) {
+        Ok(command) => command,
+        Err(Error::NotFound(_)) if cwd.is_dir() => {
+            // Resolution proved no child was launched; retain a deterministic
+            // failure receipt rather than claiming uncertain execution.
+            run_record::append_at(
+                &path.join("stdout.log"),
+                0,
+                b"workspace-supervisor: executable was not found\n",
+                limit,
+            )?;
+            write_json(
+                &path.join("status.json"),
+                &RunState::Exited { exit_code: 127 },
+            )?;
+            return Ok(());
+        }
+        Err(error) => return Err(error),
+    };
     let _directory = terminal_control::DirectoryGuard::enter(path)?;
     let listener = terminal_control::listen()?;
     // Guardian staging must precede Tokio and any session reader threads.
@@ -146,7 +164,9 @@ pub(super) fn work(
     };
     runtime.shutdown();
     drop(listener);
-    fs::remove_file("pty.sock")?;
+    // Shutdown already established process cleanup. Unlink cannot invalidate
+    // that fact, even if the socket was removed or replaced by a directory.
+    let _ = fs::remove_file("pty.sock");
     write_json(&path.join("status.json"), &final_state)?;
     Ok(())
 }

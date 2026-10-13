@@ -1,7 +1,7 @@
 //! Bounded transient control channel to the separately owned PTY supervisor.
 use super::{
     filesystem,
-    protocol::{SupervisorOperation, SupervisorResponse, SupervisorValue},
+    protocol::{SupervisorFault, SupervisorOperation, SupervisorResponse, SupervisorValue},
 };
 use crate::{Error, InputOutcome, Result, RunId};
 use std::{
@@ -101,17 +101,28 @@ pub(super) fn respond(stream: &mut UnixStream, result: Result<SupervisorValue>) 
 }
 
 pub(super) fn request(path: &Path, operation: SupervisorOperation) -> Result<SupervisorValue> {
-    let _directory = DirectoryGuard::enter(path)?;
     let input = matches!(operation, SupervisorOperation::TerminalInput { .. });
-    let socket = socket2::Socket::new(socket2::Domain::UNIX, socket2::Type::STREAM, None)?;
-    // Bound connection backlog waits separately from frame and operation budgets.
-    socket
-        .connect_timeout(&socket2::SockAddr::unix("pty.sock")?, FRAME_BUDGET)
-        .map_err(|_| {
-            Error::Unsupported("this run has no available terminal control owner".into())
-        })?;
-    let descriptor: std::os::fd::OwnedFd = socket.into();
-    let mut stream = UnixStream::from(descriptor);
+    let connection = (|| {
+        let directory = DirectoryGuard::enter(path)?;
+        let socket = socket2::Socket::new(socket2::Domain::UNIX, socket2::Type::STREAM, None)?;
+        // Bound connection backlog waits before any input is serialized or sent.
+        socket
+            .connect_timeout(&socket2::SockAddr::unix("pty.sock")?, FRAME_BUDGET)
+            .map_err(|_| {
+                Error::Unsupported("this run has no available terminal control owner".into())
+            })?;
+        let descriptor: std::os::fd::OwnedFd = socket.into();
+        Ok((directory, UnixStream::from(descriptor)))
+    })();
+    let (_directory, mut stream) = match connection {
+        Ok(connection) => connection,
+        Err(error) if input => {
+            return Ok(SupervisorValue::InputRejected(SupervisorFault::from_error(
+                error,
+            )))
+        }
+        Err(error) => return Err(error),
+    };
     let exchange = (|| {
         let mut bytes = serde_json::to_vec(&operation)?;
         bytes.push(b'\n');
@@ -121,7 +132,15 @@ pub(super) fn request(path: &Path, operation: SupervisorOperation) -> Result<Sup
         let bytes = read_frame(&mut stream, RESPONSE_BUDGET)?;
         let response: SupervisorResponse = serde_json::from_slice(&bytes)
             .map_err(|_| Error::State("invalid terminal control acknowledgement".into()))?;
-        response.into_result()
+        let value = response.into_result()?;
+        // A socket reply arrives after dispatch. Only our local pre-dispatch
+        // checks may establish refusal; a wrong success value is ambiguous.
+        if input && !matches!(&value, SupervisorValue::Input(_)) {
+            return Err(Error::State(
+                "invalid terminal input acknowledgement".into(),
+            ));
+        }
+        Ok(value)
     })();
     if input && exchange.is_err() {
         return Ok(SupervisorValue::Input(InputOutcome::Unknown));

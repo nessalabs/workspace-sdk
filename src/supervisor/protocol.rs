@@ -180,6 +180,8 @@ pub enum SupervisorValue {
     Empty,
     Run(RunState),
     Input(InputOutcome),
+    /// Definitive rejection established before any input could be dispatched.
+    InputRejected(SupervisorFault),
     Output(OutputPage),
     FileChunk(TransferredFileChunk),
     TreeExport(TreeExportReceipt),
@@ -254,6 +256,33 @@ pub struct SupervisorFault {
     pub kind: SupervisorFaultKind,
     pub message: String,
 }
+impl SupervisorFault {
+    pub fn from_error(error: Error) -> Self {
+        let kind = match &error {
+            Error::InvalidInput(_) => SupervisorFaultKind::InvalidInput,
+            Error::Conflict(_) => SupervisorFaultKind::Conflict,
+            Error::Unsupported(_) => SupervisorFaultKind::Unsupported,
+            Error::NotFound(_) => SupervisorFaultKind::NotFound,
+            Error::Io(error) if error.kind() == ErrorKind::NotFound => {
+                SupervisorFaultKind::NotFound
+            }
+            _ => SupervisorFaultKind::State,
+        };
+        Self {
+            kind,
+            message: error.to_string(),
+        }
+    }
+    pub fn into_error(self) -> Error {
+        match self.kind {
+            SupervisorFaultKind::InvalidInput => Error::InvalidInput(self.message),
+            SupervisorFaultKind::Conflict => Error::Conflict(self.message),
+            SupervisorFaultKind::Unsupported => Error::Unsupported(self.message),
+            SupervisorFaultKind::NotFound => Error::NotFound(self.message),
+            SupervisorFaultKind::State => Error::State(self.message),
+        }
+    }
+}
 /// One response is emitted for each request; workload output has separate cursor APIs.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "status", content = "result", rename_all = "snake_case")]
@@ -265,34 +294,13 @@ impl SupervisorResponse {
     pub fn from_result(result: Result<SupervisorValue>) -> Self {
         match result {
             Ok(value) => Self::Success(value),
-            Err(error) => {
-                let kind = match &error {
-                    Error::InvalidInput(_) => SupervisorFaultKind::InvalidInput,
-                    Error::Conflict(_) => SupervisorFaultKind::Conflict,
-                    Error::Unsupported(_) => SupervisorFaultKind::Unsupported,
-                    Error::NotFound(_) => SupervisorFaultKind::NotFound,
-                    Error::Io(error) if error.kind() == ErrorKind::NotFound => {
-                        SupervisorFaultKind::NotFound
-                    }
-                    _ => SupervisorFaultKind::State,
-                };
-                Self::Failure(SupervisorFault {
-                    kind,
-                    message: error.to_string(),
-                })
-            }
+            Err(error) => Self::Failure(SupervisorFault::from_error(error)),
         }
     }
     pub fn into_result(self) -> Result<SupervisorValue> {
         match self {
             Self::Success(value) => Ok(value),
-            Self::Failure(fault) => Err(match fault.kind {
-                SupervisorFaultKind::InvalidInput => Error::InvalidInput(fault.message),
-                SupervisorFaultKind::Conflict => Error::Conflict(fault.message),
-                SupervisorFaultKind::Unsupported => Error::Unsupported(fault.message),
-                SupervisorFaultKind::NotFound => Error::NotFound(fault.message),
-                SupervisorFaultKind::State => Error::State(fault.message),
-            }),
+            Self::Failure(fault) => Err(fault.into_error()),
         }
     }
 }

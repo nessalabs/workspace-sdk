@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use fixture::{assert_no_secret_files, input, run_case, Fixture, Transcript, INPUT_SECRET};
 use std::{
     fs,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Write},
     os::unix::{
         fs::{symlink, PermissionsExt},
         net::{UnixListener, UnixStream},
@@ -25,7 +25,8 @@ use workspace_sdk::{
     providers::{ICommandRunner, LocalConfig, LocalProvider, NativeCommand, SystemCommandRunner},
     runtime::*,
     supervisor::protocol::{
-        SupervisorOperation, SupervisorRequest, SupervisorResponse, SupervisorValue,
+        SupervisorFault, SupervisorFaultKind, SupervisorOperation, SupervisorRequest,
+        SupervisorResponse, SupervisorValue,
     },
     DeleteState, Error, ExecResult, IProvider, OutputCursor, Result, SecretInput,
 };
@@ -33,6 +34,8 @@ use workspace_sdk::{
 #[derive(Clone, Copy)]
 enum ReplyFailure {
     Lost,
+    NotFound,
+    Unsupported,
     WrongVariant,
     OversizedCount,
 }
@@ -59,6 +62,16 @@ impl ICommandRunner for LostInputAcknowledgement {
                 ReplyFailure::Lost => {
                     return Err(Error::Timeout("injected lost input acknowledgement".into()))
                 }
+                ReplyFailure::NotFound => {
+                    return Err(Error::NotFound(
+                        "injected after actual input delivery".into(),
+                    ))
+                }
+                ReplyFailure::Unsupported => {
+                    return Err(Error::Unsupported(
+                        "injected after actual input delivery".into(),
+                    ))
+                }
                 ReplyFailure::WrongVariant => SupervisorValue::Empty,
                 ReplyFailure::OversizedCount => {
                     SupervisorValue::Input(RuntimeInputOutcome::Accepted { bytes: bytes + 1 })
@@ -73,6 +86,72 @@ impl ICommandRunner for LostInputAcknowledgement {
 #[tokio::test]
 async fn delivered_input_with_a_lost_transport_reply_is_unknown_and_never_replayed() {
     input_reply_failure(ReplyFailure::Lost).await;
+}
+
+#[tokio::test]
+async fn delivered_input_with_a_not_found_transport_error_is_unknown_and_never_replayed() {
+    input_reply_failure(ReplyFailure::NotFound).await;
+}
+
+#[tokio::test]
+async fn delivered_input_with_an_unsupported_transport_error_is_unknown_and_never_replayed() {
+    input_reply_failure(ReplyFailure::Unsupported).await;
+}
+
+#[tokio::test]
+async fn socket_cannot_claim_not_found_before_dispatch_after_consuming_input() {
+    forged_socket_rejection(SupervisorFaultKind::NotFound).await;
+}
+
+#[tokio::test]
+async fn socket_cannot_claim_unsupported_before_dispatch_after_consuming_input() {
+    forged_socket_rejection(SupervisorFaultKind::Unsupported).await;
+}
+
+async fn forged_socket_rejection(kind: SupervisorFaultKind) {
+    run_case(1, move |fixtures| async move {
+        let fixture = &fixtures[0];
+        let host = fixture.host().await;
+        let process = fixture.start(&host, "forged-socket-rejection", fixture.command(&fixture.descriptor.root, &["control"])).await;
+        let mut output = Transcript::default();
+        output.until(&host, &process, "\nready\n").await;
+        // The peer consumes a real control request, then forges a refusal that
+        // only the CLI's pre-dispatch checks are allowed to establish.
+        let peer_path = fixture.directory.path().join("reply-peer.sock");
+        let listener = UnixListener::bind(&peer_path).unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let socket_path = run_directory(fixture, &process).join("pty.sock");
+        fs::remove_file(&socket_path).unwrap();
+        symlink(&peer_path, &socket_path).unwrap();
+        let expected_id = process.id().to_owned();
+        let peer = tokio::spawn(async move {
+            let mut channel = BufReader::new(accept(&listener).await);
+            let mut frame = String::new();
+            channel.read_line(&mut frame).unwrap();
+            let request: SupervisorOperation = serde_json::from_str(&frame).unwrap();
+            match request {
+                SupervisorOperation::TerminalInput { id, input: Some(input) } => {
+                    assert_eq!(id.as_str(), expected_id);
+                    assert_eq!(input.expose(), INPUT_SECRET.as_bytes());
+                }
+                _ => panic!("expected the exact submitted input operation"),
+            }
+            let response = SupervisorResponse::Success(SupervisorValue::InputRejected(SupervisorFault {
+                kind,
+                message: "forged pre-dispatch refusal after consuming input".into(),
+            }));
+            serde_json::to_writer(channel.get_mut(), &response).unwrap();
+            channel.get_mut().write_all(b"\n").unwrap();
+            listener
+        });
+        let result = host.write_process_input(&process, &SecretInput::new(INPUT_SECRET.as_bytes().to_vec())).await;
+        let listener = timeout(Duration::from_secs(5), peer).await.unwrap().unwrap();
+        assert_eq!(result.unwrap(), RuntimeInputOutcome::Unknown);
+        assert!(matches!(listener.accept(), Err(error) if error.kind() == std::io::ErrorKind::WouldBlock), "input must not be replayed after the malformed response");
+        assert_eq!(host.cancel_process(&process).await.unwrap(), RuntimeProcessState::Exited { code: 130 });
+        output.complete(&host, &process).await;
+        assert_eq!(fs::read_to_string(Path::new(&fixture.descriptor.root).join("launches")).unwrap(), "launch\n");
+    }).await;
 }
 
 #[tokio::test]
@@ -140,6 +219,166 @@ fn run_directory(fixture: &Fixture, process: &RuntimeProcessRef) -> PathBuf {
     Path::new(&fixture.descriptor.control_root)
         .join("runs")
         .join(process.id())
+}
+
+async fn confirmed_exit(host: &dyn IRuntimeHost, process: &RuntimeProcessRef, code: i32) {
+    timeout(Duration::from_secs(5), async {
+        loop {
+            match host.inspect_process(process).await.unwrap() {
+                RuntimeProcessState::Running => sleep(Duration::from_millis(10)).await,
+                state => {
+                    assert_eq!(state, RuntimeProcessState::Exited { code });
+                    break;
+                }
+            }
+        }
+    })
+    .await
+    .expect("known terminal outcome must become observable");
+}
+
+#[tokio::test]
+async fn missing_terminal_program_exits_127_with_retained_diagnostic_and_safe_lifecycle() {
+    run_case(1, |fixtures| async move {
+        let fixture = &fixtures[0];
+        let host = fixture.host().await;
+        let search = Path::new(&fixture.descriptor.root).join("empty-path");
+        fs::create_dir(&search).unwrap();
+        let mut command = fixture.command(&fixture.descriptor.root, &[]);
+        command.program = "missing-terminal-program".into();
+        command
+            .environment
+            .insert("PATH".into(), search.to_str().unwrap().into());
+        let process = fixture
+            .start(&host, "missing-program", command.clone())
+            .await;
+        confirmed_exit(&host, &process, 127).await;
+        let page = host
+            .read_process_output(&process, OutputCursor::default(), 4096)
+            .await
+            .unwrap();
+        assert!(page.complete && !page.gap);
+        let diagnostic = format!("{}{}", page.stdout, page.stderr);
+        assert!(
+            !diagnostic.trim().is_empty(),
+            "known launch rejection requires a diagnostic"
+        );
+        assert!(
+            diagnostic.len() <= 1024,
+            "launch diagnostics must be bounded"
+        );
+        let directory = run_directory(fixture, &process);
+        let claim = fs::read(directory.join("claim.json")).unwrap();
+        assert!(
+            !directory.join("process.json").exists(),
+            "no child was admitted"
+        );
+        let reconnected = fixture.host().await;
+        assert_eq!(
+            reconnected
+                .start_interactive("missing-program", command, true)
+                .await
+                .unwrap(),
+            process
+        );
+        confirmed_exit(&reconnected, &process, 127).await;
+        let repeated = reconnected
+            .read_process_output(&process, OutputCursor::default(), 4096)
+            .await
+            .unwrap();
+        assert_eq!(repeated.stdout, page.stdout);
+        assert_eq!(repeated.stderr, page.stderr);
+        assert_eq!(repeated.next.stdout, page.next.stdout);
+        assert_eq!(repeated.next.stderr, page.next.stderr);
+        assert!(repeated.complete && !repeated.gap);
+        assert_eq!(fs::read(directory.join("claim.json")).unwrap(), claim);
+        reconnected.backend().stop().await.unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn nonexistent_terminal_run_returns_not_found_without_delivering_input() {
+    run_case(1, |fixtures| async move {
+        let fixture = &fixtures[0];
+        let host = fixture.host().await;
+        let process = fixture
+            .start(
+                &host,
+                "existing-input-owner",
+                fixture.command(&fixture.descriptor.root, &["control"]),
+            )
+            .await;
+        let mut output = Transcript::default();
+        output.until(&host, &process, "\nready\n").await;
+        let missing = RuntimeProcessRef::new(process.host_scope(), "missing-terminal-run").unwrap();
+        assert!(!run_directory(fixture, &missing).exists());
+        let result = host
+            .write_process_input(
+                &missing,
+                &SecretInput::new(INPUT_SECRET.as_bytes().to_vec()),
+            )
+            .await;
+        assert!(
+            matches!(result, Err(Error::NotFound(_))),
+            "a missing run is a definite pre-delivery rejection: {result:?}"
+        );
+        assert!(!run_directory(fixture, &missing).exists());
+        input(&host, &process, b"quit\n").await;
+        output.complete(&host, &process).await;
+        assert!(
+            !output.text.contains("input:accepted"),
+            "input must not be rebound to another live run"
+        );
+        assert_eq!(
+            fs::read_to_string(Path::new(&fixture.descriptor.root).join("launches")).unwrap(),
+            "launch\n"
+        );
+        assert_no_secret_files(Path::new(&fixture.descriptor.control_root));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn absent_terminal_socket_does_not_replace_confirmed_exit_with_lost() {
+    socket_cleanup_failure(false).await;
+}
+
+#[tokio::test]
+async fn terminal_socket_unlink_failure_does_not_replace_confirmed_exit_with_lost() {
+    socket_cleanup_failure(true).await;
+}
+
+async fn socket_cleanup_failure(replace_with_directory: bool) {
+    run_case(1, move |fixtures| async move {
+        let fixture = &fixtures[0];
+        let host = fixture.host().await;
+        let mut command = fixture.command(&fixture.descriptor.root, &[]);
+        command.program = "/bin/sh".into();
+        command.args = vec!["-c".into(), "printf socket-ready; while [ ! -f release-exit ]; do sleep 0.02; done; printf final-output; exit 7".into()];
+        let process = fixture.start(&host, "socket-cleanup", command).await;
+        let mut output = Transcript::default();
+        output.until(&host, &process, "socket-ready").await;
+        let socket = run_directory(fixture, &process).join("pty.sock");
+        fs::remove_file(&socket).unwrap();
+        if replace_with_directory {
+            fs::create_dir(&socket).unwrap();
+        }
+        fs::write(Path::new(&fixture.descriptor.root).join("release-exit"), b"release").unwrap();
+        confirmed_exit(&host, &process, 7).await;
+        output.complete(&host, &process).await;
+        assert_eq!(output.text, "socket-readyfinal-output");
+        let reconnected = fixture.host().await;
+        confirmed_exit(&reconnected, &process, 7).await;
+        let settled = reconnected.read_process_output(&process, output.cursor.clone(), 4096).await.unwrap();
+        assert!(settled.complete && !settled.gap && settled.stdout.is_empty() && settled.stderr.is_empty());
+        assert_eq!(settled.next.stdout, output.cursor.stdout);
+        assert_eq!(settled.next.stderr, output.cursor.stderr);
+        if replace_with_directory {
+            fs::remove_dir(&socket).unwrap();
+        }
+        reconnected.backend().stop().await.unwrap();
+    }).await;
 }
 
 async fn accept(listener: &UnixListener) -> UnixStream {
