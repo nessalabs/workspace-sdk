@@ -1,12 +1,12 @@
 # Research behind the workspace SDK design
 
-Reviewed 2026-09-07. This is a focused architecture comparison, not a benchmark. External behavior below comes from project documentation and source; the recommendations are our design judgment. Subsequent Box-only [live spikes](evidence/README.md) test the important execution and transfer assumptions; the other platforms were not exercised live.
+Reviewed 2026-09-07. This is a focused architecture comparison, not a benchmark. External behavior below comes from project documentation and source; the recommendations are our design judgment. Subsequent Boat-only [live spikes](evidence/README.md) test the important execution and transfer assumptions; the other platforms were not exercised live.
 
 This document records the design research preceding implementation. For the delivered 0.2 API and current verification status, use [architecture](architecture.md) and [integration evidence](evidence/README.md).
 
 ## Recommendation
 
-Build a small execution and workspace portability SDK, using Ascii Box as the first cloud backend through `box_client`. Borrow the workspace boundary from OpenHands, infrastructure independence from DevPod, and explicit conflict handling from Git and Mutagen. Keep agent frameworks, hosted account management, and infrastructure scheduling outside the core.
+Build a small execution and workspace portability SDK, using Boat as the first cloud backend through `boat_client`. Borrow the workspace boundary from OpenHands, infrastructure independence from DevPod, and explicit conflict handling from Git and Mutagen. Keep agent frameworks, hosted account management, and infrastructure scheduling outside the core.
 
 The distinguishing feature worth building is the complete **local files → selected machine → agent run → changes back → continue elsewhere** workflow. A generic wrapper around `exec()` alone will not deliver it.
 
@@ -25,18 +25,18 @@ The distinguishing feature worth building is the complete **local files → sele
 
 OpenHands persistence is relevant to **agent state**, not just environment selection: its restore flow uses a conversation ID and persistence directory. That does not establish a universal format for moving state between different agent frameworks. An integration must verify which state is exportable, whether it includes secrets, and which runtime versions can restore it. [Persistence guide](https://docs.openhands.dev/sdk/guides/convo-persistence).
 
-## Ascii Box: use the capabilities already available
+## Boat: use the capabilities already available
 
-The cloud choice is fixed by the current user requirement: **Ascii Box first, through [asciibox-client-rs](https://github.com/nessalabs/asciibox-client-rs)**.
+The cloud choice is fixed by the current user requirement: **Boat first, through [boat-client-rs](https://github.com/nessalabs/boat-client-rs)**.
 
-After the client update, a fresh Git checkout at `392bdd38d1ab3cf7d2fd62689b48cba525ea3e90` contains detached commands, status polling, deletion operations, snapshots, and readiness helpers. The SDK spike bridge builds against that clean, unpatched source. However, `write_file` still sends `POST`; the live API required `PUT`. The earlier successful transfer runs used an isolated corrected copy of the neighboring working tree. Pin a revision containing that correction before publishing a dependency contract. [Inspected client source](https://github.com/nessalabs/asciibox-client-rs/blob/392bdd38d1ab3cf7d2fd62689b48cba525ea3e90/src/client.rs), [build provenance](evidence/box-client-updated-build.json), [live evidence](evidence/README.md).
+After the client update, a fresh Git checkout at `392bdd38d1ab3cf7d2fd62689b48cba525ea3e90` contains detached commands, status polling, deletion operations, snapshots, and readiness helpers. The SDK spike bridge builds against that clean, unpatched source. However, `write_file` still sends `POST`; the live API required `PUT`. The earlier successful transfer runs used an isolated corrected copy of the neighboring working tree. Pin a revision containing that correction before publishing a dependency contract. [Inspected client source](https://github.com/nessalabs/boat-client-rs/blob/392bdd38d1ab3cf7d2fd62689b48cba525ea3e90/src/client.rs), [build provenance](evidence/boat-client-updated-build.json), [live evidence](evidence/README.md).
 
 Specific findings that change our design:
 
-- Box supports detached command launch with process IDs. Command submission is not automatically retried because a failed response can leave the command running. Use stable SDK run IDs and reconcile before retrying. [Command execution](https://docs.ascii.dev/box/api/reference/agent/execute-box-command).
-- Command status returns log tails and can report `lost` after the Box agent restarts. Polling those tails is not a lossless event stream. Use bounded, sequenced output files for managed SDK runs; expose missing output and uncertain status honestly. [Command status](https://docs.ascii.dev/box/api/reference/agent/get-command-status).
-- Box `idle`/`running` reflect the native prompt path; user processes launched through commands or SSH do not determine those states. Workspace readiness and our run status must be separate. [API lifecycle](https://docs.ascii.dev/box/api/v1).
-- Hosting returns an internet-reachable HTTPS URL, protected by a token by default. It is different from a loopback SSH forward, and the SDK must label the access mode. [Hosting](https://docs.ascii.dev/box/hosting).
+- Boat supports detached command launch with process IDs. Command submission is not automatically retried because a failed response can leave the command running. Use stable SDK run IDs and reconcile before retrying. [Command execution](https://docs.boat.dev/api/v1).
+- Command status returns log tails and can report `lost` after the Boat agent restarts. Polling those tails is not a lossless event stream. Use bounded, sequenced output files for managed SDK runs; expose missing output and uncertain status honestly. [Command status](https://docs.boat.dev/api/v1).
+- Boat `idle`/`running` reflect the native prompt path; user processes launched through commands or SSH do not determine those states. Workspace readiness and our run status must be separate. [API lifecycle](https://docs.boat.dev/api/v1).
+- Hosting returns an internet-reachable HTTPS URL, protected by a token by default. It is different from a loopback SSH forward, and the SDK must label the access mode. [Hosting](https://docs.boat.dev).
 
 The live probes verified tested working directories, a 1 MiB binary transfer with the correction, detached execution across a client restart, and cancellation of an owned process group. Remaining probes include process behavior at TTL/archival, larger transfer limits, SSH availability, supervisor crash recovery, and environment setup for the first actual agent integration. Provider deletion remains blocked in the recorded observations. Do not infer arbitrary-process cancellation from the native prompt interruption endpoint.
 
@@ -48,8 +48,8 @@ The requirement is to use the user's own compute account and supported runtime s
 | --- | --- |
 | Codex documents headless device-code login and, as a fallback, copying a local file-backed `auth.json`. Credentials may instead live in an OS keyring. [Authentication](https://learn.chatgpt.com/docs/auth). | Prefer target-side login; offer explicit supported cache provisioning. Never put authentication in project sync. The installed local CLI also exposes `--device-auth` and stdin-based key login. |
 | Codex App Server provides browser/device login methods. Its experimental external-token mode requires the host to supply refreshed tokens. [App Server](https://learn.chatgpt.com/docs/app-server#authentication-endpoints). | Our application can present native sign-in. An offline laptop cannot be the only refresh provider for a remotely continuing run. |
-| Box has configured Codex/Claude Code prompting and returns a setup URL when the provider is unconfigured. [Box API](https://docs.ascii.dev/box/api/v1). | Use native agents when chosen; expose missing setup. An arbitrary binary remains a separate launch mode. |
-| Box environments control repository, secret, and agent-credential inheritance. `noEnv` suppresses inherited owner credentials; per-Box variables can still be supplied. [Environments](https://docs.ascii.dev/box/environments). | Select the user's intended environment explicitly. Our synthetic `noEnv` runs did not prove native subscription authentication. |
+| Boat has configured Codex/Claude Code prompting and returns a setup URL when the provider is unconfigured. [Boat API](https://docs.boat.dev/api/v1). | Use native agents when chosen; expose missing setup. An arbitrary binary remains a separate launch mode. |
+| Boat environments control repository, secret, and agent-credential inheritance. `noEnv` suppresses inherited owner credentials; per-Boat variables can still be supplied. [Environments](https://docs.boat.dev/environments). | Select the user's intended environment explicitly. Our synthetic `noEnv` runs did not prove native subscription authentication. |
 | OpenCode documents ChatGPT login and API keys, but explicitly rules out Claude Pro/Max subscription plugins. [Providers](https://opencode.ai/docs/providers/). Its current source includes a headless ChatGPT device flow. [Native implementation](https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/plugin/openai/codex.ts). | Support OpenCode's own OpenAI login when the installed version exposes it. For Claude in OpenCode, request an Anthropic API key or supported inference-provider access. Do not import Codex/Claude caches as if they shared a format. |
 | `opencode serve` exposes a headless API; `opencode attach` connects its terminal client, and `opencode run` supports non-interactive use. [Server](https://opencode.ai/docs/server/), [CLI](https://opencode.ai/docs/cli/). | Install/run the server on the target and return a protected endpoint. The model call and tools stay remote while the user can keep a local client. |
 | Anthropic permits hosting the unmodified Claude Code binary under its stated commercial conditions, retaining native auth choices and direct end-user billing. Users can sign into that binary with their subscriptions. Own-product Agent SDK integrations should use API keys or supported cloud providers; developers may not collect Claude subscription tokens. [Published policy](https://code.claude.com/docs/en/legal-and-compliance). | Support native user sign-in to hosted Claude Code, without our own Claude OAuth/token-copy feature. Use user API credentials for our own Claude SDK integration. |
@@ -77,7 +77,7 @@ My diagnosis is a scope problem: the experiment tried to make a complete hosted 
 | --- | --- |
 | Adopt OpenHands as the entire foundation | Strong if every project wants OpenHands agents. Too constraining for infrastructure intended to host arbitrary agent processes and existing SDKs. |
 | Wrap DevPod or deploy Coder as the foundation | Strong for a complete remote development product. Adds provisioning and product assumptions beyond the requested SDK. |
-| Build directly on Box and hide it behind local/cloud flags | Fast first demo, but misses remote machines, sync semantics, and reliable continuation. |
-| **Small SDK + flat backends + shared checkpoint sync** | **Recommended.** Reuses Box immediately and adds only the lifecycle, transfer, and run semantics needed across targets. |
+| Build directly on Boat and hide it behind local/cloud flags | Fast first demo, but misses remote machines, sync semantics, and reliable continuation. |
+| **Small SDK + flat backends + shared checkpoint sync** | **Recommended.** Reuses Boat immediately and adds only the lifecycle, transfer, and run semantics needed across targets. |
 
-Proceed with the [architecture](architecture.md) and [implementation plan](plan.md). Another cloud vendor is useful only after Ascii Box, a local sandbox, and one ordinary SSH machine pass the same user workflow.
+Proceed with the [architecture](architecture.md) and [implementation plan](plan.md). Another cloud vendor is useful only after Boat, a local sandbox, and one ordinary SSH machine pass the same user workflow.

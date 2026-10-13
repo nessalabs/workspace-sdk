@@ -32,6 +32,9 @@ The Boat client is vendored under `vendor/sandbox-client` with provenance. Sourc
 
 ## Scope of validation
 
-The current native Rust implementation passed 93 unit/integration tests, three documentation tests, strict Clippy, formatting, and seven live Box workflow checks. The native Linux supervisor and runnable local example also built and ran successfully. Both live fixtures accepted stop/delete requests, but provider deletion remained blocked. Exact receipts and native binary fingerprints are in the [current evidence](evidence/native-rust-box-live.json).
+The native Rust validation recorded on 2026-09-08 UTC passed 93 unit/integration tests, three documentation tests, strict Clippy, formatting, and seven live Boat workflow checks. The native Linux supervisor and runnable local example also built and ran successfully. Both live fixtures accepted stop/delete requests, but provider deletion remained blocked. Exact receipts and native binary fingerprints are in the [historical evidence](evidence/native-rust-boat-live.json).
+
+These live checks describe their recorded client and binary revisions; no newer
+client or SDK revision is live-certified by them.
 
 Run local native-supervisor and checkpoint tests for any supervisor/protocol change. Remote deployment additionally needs validation against the target environment. Historical Python-supervisor and TypeScript test results are retained only as historical evidence and do not establish correctness of the current Rust implementation. See [evidence](evidence/README.md) for recorded live cleanup limitations.

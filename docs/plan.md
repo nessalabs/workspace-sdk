@@ -18,7 +18,7 @@ Native process tests must cover reconnect after client exit, duplicate launch re
 
 A remote artifact must be built for and tested on the intended platform. Mocked SSH/container commands are not a live deployment. Native agent subscription authentication and inference require a real user-authorized login flow and are separate from synthetic process tests.
 
-Box deletion completion remains a provider limitation in historical live checks: accepted deletion operations could remain blocked. Continue returning/persisting that state honestly; do not equate a missing resource lookup with completed cleanup.
+Boat deletion completion remains a provider limitation in historical live checks: accepted deletion operations could remain blocked. Continue returning/persisting that state honestly; do not equate a missing resource lookup with completed cleanup.
 
 ## Later work
 

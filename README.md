@@ -54,7 +54,7 @@ async fn run_workload(
 }
 ```
 
-Storage roots are explicit configuration. For Box, construct `BoatOpenOptions::new(target_root)` and configure an `BoatProvider` with your own Boat client and supervisor deployment. Remote adapters use either a preinstalled supervisor or an explicitly supplied binary compiled for that target’s operating system and architecture.
+Storage roots are explicit configuration. For Boat, construct `BoatOpenOptions::new(target_root)` and configure an `BoatProvider` with your own Boat client and supervisor deployment. Remote adapters use either a preinstalled supervisor or an explicitly supplied binary compiled for that target’s operating system and architecture.
 
 Requirements: Rust 1.89+ to build, a supported POSIX target for process supervision, and Git for checkpoint operations. The SDK does not require a Rust toolchain on a target using a prebuilt supervisor. Your workload can have its own runtime requirements.
 
@@ -65,7 +65,7 @@ Requirements: Rust 1.89+ to build, a supported POSIX target for process supervis
 - [Architecture](docs/architecture.md): dependency direction and the Rust supervisor boundary.
 - [Build and distribution](docs/release.md): native artifacts and generated Rust documentation.
 - [Native authentication integration](docs/pty-integration.md): session controls, concurrency and pending PTY adapter work.
-- [Validation evidence](docs/evidence/README.md): current native Rust tests, live Box checks, and their limits.
+- [Validation evidence](docs/evidence/README.md): current native Rust tests, live Boat checks, and their limits.
 
 Generate browsable API documentation with `cargo doc --no-deps`. Public domain types explain their purpose, fields, lifecycle, and constraints in Rustdoc.
 
@@ -98,22 +98,3 @@ Related domain concepts share focused files inside context modules. Module entry
 Run `scripts/quality-gate.sh` for the mechanical and local performance checks.
 Acceptance additionally requires separate independent code-quality/design and
 adversarial agent reviews under [the coding standards](coding_standards.md).
-
-## Boat naming
-
-Use `providers::BoatProvider`, `providers::BoatOpenOptions` and
-`workspace_sdk::boat_client`. The provider feature is `boat`; obsolete Box feature/type aliases are removed. The implementation lives in `providers/sandbox`, the dependency
-is imported internally as `sandbox_client`, and its pinned source lives under
-`vendor/sandbox-client`. Branded public aliases and the provider display name
-are separate from the neutral implementation.
-
-The default provider registry ID is `boat`. Obtain it through `IProvider::id()`
-or set an explicit registration ID with `with_id`. Open options use
-`sandbox_id` and `sandbox_type` in both Rust and serialized configuration.
-Obsolete Box names and unknown or duplicate fields are rejected. This is the
-current-only API; no compatibility layer or automatic record migration is provided.
-
-Historical live evidence predates the Boat migration. Public evidence redacts
-live resource IDs and local machine paths; unredacted originals remain private.
-Current Boat verification uses offline contract tests and local SDK workflows,
-not new cloud fixtures or real agent login. PTY integration remains pending.

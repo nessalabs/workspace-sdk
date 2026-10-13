@@ -20,6 +20,6 @@ pub use ssh::{SshConfig, SshOpenOptions, SshProvider};
 pub use supervisor_deployment::{SupervisorArtifact, SupervisorDeployment, TargetPlatform};
 pub use system_command_runner::SystemCommandRunner;
 
-/// Boat's public names are aliases over the neutral sandbox adapter.
+/// Managed Boat workspaces and their creation options.
 #[cfg(feature = "boat")]
 pub use sandbox::{SandboxOpenOptions as BoatOpenOptions, SandboxProvider as BoatProvider};

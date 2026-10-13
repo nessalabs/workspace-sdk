@@ -9,11 +9,11 @@ The provider IDs default to `local`, `boat`, `ssh`, and `container`. Each adapte
 | IProvider | Construction | Open configuration |
 | --- | --- | --- |
 | Local | `LocalProvider::new(LocalConfig::trusted_host(base_dir))` | `LocalOpenOptions { attach }`; otherwise creates an owned project. |
-| Boat | `BoatProvider::new(explicit_box_api)` | `BoatOpenOptions::new(root)`: explicit target root, optional existing Box ID, and new-Box type/TTL/environment. |
+| Boat | `BoatProvider::new(explicit_boat_api)` | `BoatOpenOptions::new(root)`: explicit target root, optional existing Boat ID, and new-Boat type/TTL/environment. |
 | SSH | `SshProvider::new(SshConfig::trusted_host(host, root))` | `SshOpenOptions { attach }`; existing host keys and SSH login must already work. |
 | Container | `ContainerProvider::new(ContainerConfig::new(engine, image, root))` | `ContainerOpenOptions { container_id }`; otherwise creates a labeled container/volume. |
 
-Build `OpenRequest::new(workspace_id, &options)` from the provider’s named options struct. `ProviderOptions` erases the concrete type only for registry dispatch; the adapter decodes it immediately into its own schema. Resource requirements are validated or rejected; they are never silently treated as provisioned. Boat sizing currently uses an explicit Box type. Runtime resource checks can verify the CPU, memory, disk, platform and GPU needs of an existing host.
+Build `OpenRequest::new(workspace_id, &options)` from the provider’s named options struct. `ProviderOptions` erases the concrete type only for registry dispatch; the adapter decodes it immediately into its own schema. Resource requirements are validated or rejected; they are never silently treated as provisioned. Boat sizing currently uses an explicit Boat type. Runtime resource checks can verify the CPU, memory, disk, platform and GPU needs of an existing host.
 
 Local and SSH execution share the user's host permissions. Container isolation depends on the selected engine/image; the SDK does not claim a hardware security boundary. Attachments disable destructive target lifecycle operations.
 
@@ -93,10 +93,10 @@ let receipt = sync.handoff(
 
 The service captures files, restores the target, and launches the continuation under a deterministic run ID. Persisted phases make retries resume the same operation. Failures keep the source stopped. `Lost` source state prevents duplication.
 
-This is portable file state plus an explicit continuation command. It does not migrate VM memory or automatically translate Codex, Claude or OpenCode conversation stores. The runnable [local workflow example](../examples/local_workflow.rs) demonstrates the shared sync path; the opt-in [Box integration test](../tests/boat_live.rs) exercises Box-to-Box handoff with a deterministic worker.
+This is portable file state plus an explicit continuation command. It does not migrate VM memory or automatically translate Codex, Claude or OpenCode conversation stores. The runnable [local workflow example](../examples/local_workflow.rs) demonstrates the shared sync path; the opt-in [Boat integration test](../tests/boat_live.rs) exercises Boat-to-Boat handoff with a deterministic worker.
 
 ## Deletion and extension
 
-`destroy` is restricted to owned resources. Save its `DeleteOperation` and inspect asynchronous provider cleanup until completed. Box may report blocked cleanup even after a delete request is accepted; a missing Box lookup does not prove deletion finished. Local deletion receipts persist outside the deleted workspace. SSH target deletion is currently unsupported; stopping its managed runs is supported.
+`destroy` is restricted to owned resources. Save its `DeleteOperation` and inspect asynchronous provider cleanup until completed. Boat may report blocked cleanup even after a delete request is accepted; a missing Boat lookup does not prove deletion finished. Local deletion receipts persist outside the deleted workspace. SSH target deletion is currently unsupported; stopping its managed runs is supported.
 
 To add another cloud, implement `IProvider` and `IBackend`, including truthful capability and ownership descriptors. You may use native HTTP APIs, SSH or your own process transport. No common remote server is required. Register the adapter through the builder and run the conformance scenarios used by the supplied providers.

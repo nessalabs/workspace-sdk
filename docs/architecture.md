@@ -33,7 +33,7 @@ There is no embedded Python script assembly. `SupervisorDeployment` explicitly s
 
 ## Configuration and state
 
-Project roots and private application state locations come from configuration. Box and SSH adapters do not assume a user name or home directory. Container roots are configured for the selected image. Child names used for run records and scoped transfers are internal format conventions beneath those caller-selected roots.
+Project roots and private application state locations come from configuration. Boat and SSH adapters do not assume a user name or home directory. Container roots are configured for the selected image. Child names used for run records and scoped transfers are internal format conventions beneath those caller-selected roots.
 
 `WorkspaceRef` is a non-secret reconnect value. `RunRef` adds a run identity in that workspace. `SecretEnvironment` and `SecretInput` are transient execution values; their contents are not written to normal command receipts or debug output. The wire transport must still carry those bytes to the target securely. Programs can print their own credentials, so workload output is not automatically sanitized.
 
@@ -49,11 +49,11 @@ Handoff requires a confirmed-stopped source run, captures selected files, restor
 
 ## Boat client integration
 
-The vendored Boat client tracks upstream `main` at `69ca3c913986602ae13a0500157390ac118f599a`, without source patches. The adapter delegates HTTP transport, retries, response limits, diagnostic redaction, readiness polling, command defaults, and text-file encoding to that client. Workspace creation uses its typed `CreateOptions` with the existing stable idempotency key. Hosting explicitly requests `public: false` and verifies the returned protection status.
+The vendored Boat client tracks upstream `main` at `4d68256bb0b6a889633abc567fb09214681874db`, without source patches. The adapter delegates HTTP transport, retries, response limits, diagnostic redaction, readiness polling, command defaults, and text-file encoding to that client. Workspace creation uses its typed `CreateOptions` with the existing stable idempotency key. Hosting explicitly requests `public: false` and verifies the returned protection status.
 
-Box's [SSH access](https://docs.ascii.dev/box/ssh-access) supports piped stdin. Its documented [HTTP command request](https://docs.ascii.dev/box/api/reference/agent/execute-box-command) and this client revision expose command text, working directory, timeout, and detached mode, but no separate stdin field. This HTTP adapter therefore retains ownership-checked private request files. Client-side debug redaction does not establish server-side logging guarantees.
+Boat's [SSH access](https://docs.ascii.dev/box/ssh-access) supports piped stdin. Its documented [HTTP command request](https://docs.boat.dev/api/v1) and this client revision expose command text, working directory, timeout, and detached mode, but no separate stdin field. This HTTP adapter therefore retains ownership-checked private request files. Client-side debug redaction does not establish server-side logging guarantees.
 
-The client's handoff journal records callback progress; callers still implement capture, copy, verification, and continuation. Workspace SDK retains its provider-independent workflow because it also owns filtered checkpoints, merge/apply recovery, source-run quiescence, and destination run identity. Box prompt/event streams describe Box agent activity, while this SDK supervises arbitrary workload processes. Substituting those APIs would change the execution contract.
+The client's handoff journal records callback progress; callers still implement capture, copy, verification, and continuation. Workspace SDK retains its provider-independent workflow because it also owns filtered checkpoints, merge/apply recovery, source-run quiescence, and destination run identity. Boat prompt/event streams describe Boat agent activity, while this SDK supervises arbitrary workload processes. Substituting those APIs would change the execution contract.
 
 ## Current delivery
 
