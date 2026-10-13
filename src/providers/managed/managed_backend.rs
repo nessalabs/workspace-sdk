@@ -198,6 +198,74 @@ impl IBackend for ManagedBackend {
     async fn start_private(&self, request: LaunchRequest, cwd: WorkspacePath) -> Result<RunRef> {
         self.launch(request, WorkingDirectory::Control(cwd)).await
     }
+    async fn start_terminal(
+        &self,
+        request: LaunchRequest,
+        private_cwd: Option<WorkspacePath>,
+        size: TerminalSize,
+    ) -> Result<RunRef> {
+        request.execution.command.validate()?;
+        let directory = match private_cwd {
+            Some(cwd) => WorkingDirectory::Control(cwd),
+            None => WorkingDirectory::Project(request.execution.command.cwd.clone()),
+        };
+        let reference = RunRef {
+            workspace: self.descriptor.reference.clone(),
+            id: request.id.clone(),
+        };
+        let execution = SupervisorExecution {
+            command: request.execution.command,
+            secrets: request.execution.secrets,
+            private_stdin: request.execution.private_stdin,
+            directory,
+        };
+        self.target
+            .invoke(self.protocol_request(SupervisorOperation::StartTerminal {
+                id: request.id,
+                execution: Box::new(execution),
+                output_limit_bytes: request.output_limit_bytes,
+                size,
+            }))
+            .await?
+            .run()?;
+        Ok(reference)
+    }
+    async fn write_terminal_input(
+        &self,
+        run: &RunRef,
+        input: &SecretInput,
+    ) -> Result<InputOutcome> {
+        self.validate_run(run)?;
+        if input.expose().len() > 65536 {
+            return Err(Error::InvalidInput("terminal input exceeds 64 KiB".into()));
+        }
+        let outcome = match self
+            .target
+            .invoke(self.protocol_request(SupervisorOperation::TerminalInput {
+                id: run.id.clone(),
+                input: Some(input.clone()),
+            }))
+            .await
+        {
+            Ok(value) => value.input().unwrap_or(InputOutcome::Unknown),
+            Err(error @ Error::Unsupported(_)) => return Err(error),
+            Err(_) => return Ok(InputOutcome::Unknown),
+        };
+        if matches!(outcome, InputOutcome::Accepted { bytes } if bytes > input.expose().len()) {
+            return Ok(InputOutcome::Unknown);
+        }
+        Ok(outcome)
+    }
+    async fn resize_terminal(&self, run: &RunRef, size: TerminalSize) -> Result<()> {
+        self.validate_run(run)?;
+        self.target
+            .invoke(self.protocol_request(SupervisorOperation::TerminalResize {
+                id: run.id.clone(),
+                size,
+            }))
+            .await?
+            .empty()
+    }
     async fn read_file(&self, request: ReadFile) -> Result<FileChunk> {
         if request.limit == 0 || request.limit as usize > MAX_CHUNK {
             return Err(Error::InvalidInput(

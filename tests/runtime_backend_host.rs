@@ -255,10 +255,6 @@ async fn native_device_interaction_is_a_reconnectable_managed_run() {
         .await
         .unwrap();
     assert_eq!(first, second);
-    assert!(host
-        .start_interactive("terminal-1", login, true)
-        .await
-        .is_err());
     timeout(Duration::from_secs(10), async {
         loop {
             match host.inspect_process(&first).await.unwrap() {

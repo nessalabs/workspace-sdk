@@ -44,6 +44,32 @@ pub fn start(
     execution: &SupervisorExecution,
     limit: u64,
 ) -> Result<RunState> {
+    start_mode(context, id, execution, limit, None)
+}
+pub(super) fn start_terminal(
+    context: &SupervisorContext,
+    id: &RunId,
+    execution: &SupervisorExecution,
+    limit: u64,
+    size: crate::TerminalSize,
+) -> Result<RunState> {
+    if !(2..=128 * 1024).contains(&limit)
+        || execution.command.stdin.is_some()
+        || execution.private_stdin.is_some()
+    {
+        return Err(Error::InvalidInput(
+            "terminal launch requires 2 bytes..=128 KiB retention and no launch stdin".into(),
+        ));
+    }
+    start_mode(context, id, execution, limit, Some(size))
+}
+fn start_mode(
+    context: &SupervisorContext,
+    id: &RunId,
+    execution: &SupervisorExecution,
+    limit: u64,
+    terminal: Option<crate::TerminalSize>,
+) -> Result<RunState> {
     valid_execution(execution)?;
     if !(2..=MAX_OUTPUT).contains(&limit) {
         return Err(Error::InvalidInput(
@@ -74,7 +100,7 @@ pub fn start(
     }
     let mut hash = Sha256::new();
     hash.update(salt);
-    hash.update(serde_json::to_vec(&(execution, limit))?);
+    hash.update(serde_json::to_vec(&(execution, limit, terminal))?);
     let fingerprint = format!("{:x}", hash.finalize());
     let _launch_lock = lock(&path.join("launch.lock"))?;
     let claim_path = path.join("claim.json");
@@ -122,7 +148,10 @@ pub fn start(
             }
         }
     }
-    let result = work(&path, &cwd, execution, limit as usize);
+    let result = match terminal {
+        Some(size) => super::terminal::work(&path, &cwd, id, execution, limit as usize, size),
+        None => work(&path, &cwd, execution, limit as usize),
+    };
     if result.is_err() {
         let _ = write_json(
             &path.join("status.json"),

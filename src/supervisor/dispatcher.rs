@@ -52,6 +52,28 @@ pub(super) fn handle(request: SupervisorRequest) -> Result<SupervisorValue> {
             &execution,
             output_limit_bytes,
         )?)),
+        SupervisorOperation::StartTerminal {
+            id,
+            execution,
+            output_limit_bytes,
+            size,
+        } => Ok(SupervisorValue::Run(workload::start_terminal(
+            context,
+            &id,
+            &execution,
+            output_limit_bytes,
+            size,
+        )?)),
+        operation @ (SupervisorOperation::TerminalInput { .. }
+        | SupervisorOperation::TerminalResize { .. }) => {
+            let id = match &operation {
+                SupervisorOperation::TerminalInput { id, .. }
+                | SupervisorOperation::TerminalResize { id, .. } => id,
+                _ => unreachable!(),
+            };
+            let path = run_record::run_directory(context, id, false)?;
+            super::terminal_control::request(&path, operation)
+        }
         SupervisorOperation::Inspect { id } => Ok(SupervisorValue::Run(run_record::inspect(
             &run_record::run_directory(context, &id, false)?,
         )?)),

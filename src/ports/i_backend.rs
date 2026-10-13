@@ -60,6 +60,30 @@ pub trait IBackend: Send + Sync {
     }
     /// Start or reconnect to the exact request identified by its stable run ID.
     async fn start(&self, request: LaunchRequest) -> Result<RunRef>;
+    /// Start a terminal under the same durable run identity. `private_cwd` selects
+    /// private control state; otherwise the command's project-relative cwd applies.
+    /// The supervisor owns the terminal independently of this backend handle.
+    async fn start_terminal(
+        &self,
+        _request: LaunchRequest,
+        _private_cwd: Option<WorkspacePath>,
+        _size: TerminalSize,
+    ) -> Result<RunRef> {
+        Err(Error::Unsupported("terminal launch".into()))
+    }
+    /// Deliver transient input once. Ambiguous acknowledgement is `Unknown`;
+    /// callers must never replay the submission automatically.
+    async fn write_terminal_input(
+        &self,
+        _run: &RunRef,
+        _input: &SecretInput,
+    ) -> Result<InputOutcome> {
+        Err(Error::Unsupported("terminal input".into()))
+    }
+    /// Resize one existing terminal without replacing its owned process.
+    async fn resize_terminal(&self, _run: &RunRef, _size: TerminalSize) -> Result<()> {
+        Err(Error::Unsupported("terminal resize".into()))
+    }
     /// Observe a workspace-qualified run, rejecting references to another target.
     async fn inspect_run(&self, run: &RunRef) -> Result<RunState>;
     /// Read retained output using absolute byte cursors and an explicit page limit.

@@ -189,12 +189,7 @@ impl SandboxTarget {
 #[async_trait]
 impl ITarget for SandboxTarget {
     async fn invoke(&self, request: SupervisorRequest) -> Result<SupervisorValue> {
-        let sensitive = matches!(
-            request.operation,
-            SupervisorOperation::Start { .. }
-                | SupervisorOperation::WriteFile { .. }
-                | SupervisorOperation::WritePrivateFile { .. }
-        );
+        let sensitive = request.operation.requires_private_transport();
         if !sensitive {
             return self.invoke_inline(&request).await;
         }
@@ -544,6 +539,175 @@ mod tests {
                 .command
                 .contains("only-in-private-input"));
         }
+    }
+
+    fn private_terminal_payload(
+        requests: &[HttpRequest],
+        context: &SupervisorContext,
+        secrets: &[&str],
+    ) -> SupervisorRequest {
+        assert_eq!(requests.len(), 4);
+        assert_eq!(requests[1].method, "PUT");
+        assert_eq!(requests[1].route, "/sandboxes/bx_23456789/files");
+        let file: WireFile = serde_json::from_slice(&requests[1].body).unwrap();
+        assert_eq!(file.encoding, "utf8");
+        let name = file
+            .path
+            .strip_prefix(&format!("{}/requests/", context.control))
+            .unwrap()
+            .strip_suffix(".json")
+            .unwrap();
+        let id = Uuid::parse_str(name).unwrap();
+        assert_eq!(name, id.to_string());
+        for (index, operation) in [
+            (0, SupervisorOperation::PrepareRequest { id }),
+            (3, SupervisorOperation::RemoveRequest { id }),
+        ] {
+            let request = SupervisorRequest::new(context.clone(), operation);
+            let json = serde_json::to_string(&request).unwrap();
+            assert_eq!(
+                command(&requests[index]).command,
+                format!(
+                    "printf '%s' {} | '/opt/sdk/workspace-supervisor'",
+                    managed::quote(&json)
+                )
+            );
+        }
+        assert_eq!(
+            command(&requests[2]).command,
+            format!(
+                "'/opt/sdk/workspace-supervisor' --request-file {}",
+                managed::quote(&file.path)
+            )
+        );
+        for index in [0, 2, 3] {
+            let body = std::str::from_utf8(&requests[index].body).unwrap();
+            let text = command(&requests[index]).command;
+            for secret in secrets {
+                assert!(!text.contains(secret));
+                assert!(!text.contains(&STANDARD.encode(secret.as_bytes())));
+                assert!(!body.contains(secret));
+                assert!(!body.contains(&STANDARD.encode(secret.as_bytes())));
+            }
+        }
+        let payload: SupervisorRequest = serde_json::from_str(&file.content).unwrap();
+        assert_eq!(payload.version, 1);
+        assert_eq!(&payload.context, context);
+        payload
+    }
+
+    #[tokio::test]
+    async fn terminal_launch_keeps_environment_in_private_utf8_transport() {
+        let (target, worker) = server(vec![
+            command_reply(true, SupervisorValue::Empty),
+            r#"{"ok":true,"success":true}"#.into(),
+            command_reply(true, SupervisorValue::Run(RunState::Starting)),
+            command_reply(true, SupervisorValue::Empty),
+        ]);
+        let mut request = launch(&target);
+        let context = request.context.clone();
+        let SupervisorOperation::Start { id, execution, .. } = request.operation else {
+            panic!("expected launch fixture");
+        };
+        request.operation = SupervisorOperation::StartTerminal {
+            id,
+            execution,
+            output_limit_bytes: 8192,
+            size: TerminalSize::new(132, 43).unwrap(),
+        };
+        assert_eq!(
+            target.invoke(request).await.unwrap().run().unwrap(),
+            RunState::Starting
+        );
+        let requests = worker.join().unwrap();
+        let payload = private_terminal_payload(&requests, &context, &["only-in-private-input"]);
+        let SupervisorOperation::StartTerminal {
+            id,
+            execution,
+            output_limit_bytes,
+            size,
+        } = payload.operation
+        else {
+            panic!("expected typed terminal launch");
+        };
+        assert_eq!(id, RunId::new("run-one").unwrap());
+        assert_eq!(output_limit_bytes, 8192);
+        assert_eq!(size, TerminalSize::new(132, 43).unwrap());
+        assert_eq!(execution.secrets.0["API_TOKEN"], "only-in-private-input");
+        assert!(execution.private_stdin.is_none());
+        assert_eq!(execution.command.program, "true");
+        assert!(matches!(
+            &execution.directory,
+            WorkingDirectory::Project(path) if *path == WorkspacePath::root()
+        ));
+        let debug = format!("{execution:?}");
+        assert!(!debug.contains("only-in-private-input"));
+        assert!(!debug.contains(&STANDARD.encode("only-in-private-input")));
+    }
+
+    fn terminal_input(target: &SandboxTarget) -> SupervisorRequest {
+        let mut request = launch(target);
+        request.operation = SupervisorOperation::TerminalInput {
+            id: RunId::new("terminal-input-one").unwrap(),
+            input: Some(SecretInput::new(
+                "private-terminal-κλειδί\n".as_bytes().to_vec(),
+            )),
+        };
+        request
+    }
+
+    #[tokio::test]
+    async fn terminal_input_keeps_exact_bytes_in_private_utf8_transport() {
+        let secret = "private-terminal-κλειδί\n";
+        let (target, worker) = server(vec![
+            command_reply(true, SupervisorValue::Empty),
+            r#"{"ok":true,"success":true}"#.into(),
+            command_reply(
+                true,
+                SupervisorValue::Input(InputOutcome::Accepted {
+                    bytes: secret.len(),
+                }),
+            ),
+            command_reply(true, SupervisorValue::Empty),
+        ]);
+        let request = terminal_input(&target);
+        let context = request.context.clone();
+        assert_eq!(
+            target.invoke(request).await.unwrap().input().unwrap(),
+            InputOutcome::Accepted {
+                bytes: secret.len()
+            }
+        );
+        let requests = worker.join().unwrap();
+        let payload = private_terminal_payload(&requests, &context, &[secret]);
+        let SupervisorOperation::TerminalInput { id, input } = payload.operation else {
+            panic!("expected typed terminal input");
+        };
+        assert_eq!(id, RunId::new("terminal-input-one").unwrap());
+        let input = input.unwrap();
+        assert_eq!(input.expose(), secret.as_bytes());
+        let debug = format!("{input:?}");
+        assert!(!debug.contains(secret));
+        assert!(!debug.contains(&STANDARD.encode(secret.as_bytes())));
+    }
+
+    #[tokio::test]
+    async fn rejected_terminal_input_cleans_private_request_without_replay() {
+        let (target, worker) = server(vec![
+            command_reply(true, SupervisorValue::Empty),
+            r#"{"ok":true,"success":true}"#.into(),
+            command_reply(false, SupervisorValue::Empty),
+            command_reply(true, SupervisorValue::Empty),
+        ]);
+        let request = terminal_input(&target);
+        let context = request.context.clone();
+        assert!(target.invoke(request).await.is_err());
+        let requests = worker.join().unwrap();
+        let payload = private_terminal_payload(&requests, &context, &["private-terminal-κλειδί\n"]);
+        assert!(matches!(
+            payload.operation,
+            SupervisorOperation::TerminalInput { .. }
+        ));
     }
 
     #[tokio::test]

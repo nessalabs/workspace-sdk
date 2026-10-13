@@ -72,6 +72,29 @@ pub fn append(path: &Path, chunk: &[u8], capacity: usize) -> Result<()> {
     snapshot.extend_from_slice(&bytes[skipped..]);
     atomic(path, &snapshot)
 }
+/// Persist a contiguous retained tail at the runtime's absolute byte positions.
+pub(super) fn append_at(path: &Path, from: u64, chunk: &[u8], capacity: usize) -> Result<()> {
+    let (mut first, mut bytes) = log(path)?;
+    let end = first
+        .checked_add(bytes.len() as u64)
+        .ok_or_else(|| Error::State("terminal output offset overflow".into()))?;
+    if from < end {
+        return Err(Error::State("terminal output moved backwards".into()));
+    }
+    if from != end {
+        bytes.clear();
+        first = from;
+    }
+    bytes.extend_from_slice(chunk);
+    let skipped = bytes.len().saturating_sub(capacity);
+    first = first
+        .checked_add(skipped as u64)
+        .ok_or_else(|| Error::State("terminal output offset overflow".into()))?;
+    let mut record = Vec::with_capacity(8 + bytes.len() - skipped);
+    record.extend_from_slice(&first.to_be_bytes());
+    record.extend_from_slice(&bytes[skipped..]);
+    atomic(path, &record)
+}
 fn page(path: &Path, cursor: u64, limit: usize) -> Result<(String, u64, bool, u64)> {
     let (first, bytes) = log(path)?;
     let end = first
@@ -113,7 +136,7 @@ pub fn output(path: &Path, cursor: OutputCursor, limit: u32) -> Result<OutputPag
             stdout: out_next,
             stderr: err_next,
         },
-        gap: out_gap || err_gap,
+        gap: out_gap || err_gap || path.join("output-gap").exists(),
         complete: state.is_terminal() && out_next == out_end && err_next == err_end,
     })
 }

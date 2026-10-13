@@ -3,9 +3,9 @@
 //! Request values are serialized only when crossing a process/API boundary.
 //! Credentials are transient fields, never part of persisted run records.
 use crate::{
-    CommandSpec, Error, HostResources, OutputCursor, OutputPage, Ownership, Result, RunId,
-    RunState, SecretEnvironment, SecretInput, TreeExportReceipt, TreeImportReceipt, TreeTransfer,
-    WorkspaceId, WorkspacePath,
+    CommandSpec, Error, HostResources, InputOutcome, OutputCursor, OutputPage, Ownership, Result,
+    RunId, RunState, SecretEnvironment, SecretInput, TerminalSize, TreeExportReceipt,
+    TreeImportReceipt, TreeTransfer, WorkspaceId, WorkspacePath,
 };
 use serde::{Deserialize, Serialize};
 use std::io::ErrorKind;
@@ -64,6 +64,21 @@ pub enum SupervisorOperation {
         execution: Box<SupervisorExecution>,
         output_limit_bytes: u64,
     },
+    StartTerminal {
+        id: RunId,
+        execution: Box<SupervisorExecution>,
+        output_limit_bytes: u64,
+        size: TerminalSize,
+    },
+    TerminalInput {
+        id: RunId,
+        #[serde(with = "secret_input")]
+        input: Option<SecretInput>,
+    },
+    TerminalResize {
+        id: RunId,
+        size: TerminalSize,
+    },
     Inspect {
         id: RunId,
     },
@@ -104,6 +119,35 @@ pub enum SupervisorOperation {
         id: Uuid,
     },
 }
+impl SupervisorOperation {
+    /// Payload-bearing operations require private provider transport. Exhaustive
+    /// classification prevents a new input operation from falling into command history.
+    pub(crate) fn requires_private_transport(&self) -> bool {
+        match self {
+            Self::Start { .. }
+            | Self::StartTerminal { .. }
+            | Self::TerminalInput { .. }
+            | Self::WriteFile { .. }
+            | Self::WritePrivateFile { .. } => true,
+            Self::Initialize { .. }
+            | Self::Ready
+            | Self::ReadFile { .. }
+            | Self::TerminalResize { .. }
+            | Self::Inspect { .. }
+            | Self::Cancel { .. }
+            | Self::Output { .. }
+            | Self::StopOwnedRuns
+            | Self::DestroyOwnedFiles
+            | Self::ExportTree { .. }
+            | Self::ImportTree { .. }
+            | Self::RemoveTransfer { .. }
+            | Self::EnsurePrivateDirectory { .. }
+            | Self::InspectResources
+            | Self::PrepareRequest { .. }
+            | Self::RemoveRequest { .. } => false,
+        }
+    }
+}
 /// A complete, versioned request. The operation is explicit rather than an opaque map.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -135,6 +179,7 @@ pub struct TransferredFileChunk {
 pub enum SupervisorValue {
     Empty,
     Run(RunState),
+    Input(InputOutcome),
     Output(OutputPage),
     FileChunk(TransferredFileChunk),
     TreeExport(TreeExportReceipt),
@@ -151,6 +196,12 @@ impl SupervisorValue {
     pub fn run(self) -> Result<RunState> {
         match self {
             Self::Run(value) => Ok(value),
+            _ => Err(unexpected()),
+        }
+    }
+    pub fn input(self) -> Result<InputOutcome> {
+        match self {
+            Self::Input(value) => Ok(value),
             _ => Err(unexpected()),
         }
     }
@@ -273,7 +324,7 @@ mod secret_environment {
         Ok(SecretEnvironment(BTreeMap::deserialize(deserializer)?))
     }
 }
-mod secret_input {
+pub(super) mod secret_input {
     use crate::SecretInput;
     use base64::{engine::general_purpose::STANDARD, Engine};
     use serde::{de::Error as DeserializeError, Deserialize, Deserializer, Serialize, Serializer};
