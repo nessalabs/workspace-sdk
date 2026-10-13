@@ -1,0 +1,9 @@
+   Compiling workspace_sdk v0.2.0 (/private-sdk-checkout)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.26s
+     Running tests/pty_live_probe.rs (target/debug/deps/pty_live_probe-8641ab6d256a1781)
+
+running 1 test
+test initial_state_write_failure_destroys_the_opened_workspace ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s
+

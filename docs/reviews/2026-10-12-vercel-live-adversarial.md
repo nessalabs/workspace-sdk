@@ -194,3 +194,13 @@ provider receipt. Acceptance remains anchored to independently saved
 capability-free diagnostics, source identity, complete gates, phase receipts,
 and stopped-state read. This clarification closes the evidence-recording note
 without inventing a new observation. No publication blocker remains.
+
+## Durable publication of the reviewed evidence
+
+The reviewed logs, receipts, historical probe source, original/published hash
+index and exact reproduction commands are committed under
+[vercel-linux-pty-artifacts](../evidence/vercel-linux-pty-artifacts/README.md).
+Those sanitized artifacts supersede a reliance on ignored local `work/` paths
+for public audit. Historical live results remain attributed to their original
+SDK/probe hashes; the later initial-save rollback fix and its regression are
+recorded separately in the PR2 follow-up reviews.

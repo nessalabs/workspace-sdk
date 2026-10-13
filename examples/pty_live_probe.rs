@@ -285,6 +285,7 @@ async fn controller(phase: &str, root: &Path, supervisor: PathBuf) -> ProbeResul
     config.supervisor = supervisor.clone();
     let provider = LocalProvider::new(config)?;
     let mut state = if phase == "start" {
+        let executable = fs::canonicalize(env::current_exe()?)?;
         let backend = provider
             .open(OpenRequest {
                 workspace_id: WorkspaceId::generate(),
@@ -295,7 +296,7 @@ async fn controller(phase: &str, root: &Path, supervisor: PathBuf) -> ProbeResul
         let state = State {
             phase: "created".into(),
             supervisor: supervisor.clone(),
-            executable: fs::canonicalize(env::current_exe()?)?,
+            executable,
             descriptor: backend.descriptor(),
             process: None,
             cursor: OutputCursor::default(),
@@ -304,7 +305,19 @@ async fn controller(phase: &str, root: &Path, supervisor: PathBuf) -> ProbeResul
             owner: None,
             owner_lock: None,
         };
-        save(root, &state)?;
+        if let Err(error) = save(root, &state) {
+            // Until ownership is durable, this live handle is the only way to
+            // roll back creation. Cleanup failures must not erase the save error.
+            match timeout(Duration::from_secs(30), backend.destroy()).await {
+                Ok(Ok(deletion)) if deletion.state == DeleteState::Completed => {
+                    eprintln!("initial state-save rollback: completed");
+                }
+                Ok(Ok(deletion)) => eprintln!("initial state-save rollback: {:?}", deletion.state),
+                Ok(Err(cleanup)) => eprintln!("initial state-save rollback failed: {cleanup}"),
+                Err(_) => eprintln!("initial state-save rollback timed out"),
+            }
+            return Err(error);
+        }
         state
     } else {
         let path = root.join("state.json");

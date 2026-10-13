@@ -1,0 +1,23 @@
+   Compiling workspace_sdk v0.2.0 (/private-sdk-checkout)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.77s
+     Running tests/pty_live_probe.rs (target/debug/deps/pty_live_probe-8641ab6d256a1781)
+
+running 1 test
+test initial_state_write_failure_destroys_the_opened_workspace ... FAILED
+
+failures:
+
+---- initial_state_write_failure_destroys_the_opened_workspace stdout ----
+
+thread 'initial_state_write_failure_destroys_the_opened_workspace' (18239435) panicked at tests/pty_live_probe.rs:75:5:
+opened workspace must receive owned destruction after save fails: Error: Custom { kind: FileTooLarge, error: PathError { path: "/tmp/probe-Vds4kR/state/.tmp8x9gPN", err: Os { code: 27, kind: FileTooLarge, message: "File too large" } } }
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    initial_state_write_failure_destroys_the_opened_workspace
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.81s
+
+error: test failed, to rerun pass `--test pty_live_probe`

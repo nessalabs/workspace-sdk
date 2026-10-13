@@ -1,6 +1,6 @@
 # Vercel-hosted Linux PTY qualification — 2026-10-12
 
-[Live PTY evidence](vercel-linux-pty-live.json) qualifies SDK revision
+[Live PTY evidence](vercel-linux-pty-live.json), [auditable artifacts and exact reproduction commands](vercel-linux-pty-artifacts/README.md) qualify SDK revision
 `e3465f9afa71cac37dd23326651c8c6ddf939f45` and the reusable
 [three-phase probe](../../examples/pty_live_probe.rs) inside one disposable Vercel
 Linux x86_64 VM. This uses LocalProvider and BackendRuntimeHost inside the VM;
