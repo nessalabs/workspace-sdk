@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: fmt
+        run: cargo fmt --all -- --check
+      - name: clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: test
+        run: cargo test --all-targets
+      - name: scoped loopback qualification
+        run: cargo test --test client_performance -- --ignored --nocapture
+      - name: documentation examples
+        run: cargo test --doc
+
+  minimum-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.89.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --all-targets
+
+  sdk-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download the pinned reference package
+        run: |
+          mkdir -p work/sdk
+          cd work/sdk
+          npm pack --ignore-scripts @boatdev/sdk@1.9.7
+          tar -xzf boatdev-sdk-1.9.7.tgz
+      - run: node scripts/sdk_fixtures.cjs work/sdk/package
+      - run: node tests/verify_ts_contract.cjs work/sdk/package

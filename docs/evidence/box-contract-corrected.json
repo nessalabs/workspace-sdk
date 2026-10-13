@@ -1,0 +1,115 @@
+{
+  "started_at": "2026-09-08T00:24:43.637858+00:00",
+  "scope": "Synthetic fixtures; no model calls; real Box API through Rust box_client",
+  "checks": [
+    {
+      "name": "create_and_ready",
+      "status": "passed",
+      "details": {},
+      "seconds": 3.298
+    },
+    {
+      "name": "create_idempotency",
+      "status": "passed",
+      "details": {
+        "same_box": true
+      },
+      "seconds": 0.188
+    },
+    {
+      "name": "working_directory_contract",
+      "status": "passed",
+      "details": {
+        "default_cwd": "/home/user",
+        "sdk_reported_root": "/home/user",
+        "sdk_actual_cwd": "/home/user",
+        "relative_cwd_works": true,
+        "absolute_cwd_exit": 0,
+        "absolute_cwd": "/home/user/sdk-probe-1610a5f252/sub"
+      },
+      "seconds": 2.564
+    },
+    {
+      "name": "checkpoint_tools",
+      "status": "passed",
+      "details": {
+        "versions": "git version 2.43.0\nPython 3.12.3"
+      },
+      "seconds": 0.689
+    },
+    {
+      "name": "binary_file_round_trip",
+      "status": "passed",
+      "details": {
+        "bytes": 1048576,
+        "sha256": "fbbab289f7f94b25736c58be46a994c441fd02552cc6022352e3d86d2fab7c83"
+      },
+      "seconds": 4.645
+    },
+    {
+      "name": "detached_run_survives_client_restart",
+      "status": "passed",
+      "details": {
+        "client_restarted": true,
+        "survived_seconds": 7,
+        "submitted_timeout_seconds": 1,
+        "exit_code": 0
+      },
+      "seconds": 7.705
+    },
+    {
+      "name": "target_side_launch_claim",
+      "status": "passed",
+      "details": {
+        "atomic_target_claim_prevented_duplicate_payload": true,
+        "simulation": "caller discarded first receipt; no real packet-loss injection",
+        "stale_claim_recovery_not_implemented": true
+      },
+      "seconds": 3.231
+    },
+    {
+      "name": "output_retention_semantics",
+      "status": "passed",
+      "details": {
+        "requested_tail_bytes": 1024,
+        "truncation_reported": true,
+        "native_tail_is_not_complete_replay": true
+      },
+      "seconds": 2.792
+    },
+    {
+      "name": "local_to_box_git_checkpoint",
+      "status": "failed",
+      "error": "fixture command exit=128 stderr=fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree.\nUse '--' to separate paths from revisions, like this:\n'git <command> [<revision>...] -- [<file>...]'\n",
+      "seconds": 1.41
+    }
+  ],
+  "fixtures": [
+    {
+      "box_id": "private-resource-008",
+      "ttl_seconds": 900
+    }
+  ],
+  "cleanup": [
+    {
+      "box_id": "private-resource-008",
+      "status": "unconfirmed",
+      "error": "bounded wait expired"
+    }
+  ],
+  "fixture_prefix": "sdk-probe-1610a5f252",
+  "bridge_binary": "private-resource-005",
+  "isolated_build": {
+    "source_before_sha256": "ceb95b06e56786e8078986c94d1e177fdd11b1dc7ff71f6d19e4edc8deb7ed42",
+    "source_after_sha256": "9fe81e293a7d6b3f00eb9aa1464a70a04f7a3d4f16f0d34bd08235709681f94f",
+    "change": "write_file HTTP POST -> PUT in isolated dependency copy only",
+    "binary": "private-resource-005",
+    "copied_sources": "/var/folders/1w/wp9n0wwd22qgrf0zkhb2fk6r0000gn/T/workspace-sdk-box-build-r2o6ukwm"
+  },
+  "dependency_sha256": "90378e315498746ec60aa0f130998f3dac8e0fc382548681fc960e27045b703e",
+  "finished_at": "2026-09-08T00:28:20.809484+00:00",
+  "publication_redactions": {
+    "private_identity_fields": 4,
+    "note": "Public evidence omits live resource identifiers and local account paths; original measurements and outcomes remain."
+  }
+}

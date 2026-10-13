@@ -1,0 +1,134 @@
+{
+  "schema": 1,
+  "implementation": "native Rust supervisor and Rust workload; no model calls",
+  "supervisor_sha256": "4c153aebc4d531437a2d82a1a5d325423790e08d965d7b89d78c598b5d5f759b",
+  "workload_sha256": "50e45188de3d5c5fc1299db73770b08c69d1f5c0b9330f2a44be26aec571d267",
+  "checks": [
+    {
+      "name": "native_supervisor_upload_and_workspace_creation"
+    },
+    {
+      "name": "native_filtered_tree_initialization"
+    },
+    {
+      "name": "native_binary_chunk_roundtrip"
+    },
+    {
+      "name": "rust_workload_reconnect"
+    },
+    {
+      "name": "native_three_way_return_sync"
+    },
+    {
+      "name": "native_box_to_box_handoff"
+    },
+    {
+      "name": "native_managed_cancellation"
+    }
+  ],
+  "fixtures": [
+    {
+      "requested_id": "private-resource-033",
+      "reference": {
+        "version": 1,
+        "id": "private-resource-033",
+        "provider": "ascii-box",
+        "locator": {
+          "control": "private-resource-034",
+          "ownership": "sdk_owned",
+          "root": "private-resource-035",
+          "target": "private-resource-036"
+        }
+      }
+    },
+    {
+      "requested_id": "private-resource-037",
+      "reference": {
+        "version": 1,
+        "id": "private-resource-037",
+        "provider": "ascii-box",
+        "locator": {
+          "control": "private-resource-038",
+          "ownership": "sdk_owned",
+          "root": "private-resource-039",
+          "target": "private-resource-040"
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "workspace": {
+        "version": 1,
+        "id": "private-resource-037",
+        "provider": "ascii-box",
+        "locator": {
+          "control": "private-resource-038",
+          "ownership": "sdk_owned",
+          "root": "private-resource-039",
+          "target": "private-resource-040"
+        }
+      },
+      "stop_requested": true,
+      "deletion": {
+        "reference": {
+          "workspace": {
+            "version": 1,
+            "id": "private-resource-037",
+            "provider": "ascii-box",
+            "locator": {
+              "control": "private-resource-038",
+              "ownership": "sdk_owned",
+              "root": "private-resource-039",
+              "target": "private-resource-040"
+            }
+          },
+          "id": "private-resource-041"
+        },
+        "state": "blocked",
+        "detail": null
+      },
+      "error": null
+    },
+    {
+      "workspace": {
+        "version": 1,
+        "id": "private-resource-033",
+        "provider": "ascii-box",
+        "locator": {
+          "control": "private-resource-034",
+          "ownership": "sdk_owned",
+          "root": "private-resource-035",
+          "target": "private-resource-036"
+        }
+      },
+      "stop_requested": true,
+      "deletion": {
+        "reference": {
+          "workspace": {
+            "version": 1,
+            "id": "private-resource-033",
+            "provider": "ascii-box",
+            "locator": {
+              "control": "private-resource-034",
+              "ownership": "sdk_owned",
+              "root": "private-resource-035",
+              "target": "private-resource-036"
+            }
+          },
+          "id": "private-resource-042"
+        },
+        "state": "blocked",
+        "detail": null
+      },
+      "error": null
+    }
+  ],
+  "functional_passed": true,
+  "cleanup_confirmed": false,
+  "error": null,
+  "publication_redactions": {
+    "private_identity_fields": 28,
+    "note": "Public evidence omits live resource identifiers and local account paths; original measurements and outcomes remain."
+  }
+}

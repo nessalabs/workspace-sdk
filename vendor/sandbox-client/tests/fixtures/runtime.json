@@ -1,0 +1,253 @@
+{
+  "prompt": {
+    "ok": true,
+    "type": "prompt.queued",
+    "id": "bx_23456789",
+    "promptId": "pr_test-1",
+    "promptRun": {
+      "id": "pr_test-1",
+      "promptId": "pr_test-1",
+      "sandboxId": "bx_23456789",
+      "status": "queued",
+      "done": false
+    },
+    "status": "queued",
+    "provider": "codex"
+  },
+  "promptRun": {
+    "ok": true,
+    "type": "prompt.run",
+    "promptRun": {
+      "id": "pr_test-1",
+      "promptId": "pr_test-1",
+      "sandboxId": "bx_23456789",
+      "status": "queued",
+      "done": false
+    },
+    "id": "bx_23456789"
+  },
+  "environments": {
+    "environments": [
+      {
+        "id": "11111111-2222-3333-4444-555555555555",
+        "name": "ci",
+        "isDefault": false,
+        "latestVersionId": null,
+        "safeForThirdParties": true,
+        "passGithub": false,
+        "passSecrets": false,
+        "passSandboxCredentials": false,
+        "passAgentsCredentials": false,
+        "envContents": "TOKEN=secret-env",
+        "secretFiles": [
+          {
+            "path": "/tmp/secret",
+            "contents": "secret-file"
+          }
+        ],
+        "selectedRepositories": [
+          {
+            "id": 42,
+            "private": true,
+            "setupScript": "secret-setup"
+          }
+        ],
+        "versions": []
+      }
+    ],
+    "futureSecret": "secret-extra"
+  },
+  "environment": {
+    "success": true,
+    "environment": {
+      "id": "11111111-2222-3333-4444-555555555555",
+      "name": "ci",
+      "isDefault": false,
+      "latestVersionId": null,
+      "safeForThirdParties": true,
+      "passGithub": false,
+      "passSecrets": false,
+      "passSandboxCredentials": false,
+      "passAgentsCredentials": false,
+      "envContents": "TOKEN=secret-env",
+      "secretFiles": [
+        {
+          "path": "/tmp/secret",
+          "contents": "secret-file"
+        }
+      ],
+      "selectedRepositories": [
+        {
+          "id": 42,
+          "private": true,
+          "setupScript": "secret-setup"
+        }
+      ],
+      "versions": []
+    },
+    "futureSecret": "secret-extra"
+  },
+  "deletion": {
+    "ok": true,
+    "type": "box.deleting",
+    "operation": {
+      "id": "del_test-1",
+      "kind": "sandbox",
+      "targetId": "bx_23456789",
+      "reason": "explicit",
+      "status": "pending",
+      "attemptCount": 0,
+      "requestedAt": "2026-09-07T00:00:00.000Z",
+      "completedAt": null
+    }
+  },
+  "events": {
+    "ok": true,
+    "type": "events.list",
+    "id": "bx_23456789",
+    "events": [
+      {
+        "type": "response",
+        "data": {
+          "text": "secret-output"
+        },
+        "futureField": "secret-extension"
+      },
+      {
+        "id": "ev_2",
+        "type": "prompt",
+        "timestamp": 1234,
+        "taskId": "pr_test-1",
+        "data": {
+          "prompt": "secret-prompt"
+        }
+      }
+    ],
+    "pageInfo": {
+      "nextCursor": "cursor/+=",
+      "hasMore": true,
+      "limit": 2
+    }
+  },
+  "snapshots": {
+    "ok": true,
+    "type": "snapshot.list",
+    "snapshots": [
+      {
+        "id": "snap_test-1",
+        "sandboxId": "bx_23456789",
+        "status": "completed",
+        "kind": "base",
+        "generation": 0,
+        "createdAt": "2026-09-07T00:00:00.000Z",
+        "completedAt": "2026-09-07T00:00:00.000Z",
+        "sizeBytes": 10,
+        "fileCount": 1
+      }
+    ],
+    "pageInfo": {
+      "nextCursor": "cursor/+=",
+      "hasMore": true,
+      "limit": 1
+    }
+  },
+  "latest": {
+    "ok": true,
+    "type": "snapshot.latest",
+    "snapshot": {
+      "id": "snap_test-1",
+      "sandboxId": "bx_23456789",
+      "status": "completed",
+      "kind": "base",
+      "generation": 0,
+      "createdAt": "2026-09-07T00:00:00.000Z",
+      "completedAt": "2026-09-07T00:00:00.000Z",
+      "sizeBytes": 10,
+      "fileCount": 1
+    }
+  },
+  "snapshotTree": {
+    "ok": true,
+    "type": "snapshot.tree",
+    "snapshotId": "snap_test-1",
+    "sandboxId": "bx_23456789",
+    "generation": 0,
+    "treeAvailable": true,
+    "truncated": false,
+    "fileCount": 1,
+    "totalSizeBytes": 10,
+    "entries": [
+      {
+        "path": "/home/user/a.txt",
+        "kind": "file",
+        "size": 10
+      }
+    ]
+  },
+  "snapshotDownload": {
+    "ok": true,
+    "type": "snapshot.download",
+    "snapshotId": "snap_test-1",
+    "sandboxId": "bx_23456789",
+    "kind": "base",
+    "generation": 0,
+    "expiresInSeconds": 900,
+    "reconstruct": "example",
+    "inventory": {
+      "r2Key": "inventory",
+      "signedUrl": "https://example.test/?token=secret-inventory"
+    },
+    "chunks": [
+      {
+        "snapshotId": "snap_test-1",
+        "generation": 0,
+        "chunkIndex": 0,
+        "r2Key": "chunk",
+        "sizeBytes": 10,
+        "sha256": "00",
+        "signedUrl": "https://example.test/?token=secret-download"
+      }
+    ]
+  },
+  "commandStarted": {
+    "ok": true,
+    "type": "command.started",
+    "success": true,
+    "processId": 123,
+    "pid": 123,
+    "command": "secret-command",
+    "cwd": "/home/user",
+    "startedAt": "2026-09-07T00:00:00.000Z",
+    "logPath": "/tmp/stdout",
+    "errLogPath": "/tmp/stderr"
+  },
+  "commandStatus": {
+    "ok": true,
+    "type": "command.status",
+    "success": true,
+    "processId": 123,
+    "pid": 123,
+    "status": "lost",
+    "known": false,
+    "running": false,
+    "exitCode": 0,
+    "signal": null,
+    "command": "secret-command",
+    "cwd": "/home/user",
+    "startedAt": "2026-09-07T00:00:00.000Z",
+    "finishedAt": "2026-09-07T00:00:00.000Z",
+    "stdout": "secret-stdout",
+    "stderr": "secret-stderr",
+    "stdoutTruncated": true,
+    "stderrTruncated": true,
+    "logPath": "/tmp/stdout",
+    "errLogPath": "/tmp/stderr"
+  },
+  "desktop": {
+    "ok": true,
+    "type": "desktop.info",
+    "success": true,
+    "desktopUrl": "https://example.test/?token=secret-desktop",
+    "provisioning": false
+  }
+}

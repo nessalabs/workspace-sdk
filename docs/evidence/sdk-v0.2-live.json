@@ -1,0 +1,176 @@
+{
+  "checks": [
+    {
+      "details": {
+        "root": "private-resource-022",
+        "workspace": {
+          "id": "private-resource-023",
+          "locator": {
+            "control": "private-resource-024",
+            "ownership": "sdk_owned",
+            "root": "private-resource-022",
+            "target": "private-resource-025"
+          },
+          "provider": "ascii-box",
+          "version": 1
+        }
+      },
+      "name": "create_and_managed_exec",
+      "passed": true
+    },
+    {
+      "details": {
+        "secret_excluded": true
+      },
+      "name": "filtered_checkpoint_upload",
+      "passed": true
+    },
+    {
+      "details": {
+        "bytes": 327680
+      },
+      "name": "chunked_binary_transfer",
+      "passed": true
+    },
+    {
+      "details": {
+        "counter": 3
+      },
+      "name": "durable_run_reconnect_and_duplicate_launch",
+      "passed": true
+    },
+    {
+      "details": {
+        "local_edit_preserved": true,
+        "remote_edit_applied": true
+      },
+      "name": "remote_return_three_way_merge",
+      "passed": true
+    },
+    {
+      "details": {
+        "destination_counter": 5,
+        "source_counter": 3,
+        "source_run_state": {
+          "exit_code": 0,
+          "status": "exited"
+        }
+      },
+      "name": "box_to_box_handoff",
+      "passed": true
+    },
+    {
+      "details": {
+        "state": "canceled"
+      },
+      "name": "managed_cancellation",
+      "passed": true
+    }
+  ],
+  "cleanup": [
+    {
+      "deletion": {
+        "detail": null,
+        "reference": {
+          "id": "private-resource-026",
+          "workspace": {
+            "id": "private-resource-027",
+            "locator": {
+              "control": "private-resource-028",
+              "ownership": "sdk_owned",
+              "root": "private-resource-029",
+              "target": "private-resource-030"
+            },
+            "provider": "ascii-box",
+            "version": 1
+          }
+        },
+        "state": "blocked"
+      },
+      "stop_requested": true,
+      "workspace": {
+        "id": "private-resource-027",
+        "locator": {
+          "control": "private-resource-028",
+          "ownership": "sdk_owned",
+          "root": "private-resource-029",
+          "target": "private-resource-030"
+        },
+        "provider": "ascii-box",
+        "version": 1
+      }
+    },
+    {
+      "deletion": {
+        "detail": null,
+        "reference": {
+          "id": "private-resource-031",
+          "workspace": {
+            "id": "private-resource-023",
+            "locator": {
+              "control": "private-resource-024",
+              "ownership": "sdk_owned",
+              "root": "private-resource-022",
+              "target": "private-resource-025"
+            },
+            "provider": "ascii-box",
+            "version": 1
+          }
+        },
+        "state": "blocked"
+      },
+      "stop_requested": true,
+      "workspace": {
+        "id": "private-resource-023",
+        "locator": {
+          "control": "private-resource-024",
+          "ownership": "sdk_owned",
+          "root": "private-resource-022",
+          "target": "private-resource-025"
+        },
+        "provider": "ascii-box",
+        "version": 1
+      }
+    }
+  ],
+  "cleanup_confirmed": false,
+  "error": null,
+  "fixtures": [
+    {
+      "reference": {
+        "id": "private-resource-023",
+        "locator": {
+          "control": "private-resource-024",
+          "ownership": "sdk_owned",
+          "root": "private-resource-022",
+          "target": "private-resource-025"
+        },
+        "provider": "ascii-box",
+        "version": 1
+      },
+      "requested_id": "private-resource-023"
+    },
+    {
+      "reference": {
+        "id": "private-resource-027",
+        "locator": {
+          "control": "private-resource-028",
+          "ownership": "sdk_owned",
+          "root": "private-resource-029",
+          "target": "private-resource-030"
+        },
+        "provider": "ascii-box",
+        "version": 1
+      },
+      "requested_id": "private-resource-027"
+    }
+  ],
+  "functional_passed": true,
+  "schema": 1,
+  "scope": "real Ascii Box adapter, synthetic files/workers, no model calls",
+  "sdk": "0.2.0",
+  "publication_redactions": {
+    "private_identity_fields": 33,
+    "note": "Public evidence omits live resource identifiers and local account paths; original measurements and outcomes remain."
+  }
+}

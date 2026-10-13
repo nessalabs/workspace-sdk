@@ -1,0 +1,11 @@
+--- a/src/client.rs
++++ b/src/client.rs
+@@ -426,7 +426,7 @@
+     ) -> Result<FileWriteResponse> {
+         validate_file_path(&request.path)?;
+         let path = format!("/boxes/{}/files", validate_box_id(box_id)?);
+-        self.send_body(Method::POST, &path, &request, false).await
++        self.send_body(Method::PUT, &path, &request, false).await
+     }
+
+     pub async fn host_port(&self, box_id: &str, port: u16) -> Result<HostPortResponse> {

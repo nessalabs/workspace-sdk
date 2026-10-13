@@ -1,0 +1,211 @@
+{
+  "started_at": "2026-09-08T00:26:56.342790+00:00",
+  "scope": "Synthetic fixtures; no model calls; real Box API through Rust box_client",
+  "checks": [
+    {
+      "name": "create_and_ready",
+      "status": "passed",
+      "details": {},
+      "seconds": 3.049
+    },
+    {
+      "name": "create_idempotency",
+      "status": "passed",
+      "details": {
+        "same_box": true
+      },
+      "seconds": 0.196
+    },
+    {
+      "name": "working_directory_contract",
+      "status": "passed",
+      "details": {
+        "default_cwd": "/home/user",
+        "sdk_reported_root": "/home/user",
+        "sdk_actual_cwd": "/home/user",
+        "relative_cwd_works": true,
+        "absolute_cwd_exit": 0,
+        "absolute_cwd": "/home/user/sdk-probe-5a4fb1c258/sub"
+      },
+      "seconds": 2.667
+    },
+    {
+      "name": "checkpoint_tools",
+      "status": "passed",
+      "details": {
+        "versions": "git version 2.43.0\nPython 3.12.3"
+      },
+      "seconds": 0.499
+    },
+    {
+      "name": "binary_file_round_trip",
+      "status": "passed",
+      "details": {
+        "bytes": 1048576,
+        "sha256": "fbbab289f7f94b25736c58be46a994c441fd02552cc6022352e3d86d2fab7c83"
+      },
+      "seconds": 2.803
+    },
+    {
+      "name": "detached_run_survives_client_restart",
+      "status": "passed",
+      "details": {
+        "client_restarted": true,
+        "survived_seconds": 7,
+        "submitted_timeout_seconds": 1,
+        "exit_code": 0
+      },
+      "seconds": 7.657
+    },
+    {
+      "name": "target_side_launch_claim",
+      "status": "passed",
+      "details": {
+        "atomic_target_claim_prevented_duplicate_payload": true,
+        "simulation": "caller discarded first receipt; no real packet-loss injection",
+        "stale_claim_recovery_not_implemented": true
+      },
+      "seconds": 3.335
+    },
+    {
+      "name": "output_retention_semantics",
+      "status": "passed",
+      "details": {
+        "requested_tail_bytes": 1024,
+        "truncation_reported": true,
+        "native_tail_is_not_complete_replay": true
+      },
+      "seconds": 0.552
+    },
+    {
+      "name": "local_to_box_git_checkpoint",
+      "status": "passed",
+      "details": {
+        "baseline": "be745af0dd28bb000cc03ad2504a553763865c1e",
+        "bundle_bytes": 5396,
+        "ignored_fixture_secret_absent": true,
+        "binary_matches": true
+      },
+      "seconds": 2.933
+    },
+    {
+      "name": "remote_edits_checkpoint",
+      "status": "passed",
+      "details": {
+        "revision": "f20829e3500838b81e6ee88cccd2c9124525bdef"
+      },
+      "seconds": 0.986
+    },
+    {
+      "name": "box_to_local_three_way_merge",
+      "status": "passed",
+      "details": {
+        "preserved_local_edit": true,
+        "remote_edit_and_delete": true,
+        "symlink_executable_binary_preserved": true
+      },
+      "seconds": 0.048
+    },
+    {
+      "name": "conflicting_edit_preserves_destination",
+      "status": "passed",
+      "details": {
+        "conflict_reported": true,
+        "destination_untouched": true
+      },
+      "seconds": 0.039
+    },
+    {
+      "name": "second_box_ready",
+      "status": "passed",
+      "details": {},
+      "seconds": 2.536
+    },
+    {
+      "name": "box_to_box_checkpoint_transfer",
+      "status": "passed",
+      "details": {
+        "independent_destination_box": true,
+        "transfer_via_client": true
+      },
+      "seconds": 2.335
+    },
+    {
+      "name": "cooperative_state_handoff",
+      "status": "passed",
+      "details": {
+        "source_stopped_before_destination_start": true,
+        "counter_before": 6,
+        "counter_after": 9,
+        "runtime": "deterministic Python worker, not an LLM agent"
+      },
+      "seconds": 9.267
+    },
+    {
+      "name": "scoped_process_cancellation",
+      "status": "passed",
+      "details": {
+        "owned_process_group_stopped": true,
+        "exit_code": null
+      },
+      "seconds": 3.406
+    },
+    {
+      "name": "protected_port_access",
+      "status": "failed",
+      "error": "",
+      "seconds": 5.172
+    },
+    {
+      "name": "stop_resume_file_persistence",
+      "status": "passed",
+      "details": {
+        "archive_and_resume_verified": true,
+        "file_survived": true,
+        "process_memory_resume_not_claimed": true
+      },
+      "seconds": 9.808
+    }
+  ],
+  "fixtures": [
+    {
+      "box_id": "private-resource-001",
+      "ttl_seconds": 900
+    },
+    {
+      "box_id": "private-resource-002",
+      "ttl_seconds": 900
+    }
+  ],
+  "cleanup": [
+    {
+      "box_id": "private-resource-001",
+      "status": "unconfirmed",
+      "operation_id": "private-resource-003",
+      "last_observed_status": "blocked",
+      "error": "bounded wait expired"
+    },
+    {
+      "box_id": "private-resource-002",
+      "status": "unconfirmed",
+      "operation_id": "private-resource-004",
+      "last_observed_status": "blocked",
+      "error": "bounded wait expired"
+    }
+  ],
+  "fixture_prefix": "sdk-probe-5a4fb1c258",
+  "bridge_binary": "private-resource-005",
+  "isolated_build": {
+    "source_before_sha256": "ceb95b06e56786e8078986c94d1e177fdd11b1dc7ff71f6d19e4edc8deb7ed42",
+    "source_after_sha256": "9fe81e293a7d6b3f00eb9aa1464a70a04f7a3d4f16f0d34bd08235709681f94f",
+    "change": "write_file HTTP POST -> PUT in isolated dependency copy only",
+    "binary": "private-resource-005",
+    "copied_sources": "/var/folders/1w/wp9n0wwd22qgrf0zkhb2fk6r0000gn/T/workspace-sdk-box-build-r2o6ukwm"
+  },
+  "dependency_sha256": "90378e315498746ec60aa0f130998f3dac8e0fc382548681fc960e27045b703e",
+  "finished_at": "2026-09-08T00:34:02.927311+00:00",
+  "publication_redactions": {
+    "private_identity_fields": 8,
+    "note": "Public evidence omits live resource identifiers and local account paths; original measurements and outcomes remain."
+  }
+}

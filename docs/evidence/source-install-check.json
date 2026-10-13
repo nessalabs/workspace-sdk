@@ -1,0 +1,8 @@
+{
+  "archive": "workspace-sdk-0.2.0-source.tar.gz",
+  "version_output": "workspace-sdk 0.2.0 (protocol 1)",
+  "installed_from_fresh_extraction": true,
+  "temporary_location": "/var/folders/1w/wp9n0wwd22qgrf0zkhb2fk6r0000gn/T/workspace-sdk-release-smoke-k_9njvw5",
+  "source_archive_sha256": "67dc972d770160db004dc0b0eef856fd89bf45f055b0a7be8c09157267eec74e",
+  "scope": "Preliminary source packaging check; final archive verification is recorded in dist/release-verification.json."
+}

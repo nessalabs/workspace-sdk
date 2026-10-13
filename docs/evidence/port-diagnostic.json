@@ -1,0 +1,31 @@
+{
+  "box_id": "private-resource-002",
+  "state": {
+    "state": "idle"
+  },
+  "in_box_http_matches": true,
+  "url_scheme": "https",
+  "url_has_query": true,
+  "query_parameter_names": [
+    "_token"
+  ],
+  "with_token": {
+    "status": 403,
+    "fixture_matches": false,
+    "length": 54,
+    "error_body": "Access denied. This preview requires an access token.\n",
+    "server": null
+  },
+  "without_token": {
+    "status": 403,
+    "fixture_matches": false,
+    "length": 54,
+    "error_body": "Access denied. This preview requires an access token.\n",
+    "server": null
+  },
+  "pass": false,
+  "publication_redactions": {
+    "private_identity_fields": 1,
+    "note": "Public evidence omits live resource identifiers and local account paths; original measurements and outcomes remain."
+  }
+}

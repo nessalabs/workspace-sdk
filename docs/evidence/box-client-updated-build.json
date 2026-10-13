@@ -1,0 +1,14 @@
+{
+  "source_before_sha256": "ac581e30b25165d21789f757157068fc43bfc369976071fbec86e98d6a36307c",
+  "source_after_sha256": "ac581e30b25165d21789f757157068fc43bfc369976071fbec86e98d6a36307c",
+  "source_git_revision": "392bdd38d1ab3cf7d2fd62689b48cba525ea3e90",
+  "source_git_clean": true,
+  "source_client": "/private/tmp/workspace-sdk-box-client-updated",
+  "change": "none; unpatched client source",
+  "binary": "private-resource-032",
+  "copied_sources": "/var/folders/1w/wp9n0wwd22qgrf0zkhb2fk6r0000gn/T/workspace-sdk-box-build-0ntoeyte",
+  "publication_redactions": {
+    "private_identity_fields": 1,
+    "note": "Public evidence omits live resource identifiers and local account paths; original measurements and outcomes remain."
+  }
+}

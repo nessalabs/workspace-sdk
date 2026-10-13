@@ -1,0 +1,12 @@
+/target/
+.env
+*.pem
+
+/dist/
+
+/work/
+.env.*
+*.key
+*.p12
+*.pfx
+.DS_Store

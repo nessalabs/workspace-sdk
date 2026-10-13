@@ -1,0 +1,11 @@
+{
+  "source_before_sha256": "ceb95b06e56786e8078986c94d1e177fdd11b1dc7ff71f6d19e4edc8deb7ed42",
+  "source_after_sha256": "9fe81e293a7d6b3f00eb9aa1464a70a04f7a3d4f16f0d34bd08235709681f94f",
+  "change": "write_file HTTP POST -> PUT in isolated dependency copy only",
+  "binary": "private-resource-005",
+  "copied_sources": "/var/folders/1w/wp9n0wwd22qgrf0zkhb2fk6r0000gn/T/workspace-sdk-box-build-r2o6ukwm",
+  "publication_redactions": {
+    "private_identity_fields": 1,
+    "note": "Public evidence omits live resource identifiers and local account paths; original measurements and outcomes remain."
+  }
+}

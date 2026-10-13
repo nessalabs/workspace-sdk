@@ -1,0 +1,17 @@
+{
+  "files": {
+    "box-contract-final.json": 8,
+    "cleanup-verification.json": 10,
+    "cleanup-updated-client.json": 10,
+    "sdk-v0.2-final-live.json": 33,
+    "box-contract-live.json": 2,
+    "sdk-v0.2-live.json": 33,
+    "port-diagnostic.json": 1,
+    "box-client-updated-build.json": 1,
+    "box-client-build.json": 1,
+    "native-rust-box-live.json": 28,
+    "box-contract-corrected.json": 4,
+    "port-browser-live.json": 3
+  },
+  "note": "Original reports are retained privately; result counts and outcomes are unchanged."
+}

@@ -1,0 +1,50 @@
+{
+  "scope": "real Box protected preview; browser-style cookies versus plain urllib",
+  "box_id": "private-resource-010",
+  "ttl_seconds": 900,
+  "in_box_http_matches": true,
+  "url_scheme": "https",
+  "query_parameter_names": [
+    "_token"
+  ],
+  "token_without_cookie_support": {
+    "status": 403,
+    "fixture_matches": false,
+    "redirects": [
+      {
+        "status": 302,
+        "sets_cookie": true,
+        "new_url_has_token": false
+      }
+    ]
+  },
+  "token_with_browser_cookies": {
+    "status": 200,
+    "fixture_matches": true,
+    "redirects": [
+      {
+        "status": 302,
+        "sets_cookie": true,
+        "new_url_has_token": false
+      }
+    ]
+  },
+  "unauthenticated_fresh_browser": {
+    "status": 403,
+    "fixture_matches": false,
+    "redirects": []
+  },
+  "passed": true,
+  "cleanup": {
+    "box_id": "private-resource-010",
+    "compute_archived_before_delete": true,
+    "operation_id": "private-resource-011",
+    "status": "unconfirmed",
+    "last_observed_status": "blocked",
+    "error": "bounded wait expired"
+  },
+  "publication_redactions": {
+    "private_identity_fields": 3,
+    "note": "Public evidence omits live resource identifiers and local account paths; original measurements and outcomes remain."
+  }
+}

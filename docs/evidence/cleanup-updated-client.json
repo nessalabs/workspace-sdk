@@ -1,0 +1,62 @@
+[
+  {
+    "box_id": "private-resource-006",
+    "source_report": "box-contract-live.json",
+    "operation_id": "private-resource-007",
+    "observation": {
+      "attempt_count": 1,
+      "extra_fields": [],
+      "reason": "explicit",
+      "status": "blocked"
+    },
+    "get_result": "get: api 404: not_found (request_id=req_2e11b7c438214d349f15c1057baa932a)"
+  },
+  {
+    "box_id": "private-resource-008",
+    "source_report": "box-contract-corrected.json",
+    "operation_id": "private-resource-009",
+    "observation": {
+      "attempt_count": 1,
+      "extra_fields": [],
+      "reason": "explicit",
+      "status": "blocked"
+    },
+    "get_result": "get: api 404: not_found (request_id=req_f120b90354ac40768e91de95605b0933)"
+  },
+  {
+    "box_id": "private-resource-001",
+    "source_report": "box-contract-final.json",
+    "operation_id": "private-resource-003",
+    "observation": {
+      "attempt_count": 1,
+      "extra_fields": [],
+      "reason": "explicit",
+      "status": "blocked"
+    },
+    "get_result": "get: api 404: not_found (request_id=req_c0f7e3a97e344241be768638238454d9)"
+  },
+  {
+    "box_id": "private-resource-002",
+    "source_report": "box-contract-final.json",
+    "operation_id": "private-resource-004",
+    "observation": {
+      "attempt_count": 1,
+      "extra_fields": [],
+      "reason": "explicit",
+      "status": "blocked"
+    },
+    "get_result": "get: api 404: not_found (request_id=req_8a2c39592551458dadd4811ac3134f49)"
+  },
+  {
+    "box_id": "private-resource-010",
+    "source_report": "port-browser-live.json",
+    "operation_id": "private-resource-011",
+    "observation": {
+      "attempt_count": 1,
+      "extra_fields": [],
+      "reason": "explicit",
+      "status": "blocked"
+    },
+    "get_result": "get: api 404: not_found (request_id=req_8a51323d3299412db933c27291e1e883)"
+  }
+]

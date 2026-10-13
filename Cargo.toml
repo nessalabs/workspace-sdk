@@ -1,0 +1,34 @@
+[package]
+name = "workspace_sdk"
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.89"
+description = "Portable workspaces, managed workloads, and safe checkpoint sync for user-owned compute"
+license = "MIT"
+readme = "README.md"
+publish = false
+
+[features]
+default = ["boat"]
+boat = ["dep:sandbox_client"]
+
+[dependencies]
+async-trait = "0.1"
+base64 = "0.22"
+sandbox_client = { package = "boat_client", path = "vendor/sandbox-client", optional = true }
+fs2 = "0.4"
+ignore = "0.4"
+libc = "0.2"
+semver = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+flate2 = "1"
+tempfile = "3"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "process", "time", "io-util", "fs", "sync", "signal"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[[bin]]
+name = "workspace-supervisor"
+path = "src/bin/workspace-supervisor.rs"

@@ -1,0 +1,66 @@
+[
+  {
+    "box_id": "private-resource-006",
+    "source_report": "box-contract-live.json",
+    "operation_id": "private-resource-007",
+    "status": "blocked",
+    "receipt_recovered": true,
+    "observation": {
+      "attempt_count": 1,
+      "extra_fields": [],
+      "reason": "explicit",
+      "status": "blocked"
+    },
+    "get_result": "get: api 404: not_found (request_id=req_619db9774da64d05bb33572c08746cf1)"
+  },
+  {
+    "box_id": "private-resource-008",
+    "source_report": "box-contract-corrected.json",
+    "operation_id": "private-resource-009",
+    "status": "blocked",
+    "receipt_recovered": true,
+    "observation": {
+      "attempt_count": 1,
+      "extra_fields": [],
+      "reason": "explicit",
+      "status": "blocked"
+    },
+    "get_result": "get: api 404: not_found (request_id=req_6fe8380952a948f5985de0548b722e9e)"
+  },
+  {
+    "box_id": "private-resource-001",
+    "source_report": "box-contract-final.json",
+    "operation_id": "private-resource-003",
+    "observation": {
+      "attempt_count": 1,
+      "extra_fields": [],
+      "reason": "explicit",
+      "status": "blocked"
+    },
+    "get_result": "get: api 404: not_found (request_id=req_611a69e297b24a93becf4b3ad53df4c5)"
+  },
+  {
+    "box_id": "private-resource-002",
+    "source_report": "box-contract-final.json",
+    "operation_id": "private-resource-004",
+    "observation": {
+      "attempt_count": 1,
+      "extra_fields": [],
+      "reason": "explicit",
+      "status": "blocked"
+    },
+    "get_result": "get: api 404: not_found (request_id=req_f2f5d36e2488443db26fd8e5e18a4763)"
+  },
+  {
+    "box_id": "private-resource-010",
+    "source_report": "port-browser-live.json",
+    "operation_id": "private-resource-011",
+    "observation": {
+      "attempt_count": 1,
+      "extra_fields": [],
+      "reason": "explicit",
+      "status": "blocked"
+    },
+    "get_result": "get: api 404: not_found (request_id=req_138e664ab8a446e18f93719c44be8f34)"
+  }
+]

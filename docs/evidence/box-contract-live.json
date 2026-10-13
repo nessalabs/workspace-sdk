@@ -1,0 +1,67 @@
+{
+  "started_at": "2026-09-08T00:22:22.529840+00:00",
+  "scope": "Synthetic fixtures; no model calls; real Box API through Rust box_client",
+  "checks": [
+    {
+      "name": "create_and_ready",
+      "status": "passed",
+      "details": {},
+      "seconds": 1.248
+    },
+    {
+      "name": "create_idempotency",
+      "status": "passed",
+      "details": {
+        "same_box": true
+      },
+      "seconds": 0.197
+    },
+    {
+      "name": "working_directory_contract",
+      "status": "passed",
+      "details": {
+        "default_cwd": "/home/user",
+        "sdk_reported_root": "/home/user",
+        "sdk_actual_cwd": "/home/user",
+        "relative_cwd_works": true,
+        "absolute_cwd_exit": 0,
+        "absolute_cwd": "/home/user/sdk-probe-4017fca107/sub"
+      },
+      "seconds": 2.199
+    },
+    {
+      "name": "checkpoint_tools",
+      "status": "passed",
+      "details": {
+        "versions": "git version 2.43.0\nPython 3.12.3"
+      },
+      "seconds": 0.594
+    },
+    {
+      "name": "binary_file_round_trip",
+      "status": "failed",
+      "error": "write: api 404: not_found (request_id=req_51609503d2f34a75abffb88960174bea)",
+      "seconds": 1.228
+    }
+  ],
+  "fixtures": [
+    {
+      "box_id": "private-resource-006",
+      "ttl_seconds": 900
+    }
+  ],
+  "cleanup": [
+    {
+      "box_id": "private-resource-006",
+      "status": "unconfirmed",
+      "error": "bounded wait expired"
+    }
+  ],
+  "fixture_prefix": "sdk-probe-4017fca107",
+  "dependency_sha256": "69afdcc4ab0b3ae068b5920d335473e33e5b08d4864aea960f61eb2dfd82e43f",
+  "finished_at": "2026-09-08T00:25:34.150757+00:00",
+  "publication_redactions": {
+    "private_identity_fields": 2,
+    "note": "Public evidence omits live resource identifiers and local account paths; original measurements and outcomes remain."
+  }
+}

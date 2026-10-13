@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "unix_timestamp_seconds": 1788857901,
+  "operating_system": "macos",
+  "architecture": "aarch64",
+  "debug_assertions": true,
+  "retention_bytes": 32768,
+  "minimum_load_bytes_per_stream": 131072,
+  "poll_interval_ms": 10,
+  "samples": [
+    {
+      "launch_ms": 39.800125,
+      "launch_to_first_output_ms": 269.39804200000003,
+      "reconnect_ms": 0.045292,
+      "idempotent_retry_ms": 2.554208,
+      "loaded_read_ms": 2.645167,
+      "cancel_ms": 65.336375,
+      "final_stdout_offset": 335872,
+      "final_stderr_offset": 335872,
+      "retained_stdout_bytes": 16384,
+      "retained_stderr_bytes": 16384
+    },
+    {
+      "launch_ms": 28.065209,
+      "launch_to_first_output_ms": 66.73283400000001,
+      "reconnect_ms": 0.0515,
+      "idempotent_retry_ms": 3.034,
+      "loaded_read_ms": 2.696708,
+      "cancel_ms": 71.70641599999999,
+      "final_stdout_offset": 319488,
+      "final_stderr_offset": 319488,
+      "retained_stdout_bytes": 16384,
+      "retained_stderr_bytes": 16384
+    },
+    {
+      "launch_ms": 28.205917,
+      "launch_to_first_output_ms": 66.97775,
+      "reconnect_ms": 0.051541000000000003,
+      "idempotent_retry_ms": 2.827417,
+      "loaded_read_ms": 2.38775,
+      "cancel_ms": 72.783208,
+      "final_stdout_offset": 323584,
+      "final_stderr_offset": 323584,
+      "retained_stdout_bytes": 16384,
+      "retained_stderr_bytes": 16384
+    }
+  ]
+}
