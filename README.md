@@ -64,7 +64,7 @@ Requirements: Rust 1.89+ to build, a supported POSIX target for process supervis
 - [Rust SDK guide](docs/sdk-guide.md): configuration, runs, preparation, sync, and handoff.
 - [Architecture](docs/architecture.md): dependency direction and the Rust supervisor boundary.
 - [Build and distribution](docs/release.md): native artifacts and generated Rust documentation.
-- [Native authentication integration](docs/pty-integration.md): session controls, concurrency and pending PTY adapter work.
+- [Native authentication integration](docs/pty-integration.md): session controls, durable PTY ownership and verification limits.
 - [Validation evidence](docs/evidence/README.md): current native Rust tests, live Boat checks, and their limits.
 
 Generate browsable API documentation with `cargo doc --no-deps`. Public domain types explain their purpose, fields, lifecycle, and constraints in Rustdoc.

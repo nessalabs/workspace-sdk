@@ -242,14 +242,26 @@ impl IRuntimeHost for BackendRuntimeHost {
         command: RuntimeCommand,
         requires_terminal: bool,
     ) -> Result<RuntimeProcessRef> {
-        if requires_terminal {
-            return Err(Error::Unsupported("this backend has no interactive terminal; run the supplied native Claude login command in a target terminal, then check authentication again".into()));
-        }
         let id = RunId::new(format!(
             "runtime-auth-{:x}",
             Sha256::digest(idempotency_key.as_bytes())
         ))?;
-        let run = self.launch(id, command, 128 * 1024).await?;
+        let run = if requires_terminal {
+            let execution = self.adapt_execution(command)?;
+            self.backend
+                .start_terminal(
+                    LaunchRequest {
+                        id,
+                        execution: execution.request,
+                        output_limit_bytes: 128 * 1024,
+                    },
+                    execution.private_cwd,
+                    RuntimeTerminalSize::new(80, 24)?,
+                )
+                .await?
+        } else {
+            self.launch(id, command, 128 * 1024).await?
+        };
         RuntimeProcessRef::new(self.process_scope()?, run.id.to_string())
     }
 
@@ -269,6 +281,24 @@ impl IRuntimeHost for BackendRuntimeHost {
             .await
     }
 
+    async fn write_process_input(
+        &self,
+        process: &RuntimeProcessRef,
+        input: &SecretInput,
+    ) -> Result<RuntimeInputOutcome> {
+        self.backend
+            .write_terminal_input(&self.run_ref(process)?, input)
+            .await
+    }
+    async fn resize_process(
+        &self,
+        process: &RuntimeProcessRef,
+        size: RuntimeTerminalSize,
+    ) -> Result<()> {
+        self.backend
+            .resize_terminal(&self.run_ref(process)?, size)
+            .await
+    }
     async fn cancel_process(&self, process: &RuntimeProcessRef) -> Result<RuntimeProcessState> {
         Ok(process_state(
             self.backend.cancel(&self.run_ref(process)?).await?,

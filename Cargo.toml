@@ -13,6 +13,7 @@ default = ["boat"]
 boat = ["dep:sandbox_client"]
 
 [dependencies]
+pty-runtime = { git = "https://github.com/nessalabs/pty-runtime", rev = "c68837e2b7bf1c9009e1a4587a1a58107ec0425c", default-features = false }
 async-trait = "0.1"
 base64 = "0.22"
 sandbox_client = { package = "boat_client", path = "vendor/sandbox-client", optional = true }
@@ -22,6 +23,7 @@ libc = "0.2"
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+socket2 = "0.6"
 sha2 = "0.10"
 flate2 = "1"
 tempfile = "3"
