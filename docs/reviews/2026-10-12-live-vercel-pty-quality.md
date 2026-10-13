@@ -218,3 +218,28 @@ across separate cloud commands. It does not certify Boat compute, a Vercel SDK
 provider adapter, default-capability Vercel execution, real sign-in, remote
 credential transport, renderer behavior, or extended resource/performance limits.
 The reviewer performed no builds, cloud mutation, or production edits.
+
+## Publication evidence and prose re-review
+
+Publication scope/provenance decision: **PASS**, no material P1/P2 or credential
+disclosure found. Reviewed the new evidence README section, integration overview,
+`vercel-linux-pty-live.json`, and `vercel-linux-pty-performance.json` against the
+retained source/receipts. Public phase fields exactly match the downloaded raw
+phase records. The published numeric performance file is byte-identical to its
+downloaded original. The standalone manifest digest correctly hashes the
+281-entry map serialized with sorted keys, compact separators and no trailing
+newline; it is distinct from the complete environment-record digest.
+
+The prose now accurately says capability-free SDK execution **inside** the VM,
+without implying that the VM's default credentials were globally changed. It
+describes retrieval of full gate logs and successful-run artifacts rather than
+claiming every original diagnostic was re-fetched. The original capability and
+permission observations are separately labeled operator-observed transcriptions
+in `work/live-vercel/diagnostic-observations.json`; the later API refused their
+re-fetch after VM shutdown. This limitation does not turn the original failed
+gate into a pass or invalidate the retained capability-free probes and runs.
+The public summary omits cloud resource IDs, boot/workspace identifiers, input
+challenge text, and credentials. Unnecessary ephemeral cloud command/session IDs
+were also removed from this public review record; private receipt names and
+hashes retain the audit trail. No source or test oracle changed during this
+publication review, so the completed mechanical evidence remains applicable.
