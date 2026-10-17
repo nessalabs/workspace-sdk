@@ -61,7 +61,7 @@ impl FileStateRepository {
                 return Err(Error::State("invalid state file".into()));
             }
             let mut state: RepositoryState = serde_json::from_slice(&fs::read(path)?)?;
-            if !matches!(state.version, 1 | 2 | 3) {
+            if !matches!(state.version, 1..=3) {
                 return Err(Error::Unsupported("state repository version".into()));
             }
             state.version = 3;
