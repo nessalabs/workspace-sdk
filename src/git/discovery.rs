@@ -1,21 +1,22 @@
-use super::{porcelain, GitWorktreeInventory};
+use super::{command::git_command, porcelain, GitWorktreeInventory};
 use crate::{CommandSpec, Error, ExecResult, Result, Workspace};
 
-/// Read-only Git discovery anchored to an existing workspace connection.
+/// Git worktree discovery and managed creation through one workspace connection.
 ///
-/// Runs one shell-free command through [`Workspace::exec`] with a requested
-/// ten-second deadline. The backend owns cancellation and process cleanup; this
-/// service does not retry, attach providers, create worktrees, or retain tasks.
-/// Host Git configuration and `safe.directory` checks remain in effect.
+/// The anchor binds execution to an existing provider connection. Inventory paths
+/// are observations, not ownership. Creation uses the caller's existing managed
+/// run identity and lifecycle; this service owns no background task or registry.
+/// Host Git configuration, hooks, filters, and `safe.directory` remain in effect.
+/// Only use a Git executable and host configuration that the caller trusts.
 #[derive(Clone)]
-pub struct GitWorktreeDiscovery {
-    anchor: Workspace,
-    git_executable: String,
+pub struct GitWorktrees {
+    pub(super) anchor: Workspace,
+    pub(super) git_executable: String,
 }
 
-impl GitWorktreeDiscovery {
+impl GitWorktrees {
     /// Validate the executable structurally using [`CommandSpec::validate`].
-    /// Availability and repository access are checked only during discovery.
+    /// Availability and repository access are checked only during execution.
     pub fn new(anchor: Workspace, git_executable: impl Into<String>) -> Result<Self> {
         let git_executable = git_executable.into();
         discovery_command(&git_executable).validate()?;
@@ -49,41 +50,9 @@ impl GitWorktreeDiscovery {
 }
 
 fn discovery_command(program: &str) -> CommandSpec {
-    let mut command = CommandSpec::new(program)
+    git_command(program)
         .args(["--no-pager", "worktree", "list", "--porcelain", "-z"])
-        .timeout(10);
-    command.env_remove = [
-        "GIT_DIR",
-        "GIT_COMMON_DIR",
-        "GIT_WORK_TREE",
-        "GIT_IMPLICIT_WORK_TREE",
-        "GIT_INDEX_FILE",
-        "GIT_OBJECT_DIRECTORY",
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-        "GIT_NAMESPACE",
-        "GIT_REPLACE_REF_BASE",
-        "GIT_NO_REPLACE_OBJECTS",
-        "GIT_SHALLOW_FILE",
-        "GIT_GRAFT_FILE",
-        "GIT_CEILING_DIRECTORIES",
-        "GIT_DISCOVERY_ACROSS_FILESYSTEM",
-        "GIT_PREFIX",
-        "GIT_SUPER_PREFIX",
-        "GIT_INTERNAL_SUPER_PREFIX",
-        "GIT_CONFIG",
-        "GIT_CONFIG_PARAMETERS",
-    ]
-    .into_iter()
-    .map(String::from)
-    .collect();
-    for key in [
-        "GIT_CONFIG_COUNT",
-        "GIT_TERMINAL_PROMPT",
-        "GIT_OPTIONAL_LOCKS",
-    ] {
-        command.env.insert(key.into(), "0".into());
-    }
-    command
+        .timeout(10)
 }
 
 fn checked_output(result: ExecResult) -> Result<String> {

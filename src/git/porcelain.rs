@@ -88,11 +88,11 @@ fn parse_record(record: &str) -> Result<GitWorktree> {
     })
 }
 
-fn valid_oid(oid: &str) -> bool {
+pub(super) fn valid_oid(oid: &str) -> bool {
     matches!(oid.len(), 40 | 64) && oid.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
-fn valid_branch(reference: &str) -> bool {
+pub(super) fn valid_branch(reference: &str) -> bool {
     reference.len() <= MAX_REFERENCE_BYTES
         && reference.starts_with("refs/heads/")
         && !reference.ends_with('.')

@@ -37,9 +37,9 @@ Persist `RunRef`; reconnect the workspace and call `workspace.run(reference.id)`
 
 Output cursors are absolute byte offsets. A page's `gap` signals that older bytes were evicted from the bounded tail. Logs contain UTF-8 text with replacement characters for invalid sequences; use the binary file API for binary artifacts. A process may print secrets into its output, so apply your application's output access/retention policy.
 
-## Discover Git worktrees
+## Git worktrees
 
-`git::GitWorktreeDiscovery::new(anchor, git_executable)?.discover().await` reads
+`git::GitWorktrees::new(anchor, git_executable)?.discover().await` reads
 the repository visible from an existing `Workspace`. It executes the explicit
 Git program through that workspace's backend, using the stable
 [`worktree list --porcelain -z` format](https://git-scm.com/docs/git-worktree#_porcelain_format).
@@ -64,6 +64,68 @@ reason/reference. Backend capture limits apply before these acceptance checks.
 The text execution port is lossy, so discovery rejects replacement characters and
 supports only unambiguous UTF-8 metadata. Backend execution errors propagate;
 captured Git stderr is not copied into discovery's own diagnostics.
+`GitWorktreeDiscovery` remains a compatible alias for this same binding.
+
+To create a checkout, choose and persist a `GitWorktreeCreateRequest` before
+calling `GitWorktrees::start_create`. The request contains a workspace-qualified
+`RunRef`, an absolute POSIX target-host path, a full new `refs/heads/` reference,
+and a pinned full nonzero 40- or 64-hex commit object ID. Before managed creation,
+a `rev-parse --verify --end-of-options OID^{commit}` invocation must
+return exactly that full ID. Abbreviations, hex-named references and annotated tag
+object IDs that peel to another commit are rejected. Verification and creation
+set `GIT_NO_REPLACE_OBJECTS=1` so replacement refs cannot change the pinned tree.
+Path and reference bounds match discovery: 16 KiB and
+4 KiB. Paths reject NUL, replacement characters, empty components, `.` and `..`;
+spaces and newlines remain literal arguments. The default deadline is 120 seconds
+and output retention is 256 KiB; accepted bounds are 1–3600 seconds and 2 bytes–16 MiB.
+
+```rust
+use workspace_sdk::{git::{GitWorktrees, GitWorktreeCreateRequest}, RunRef};
+
+let git = GitWorktrees::new(anchor.clone(), "git")?;
+let request = GitWorktreeCreateRequest::new(
+    RunRef { workspace: anchor.reference(), id: run_id },
+    target_host_path,
+    "refs/heads/new-work",
+    pinned_oid,
+)?;
+// Persist request before launch; preserve all fields when retrying a lost reply.
+let run = git.start_create(request.clone()).await?;
+```
+
+Creation uses the existing `Workspace::start_with` claim and returns the ordinary
+`Run`. Built-in native managed backends prevent duplicate starts of the same
+request and reject incompatible reuse of its run ID. Custom backends must honor
+that launch contract. A successful start call does not establish Git success:
+inspect or wait for the run, read its bounded output, or cancel it explicitly.
+A waiting timeout leaves the process running. A transport error or `Lost` state
+leaves its outcome uncertain; reconnect or retry the exact saved request instead
+of choosing a new run ID. There is no inventory preflight on a create retry, so
+an already successful path and branch do not prevent reconnecting to the claim.
+Commit verification repeats before the creation claim on every `start_create`,
+requires the repository and executable to remain available, and requests a
+ten-second deadline with a 256 KiB combined output acceptance bound, checked
+after the backend's own capture and allocation limits. It requests
+no branch/worktree changes, but Git may fetch promised objects or write configured
+diagnostics; these effects are outside the creation claim. Verification checks a
+point in time and does not atomically bind the later command to a repository
+namespace. To inspect an existing run without repeating verification, use
+`anchor.run(request.run.id.clone())`.
+
+The command uses Git's non-resetting `worktree add -b` behavior, described in the
+[Git worktree documentation](https://git-scm.com/docs/git-worktree). Branch
+validation follows [Git reference rules](https://git-scm.com/docs/git-check-ref-format).
+The SDK never adds force/reset options or issues rollback or deletion. Git may
+reuse an existing empty directory. Git's own failure/signal cleanup may remove
+an in-progress worktree, while partial files or a new branch may also remain.
+The caller must keep the repository stable and serialize access to an exclusive,
+quiescent destination, including against external creators. The caller must
+trust the target Git executable, hooks, filters and host configuration: they run
+with the host's authority and may change files or expose output. Execution is
+bound to the workspace connection; concurrent external replacement of its
+repository is not prevented. After confirmed zero exit, discover afresh and explicitly attach
+the desired path through the existing provider. Creation does not grant deletion
+permission or add a separate worktree registry, attachment, or cleanup lifecycle.
 
 ## Credentials and preparation
 
