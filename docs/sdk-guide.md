@@ -37,6 +37,34 @@ Persist `RunRef`; reconnect the workspace and call `workspace.run(reference.id)`
 
 Output cursors are absolute byte offsets. A page's `gap` signals that older bytes were evicted from the bounded tail. Logs contain UTF-8 text with replacement characters for invalid sequences; use the binary file API for binary artifacts. A process may print secrets into its output, so apply your application's output access/retention policy.
 
+## Discover Git worktrees
+
+`git::GitWorktreeDiscovery::new(anchor, git_executable)?.discover().await` reads
+the repository visible from an existing `Workspace`. It executes the explicit
+Git program through that workspace's backend, using the stable
+[`worktree list --porcelain -z` format](https://git-scm.com/docs/git-worktree#_porcelain_format).
+An inventory carries its anchor `WorkspaceRef` and target-host paths, branch or
+detached HEAD state, and lock/prune annotations. Spaces and newlines are preserved.
+Bare and unborn repositories are represented explicitly.
+
+The inventory is an observation, not ownership or a portable worktree identity.
+Refresh it before acting. To run work in a selected checkout, explicitly open an
+attachment using the correct provider's existing options: `LocalOpenOptions`
+accepts a path, while `SshOpenOptions` accepts a target-host path string. Continue
+through the returned workspace's normal `exec` or managed-run API. Discovery does
+not attach automatically, prune directories, grant deletion permission, or turn
+an ordinary SDK-created directory into a Git worktree.
+
+The command requests a ten-second execution deadline and disables inherited Git
+repository redirects and inline configuration overrides. Host global/system
+configuration and `safe.directory` checks remain in effect. Failed, timed-out,
+truncated or malformed results produce no partial inventory. Acceptance is bounded
+to 256 KiB combined stdout/stderr, 256 worktrees, 16 KiB per path and 4 KiB per
+reason/reference. Backend capture limits apply before these acceptance checks.
+The text execution port is lossy, so discovery rejects replacement characters and
+supports only unambiguous UTF-8 metadata. Backend execution errors propagate;
+captured Git stderr is not copied into discovery's own diagnostics.
+
 ## Credentials and preparation
 
 Inject `ICredentialResolver`, `IRuntimeHost`, and `IPreparationStore` into `PreparationService`. `BackendRuntimeHost::new(workspace.backend())` connects runtime preparation to any registered workspace backend.
