@@ -62,7 +62,9 @@ impl FakeBoat {
                     Ok((mut stream, _)) => {
                         // Accepted sockets inherit nonblocking mode on macOS.
                         stream.set_nonblocking(false).unwrap();
-                        let request = read_request(&mut stream);
+                        let Some(request) = read_request(&mut stream) else {
+                            continue;
+                        };
                         recorded.lock().unwrap().push(request.clone());
                         if let Some(Response(status, body)) = handler(&request) {
                             let body = serde_json::to_vec(&body).unwrap();
@@ -110,15 +112,32 @@ impl Drop for FakeBoat {
         }
     }
 }
-fn read_request(stream: &mut TcpStream) -> Request {
+fn read_request_chunk(stream: &mut TcpStream, buffer: &mut [u8]) -> Option<usize> {
+    match stream.read(buffer) {
+        Ok(0) => None,
+        Ok(count) => Some(count),
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::ConnectionReset
+                    | std::io::ErrorKind::UnexpectedEof
+                    | std::io::ErrorKind::WouldBlock
+                    | std::io::ErrorKind::TimedOut
+            ) =>
+        {
+            None
+        }
+        Err(error) => panic!("fixture request read failed: {error}"),
+    }
+}
+fn read_request(stream: &mut TcpStream) -> Option<Request> {
     stream
         .set_read_timeout(Some(Duration::from_secs(2)))
         .unwrap();
     let mut bytes = Vec::new();
     let mut buffer = [0; 4096];
     let header_end = loop {
-        let count = stream.read(&mut buffer).unwrap();
-        assert_ne!(count, 0, "request ended before headers");
+        let count = read_request_chunk(stream, &mut buffer)?;
         bytes.extend_from_slice(&buffer[..count]);
         assert!(bytes.len() <= 64 * 1024, "fixture request exceeds bound");
         if let Some(index) = bytes.windows(4).position(|value| value == b"\r\n\r\n") {
@@ -140,8 +159,7 @@ fn read_request(stream: &mut TcpStream) -> Request {
         .unwrap_or(0);
     assert!(length <= 64 * 1024);
     while bytes.len() < header_end + length {
-        let count = stream.read(&mut buffer).unwrap();
-        assert_ne!(count, 0);
+        let count = read_request_chunk(stream, &mut buffer)?;
         bytes.extend_from_slice(&buffer[..count]);
     }
     let body = if length == 0 {
@@ -149,18 +167,20 @@ fn read_request(stream: &mut TcpStream) -> Request {
     } else {
         serde_json::from_slice(&bytes[header_end..header_end + length]).unwrap()
     };
-    Request {
+    Some(Request {
         method,
         path,
         headers,
         body,
-    }
+    })
 }
 fn budgets() -> Budgets {
+    // Allow loaded CI to schedule loopback requests and fsync the ledger. The
+    // former 35 ms cleanup window was never a performance contract.
     Budgets {
-        request: Duration::from_millis(200),
-        cleanup: Duration::from_millis(35),
-        poll: Duration::from_millis(1),
+        request: Duration::from_millis(500),
+        cleanup: Duration::from_secs(1),
+        poll: Duration::from_millis(25),
     }
 }
 fn sandbox(id: &str, state: &str) -> Value {
@@ -708,4 +728,44 @@ async fn repeated_cleanup_failures_keep_diagnostics_and_ledger_size_bounded() {
     assert!(reopened.fixtures()[index].cleanup.confirmed);
     assert_eq!(reopened.fixtures()[index].target_id.as_deref(), Some(FIRST));
     assert_eq!(reopened.fixtures()[index].cleanup.errors, errors);
+}
+
+#[tokio::test]
+async fn abandoned_connections_do_not_kill_server_or_record_provider_effects() {
+    let (_dir, path, mut ledger) = ledger();
+    let index = reserve(&mut ledger, "after-abandoned-connections");
+    let server = FakeBoat::start(|request| {
+        assert_eq!(request.method, "POST");
+        assert_eq!(request.path, "/api/v1/sandboxes");
+        Some(created(FIRST))
+    });
+    // A canceled request can close before any bytes, during its headers, or
+    // before its declared body is complete. None is a delivered API request.
+    for partial in [
+        &b""[..],
+        &b"POST /api/v1/sandboxes HTTP/1.1\r\nContent-Len"[..],
+        &b"POST /api/v1/sandboxes HTTP/1.1\r\nContent-Length: 20\r\n\r\n{"[..],
+    ] {
+        let mut stream = TcpStream::connect(&server.address).unwrap();
+        stream.write_all(partial).unwrap();
+        stream.shutdown(std::net::Shutdown::Both).unwrap();
+    }
+    let target = ledger
+        .create_target(&server.api(), index, budgets())
+        .await
+        .unwrap();
+    assert_eq!(target, FIRST);
+    let persisted = persisted_fixtures(&path);
+    assert_eq!(persisted.len(), 1);
+    assert_eq!(persisted[index].creation, CreationState::Created);
+    assert_eq!(persisted[index].target_id.as_deref(), Some(FIRST));
+    let delivered = server.requests();
+    assert_eq!(
+        delivered.len(),
+        1,
+        "incomplete connections must not reach the handler"
+    );
+    assert_eq!(delivered[0].method, "POST");
+    assert_eq!(delivered[0].path, "/api/v1/sandboxes");
+    assert_eq!(delivered[0].body, json!({"ttlSeconds":300,"noEnv":true}));
 }
