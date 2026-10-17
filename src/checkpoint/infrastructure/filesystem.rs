@@ -222,17 +222,12 @@ fn sync_artifact_directory(
         ));
     }
     real_publication_directory(directory)?;
-    let mut children = vec![];
     for child in fs::read_dir(directory)? {
         budget.entries = budget
             .entries
             .checked_sub(1)
             .ok_or_else(|| Error::InvalidInput("checkpoint artifact exceeds entry limit".into()))?;
-        children.push(child?);
-    }
-    children.sort_by_key(|child| child.file_name());
-    for child in children {
-        let path = child.path();
+        let path = child?.path();
         let metadata = fs::symlink_metadata(&path)?;
         if metadata.file_type().is_symlink() {
             return Err(Error::InvalidInput(
@@ -524,6 +519,102 @@ mod publication_tests {
                 assert!(retried_parent);
             }
         }
+    }
+
+    fn assert_artifact_bound_refuses_publication(
+        stage: &Path,
+        limits: &CheckpointLimits,
+        expected_error: &str,
+    ) {
+        let parent = stage.parent().unwrap();
+        let previous = parent.join("previous");
+        fs::create_dir(&previous).unwrap();
+        fs::write(previous.join("snapshot.bundle"), b"previous bundle").unwrap();
+        let destination = parent.join("published");
+        let mut rename_attempted = false;
+        let result = publish_checkpoint_directory_with(stage, &destination, limits, |step| {
+            // Observe the publication boundary without issuing unrelated fsyncs.
+            // The walker still inspects real fixture entries and their metadata.
+            if matches!(step, PublicationStep::Rename { .. }) {
+                rename_attempted = true;
+            }
+            Ok(())
+        });
+        assert!(
+            matches!(result, Err(Error::InvalidInput(ref message)) if message == expected_error),
+            "unexpected publication result: {result:?}"
+        );
+        assert!(
+            !rename_attempted,
+            "an invalid artifact must not be published"
+        );
+        assert!(!destination.exists());
+        assert!(stage.is_dir(), "a rejected stage must remain available");
+        assert_eq!(
+            fs::read(previous.join("snapshot.bundle")).unwrap(),
+            b"previous bundle"
+        );
+    }
+
+    #[test]
+    fn artifact_entry_budget_exhaustion_refuses_publication_and_preserves_previous() {
+        let root = tempfile::tempdir().unwrap();
+        let stage = root.path().join("stage");
+        fs::create_dir(&stage).unwrap();
+        // One selected file permits 5120 expanded artifact metadata entries.
+        // Empty files isolate the entry budget from the content-byte budget.
+        for index in 0..5121 {
+            fs::write(stage.join(format!("metadata-{index}")), b"").unwrap();
+        }
+        let limits = CheckpointLimits {
+            max_files: 1,
+            ..limits()
+        };
+        assert_artifact_bound_refuses_publication(
+            &stage,
+            &limits,
+            "checkpoint artifact exceeds entry limit",
+        );
+    }
+
+    #[test]
+    fn artifact_aggregate_byte_budget_exhaustion_refuses_publication_and_preserves_previous() {
+        let root = tempfile::tempdir().unwrap();
+        let stage = root.path().join("stage");
+        fs::create_dir(&stage).unwrap();
+        fs::write(stage.join("object-a"), vec![b'a'; 2052]).unwrap();
+        fs::write(stage.join("object-b"), vec![b'b'; 2052]).unwrap();
+        // The artifact byte allowance is 4102 bytes. Either file fits alone,
+        // while their 4104-byte aggregate exceeds it regardless of read order.
+        let limits = CheckpointLimits {
+            max_files: 1,
+            max_bundle_bytes: 1,
+            max_total_bytes: 1,
+            max_manifest_bytes: 1,
+            ..limits()
+        };
+        assert_artifact_bound_refuses_publication(
+            &stage,
+            &limits,
+            "checkpoint artifact exceeds byte limit",
+        );
+    }
+
+    #[test]
+    fn excessive_owned_artifact_depth_refuses_publication_and_preserves_previous() {
+        let root = tempfile::tempdir().unwrap();
+        let stage = root.path().join("stage");
+        let mut nested = stage.clone();
+        // The artifact root is depth zero; its 65th descendant is unsupported.
+        for _ in 0..65 {
+            nested.push("d");
+        }
+        fs::create_dir_all(nested).unwrap();
+        assert_artifact_bound_refuses_publication(
+            &stage,
+            &limits(),
+            "checkpoint artifact exceeds directory depth limit",
+        );
     }
 
     #[test]
