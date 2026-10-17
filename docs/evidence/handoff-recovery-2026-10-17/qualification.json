@@ -1,0 +1,325 @@
+{
+  "scope": "test-only stopped-source handoff receipt recovery, not automatic failover or live Boat",
+  "base": "0b7bbc0a9be0cce0713df05be56f2a63d6c14c30",
+  "test_source_sha256": "26b6da60d7365932a5405839aa62a6cfec28f606dd168b49329f4266f8c0d4e6",
+  "platform": {
+    "os": "macos",
+    "architecture": "aarch64",
+    "debug_assertions": true,
+    "cargo_profile_debug": 0,
+    "cargo_incremental": 0,
+    "cargo_build_jobs": 1
+  },
+  "mechanical_gate": {
+    "command": "scripts/quality-gate.sh",
+    "result": "passed",
+    "features": [
+      "all-features",
+      "no-default-features"
+    ],
+    "notes": [
+      "WORKSPACE_SDK_PERF_REPORT was explicitly set to an existing output parent because CARGO_TARGET_DIR was outside the repository. An initial run failed at report write; it was not counted as a passed gate.",
+      "The existing installed Rust toolchain and its dynamic library path were selected explicitly. Cached rust-objcopy warnings are retained in operator logs; no zero-warning claim.",
+      "Native local process tests; no live provider, physical machine failure or power-loss qualification."
+    ]
+  },
+  "restored_workflow_tests": {
+    "command": "cargo test --locked --all-features --test sdk_workflow",
+    "passed": 10,
+    "failed": 0
+  },
+  "fault_probes": [
+    {
+      "fault": "restore-publication-after-launch",
+      "test": "handoff_recovers_restored_receipt_failure_before_destination_launch",
+      "code": 101,
+      "verified": true,
+      "restored": true,
+      "panic": "panicked at tests/sdk_workflow.rs:412:9:\nassertion failed: fs::read_dir(runs).unwrap().all(|entry|\n        !entry.unwrap().path().join(\"claim.json\").exists())\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\ntest handoff_recovers_restored_receipt_failure_before_destination_launch ... FAILED\n\nfailures:\n\nfailures:\n    handoff_recovers_restored_receipt_failure_before_destination_launch\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 1.02s\n\nerror: test failed, to rerun pass `--test sdk_workflow`\n"
+    },
+    {
+      "fault": "unstable-destination-run-id",
+      "test": "handoff_recovers_started_receipt_failure_without_relaunching_destination",
+      "code": 101,
+      "verified": true,
+      "restored": true,
+      "panic": "panicked at tests/sdk_workflow.rs:494:9:\nassertion `left == right` failed\n  left: RunId(\"handoff-bc154ba5ac794b5547c2031fb92fa612bd54c238a742a497e0acab65f3b958cd\")\n right: RunId(\"handoff-50a9a0916acf83b93549bdeb5d2b89c7e14bda0108a398017f4b44e95b56ac22\")\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\ntest handoff_recovers_started_receipt_failure_without_relaunching_destination ... FAILED\n\nfailures:\n\nfailures:\n    handoff_recovers_started_receipt_failure_without_relaunching_destination\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 1.22s\n\nerror: test failed, to rerun pass `--test sdk_workflow`\n"
+    },
+    {
+      "fault": "accept-conflicting-committed-retry",
+      "test": "handoff_recovers_started_acknowledgement_loss_without_relaunching_destination",
+      "code": 101,
+      "verified": true,
+      "restored": true,
+      "panic": "panicked at tests/sdk_workflow.rs:460:5:\nassertion failed: matches!(restarted.handoff(operation.clone(), &source, &source_run,\n    &destination, changed.into(), true,).await, Err(Error::Conflict(_)))\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\ntest handoff_recovers_started_acknowledgement_loss_without_relaunching_destination ... FAILED\n\nfailures:\n\nfailures:\n    handoff_recovers_started_acknowledgement_loss_without_relaunching_destination\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 1.22s\n\nerror: test failed, to rerun pass `--test sdk_workflow`\n"
+    }
+  ],
+  "performance_limit": "Small local qualification samples, not a statistical regression baseline; test-only change does not assert a production speedup.",
+  "managed_run_performance": {
+    "schema_version": 1,
+    "unix_timestamp_seconds": 1792257731,
+    "operating_system": "macos",
+    "architecture": "aarch64",
+    "debug_assertions": true,
+    "retention_bytes": 32768,
+    "minimum_load_bytes_per_stream": 131072,
+    "poll_interval_ms": 10,
+    "samples": [
+      {
+        "launch_ms": 32.808042,
+        "launch_to_first_output_ms": 251.254834,
+        "reconnect_ms": 0.046083,
+        "idempotent_retry_ms": 3.4794169999999998,
+        "loaded_read_ms": 5.8761660000000004,
+        "cancel_ms": 74.836042,
+        "final_stdout_offset": 352256,
+        "final_stderr_offset": 352256,
+        "retained_stdout_bytes": 16384,
+        "retained_stderr_bytes": 16384
+      },
+      {
+        "launch_ms": 27.9285,
+        "launch_to_first_output_ms": 76.209291,
+        "reconnect_ms": 0.070958,
+        "idempotent_retry_ms": 4.808,
+        "loaded_read_ms": 3.850625,
+        "cancel_ms": 68.911625,
+        "final_stdout_offset": 245760,
+        "final_stderr_offset": 245760,
+        "retained_stdout_bytes": 16384,
+        "retained_stderr_bytes": 16384
+      },
+      {
+        "launch_ms": 26.827917,
+        "launch_to_first_output_ms": 72.36,
+        "reconnect_ms": 0.055334,
+        "idempotent_retry_ms": 5.035042,
+        "loaded_read_ms": 5.186375,
+        "cancel_ms": 68.324708,
+        "final_stdout_offset": 335872,
+        "final_stderr_offset": 335872,
+        "retained_stdout_bytes": 16384,
+        "retained_stderr_bytes": 16384
+      }
+    ]
+  },
+  "pty_performance": {
+    "architecture": "aarch64",
+    "debug_assertions": true,
+    "os": "macos",
+    "samples": [
+      {
+        "cancel_ms": 136.15337499999998,
+        "elapsed_to_cancel_ms": 1445.275875,
+        "input_delivery_ms": 138.062625,
+        "launch_ms": 30.975625,
+        "observed_bytes_per_second": 486041.46249933075,
+        "output_bytes": 702464,
+        "population": 1,
+        "ready_ms": 374.93399999999997,
+        "resize_observed_ms": 261.80175,
+        "retained_bytes": 131072,
+        "supervisor_open_descriptors": 18,
+        "supervisor_rss_kib": 5504
+      },
+      {
+        "cancel_ms": 121.228375,
+        "elapsed_to_cancel_ms": 1130.645042,
+        "input_delivery_ms": 49.294833000000004,
+        "launch_ms": 27.699167,
+        "observed_bytes_per_second": 553369.0740758583,
+        "output_bytes": 625664,
+        "population": 1,
+        "ready_ms": 191.76433300000002,
+        "resize_observed_ms": 235.477958,
+        "retained_bytes": 131072,
+        "supervisor_open_descriptors": 18,
+        "supervisor_rss_kib": 5408
+      },
+      {
+        "cancel_ms": 130.912625,
+        "elapsed_to_cancel_ms": 1124.991084,
+        "input_delivery_ms": 11.524750000000001,
+        "launch_ms": 28.69275,
+        "observed_bytes_per_second": 546137.6616563479,
+        "output_bytes": 614400,
+        "population": 1,
+        "ready_ms": 203.03929200000002,
+        "resize_observed_ms": 245.436458,
+        "retained_bytes": 131072,
+        "supervisor_open_descriptors": 18,
+        "supervisor_rss_kib": 5456
+      },
+      {
+        "cancel_ms": 519.481458,
+        "elapsed_to_cancel_ms": 2587.0475,
+        "input_delivery_ms": 62.900999999999996,
+        "launch_ms": 54.452374999999996,
+        "observed_bytes_per_second": 601643.3791803204,
+        "output_bytes": 1556480,
+        "population": 4,
+        "ready_ms": 202.313,
+        "resize_observed_ms": 757.615917,
+        "retained_bytes": 131072,
+        "supervisor_open_descriptors": 18,
+        "supervisor_rss_kib": 5664
+      },
+      {
+        "cancel_ms": 425.85575,
+        "elapsed_to_cancel_ms": 2278.000458,
+        "input_delivery_ms": 284.555167,
+        "launch_ms": 90.731291,
+        "observed_bytes_per_second": 573134.2131275374,
+        "output_bytes": 1305600,
+        "population": 4,
+        "ready_ms": 275.452333,
+        "resize_observed_ms": 756.108083,
+        "retained_bytes": 131072,
+        "supervisor_open_descriptors": 18,
+        "supervisor_rss_kib": 5552
+      },
+      {
+        "cancel_ms": 354.390084,
+        "elapsed_to_cancel_ms": 2543.435958,
+        "input_delivery_ms": 379.264875,
+        "launch_ms": 68.22458300000001,
+        "observed_bytes_per_second": 606725.7149314864,
+        "output_bytes": 1543168,
+        "population": 4,
+        "ready_ms": 236.266875,
+        "resize_observed_ms": 747.6237500000001,
+        "retained_bytes": 131072,
+        "supervisor_open_descriptors": 18,
+        "supervisor_rss_kib": 5456
+      },
+      {
+        "cancel_ms": 360.425709,
+        "elapsed_to_cancel_ms": 2945.9592909999997,
+        "input_delivery_ms": 339.690875,
+        "launch_ms": 25.971874999999997,
+        "observed_bytes_per_second": 625322.9654693148,
+        "output_bytes": 1842176,
+        "population": 4,
+        "ready_ms": 190.186291,
+        "resize_observed_ms": 807.498375,
+        "retained_bytes": 131072,
+        "supervisor_open_descriptors": 17,
+        "supervisor_rss_kib": 5760
+      },
+      {
+        "cancel_ms": 473.420333,
+        "elapsed_to_cancel_ms": 2574.091458,
+        "input_delivery_ms": 85.595375,
+        "launch_ms": 50.486375,
+        "observed_bytes_per_second": 616605.9077144105,
+        "output_bytes": 1587200,
+        "population": 4,
+        "ready_ms": 195.68533299999999,
+        "resize_observed_ms": 761.312458,
+        "retained_bytes": 131072,
+        "supervisor_open_descriptors": 18,
+        "supervisor_rss_kib": 5552
+      },
+      {
+        "cancel_ms": 458.218833,
+        "elapsed_to_cancel_ms": 2309.634875,
+        "input_delivery_ms": 300.74395799999996,
+        "launch_ms": 78.248834,
+        "observed_bytes_per_second": 578141.5991131499,
+        "output_bytes": 1335296,
+        "population": 4,
+        "ready_ms": 264.2625,
+        "resize_observed_ms": 746.127875,
+        "retained_bytes": 131072,
+        "supervisor_open_descriptors": 18,
+        "supervisor_rss_kib": 5632
+      },
+      {
+        "cancel_ms": 364.797792,
+        "elapsed_to_cancel_ms": 2992.461625,
+        "input_delivery_ms": 382.21558300000004,
+        "launch_ms": 33.004375,
+        "observed_bytes_per_second": 628266.7033365883,
+        "output_bytes": 1880064,
+        "population": 4,
+        "ready_ms": 196.38029200000003,
+        "resize_observed_ms": 797.326666,
+        "retained_bytes": 131072,
+        "supervisor_open_descriptors": 18,
+        "supervisor_rss_kib": 5824
+      },
+      {
+        "cancel_ms": 366.331958,
+        "elapsed_to_cancel_ms": 2630.276667,
+        "input_delivery_ms": 404.18033399999996,
+        "launch_ms": 81.59116700000001,
+        "observed_bytes_per_second": 602266.681628895,
+        "output_bytes": 1584128,
+        "population": 4,
+        "ready_ms": 255.243792,
+        "resize_observed_ms": 807.8591250000001,
+        "retained_bytes": 131072,
+        "supervisor_open_descriptors": 18,
+        "supervisor_rss_kib": 5664
+      },
+      {
+        "cancel_ms": 457.563833,
+        "elapsed_to_cancel_ms": 2530.469084,
+        "input_delivery_ms": 44.156375,
+        "launch_ms": 53.676,
+        "observed_bytes_per_second": 609025.4213119642,
+        "output_bytes": 1541120,
+        "population": 4,
+        "ready_ms": 201.98512499999998,
+        "resize_observed_ms": 782.2,
+        "retained_bytes": 131072,
+        "supervisor_open_descriptors": 17,
+        "supervisor_rss_kib": 5472
+      },
+      {
+        "cancel_ms": 489.52991699999995,
+        "elapsed_to_cancel_ms": 2356.5468339999998,
+        "input_delivery_ms": 44.406333,
+        "launch_ms": 79.582292,
+        "observed_bytes_per_second": 581841.1839804751,
+        "output_bytes": 1371136,
+        "population": 4,
+        "ready_ms": 246.287,
+        "resize_observed_ms": 762.013,
+        "retained_bytes": 131072,
+        "supervisor_open_descriptors": 18,
+        "supervisor_rss_kib": 5328
+      },
+      {
+        "cancel_ms": 301.339459,
+        "elapsed_to_cancel_ms": 2872.333,
+        "input_delivery_ms": 330.7275,
+        "launch_ms": 30.115583,
+        "observed_bytes_per_second": 626022.1220868193,
+        "output_bytes": 1798144,
+        "population": 4,
+        "ready_ms": 197.018375,
+        "resize_observed_ms": 773.784458,
+        "retained_bytes": 131072,
+        "supervisor_open_descriptors": 18,
+        "supervisor_rss_kib": 5840
+      },
+      {
+        "cancel_ms": 314.61899999999997,
+        "elapsed_to_cancel_ms": 2244.415,
+        "input_delivery_ms": 324.363084,
+        "launch_ms": 74.1705,
+        "observed_bytes_per_second": 587641.7685677559,
+        "output_bytes": 1318912,
+        "population": 4,
+        "ready_ms": 268.615875,
+        "resize_observed_ms": 804.2476670000001,
+        "retained_bytes": 131072,
+        "supervisor_open_descriptors": 18,
+        "supervisor_rss_kib": 5360
+      }
+    ],
+    "schema_version": 1,
+    "unix_timestamp_seconds": 1792257746
+  }
+}
