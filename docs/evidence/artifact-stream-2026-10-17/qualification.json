@@ -1,0 +1,733 @@
+{
+  "scope": "Stream SDK-owned checkpoint artifact directory traversal, removing per-directory collection and sibling sorting while preserving bounded postorder publication",
+  "source_commit": "539d95c6dc1fea6f2e4a453ceb5541c12ae06bb9",
+  "cloud_run": {
+    "conclusion": "success",
+    "headSha": "539d95c6dc1fea6f2e4a453ceb5541c12ae06bb9",
+    "jobs": [
+      {
+        "completedAt": "2026-10-17T22:09:53Z",
+        "conclusion": "success",
+        "databaseId": 117516700947,
+        "name": "quality (ubuntu-24.04)",
+        "startedAt": "2026-10-17T22:08:08Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-17T22:08:09Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-17T22:08:08Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-17T22:08:10Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v4",
+            "number": 2,
+            "startedAt": "2026-10-17T22:08:09Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-17T22:08:17Z",
+            "conclusion": "success",
+            "name": "Run dtolnay/rust-toolchain@stable",
+            "number": 3,
+            "startedAt": "2026-10-17T22:08:10Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-17T22:08:21Z",
+            "conclusion": "success",
+            "name": "Run Swatinem/rust-cache@v2",
+            "number": 4,
+            "startedAt": "2026-10-17T22:08:17Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-17T22:09:52Z",
+            "conclusion": "success",
+            "name": "Run scripts/quality-gate.sh",
+            "number": 5,
+            "startedAt": "2026-10-17T22:08:21Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-17T22:09:52Z",
+            "conclusion": "success",
+            "name": "Post Run Swatinem/rust-cache@v2",
+            "number": 9,
+            "startedAt": "2026-10-17T22:09:52Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-17T22:09:52Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v4",
+            "number": 10,
+            "startedAt": "2026-10-17T22:09:52Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-17T22:09:52Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 11,
+            "startedAt": "2026-10-17T22:09:52Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39073806361/job/117516700947"
+      },
+      {
+        "completedAt": "2026-10-17T22:10:49Z",
+        "conclusion": "success",
+        "databaseId": 117516701294,
+        "name": "quality (macos-15)",
+        "startedAt": "2026-10-17T22:08:13Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-17T22:08:15Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-17T22:08:13Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-17T22:08:19Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v4",
+            "number": 2,
+            "startedAt": "2026-10-17T22:08:15Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-17T22:08:28Z",
+            "conclusion": "success",
+            "name": "Run dtolnay/rust-toolchain@stable",
+            "number": 3,
+            "startedAt": "2026-10-17T22:08:19Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-17T22:08:37Z",
+            "conclusion": "success",
+            "name": "Run Swatinem/rust-cache@v2",
+            "number": 4,
+            "startedAt": "2026-10-17T22:08:28Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-17T22:10:44Z",
+            "conclusion": "success",
+            "name": "Run scripts/quality-gate.sh",
+            "number": 5,
+            "startedAt": "2026-10-17T22:08:37Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-17T22:10:45Z",
+            "conclusion": "success",
+            "name": "Post Run Swatinem/rust-cache@v2",
+            "number": 9,
+            "startedAt": "2026-10-17T22:10:44Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-17T22:10:45Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v4",
+            "number": 10,
+            "startedAt": "2026-10-17T22:10:45Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-17T22:10:45Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 11,
+            "startedAt": "2026-10-17T22:10:45Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39073806361/job/117516701294"
+      }
+    ],
+    "status": "completed"
+  },
+  "cloud_url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39073806361",
+  "raw_log_sha256": "db5483f04055c6252a71222b215c231a826f031aa22a51d4d2ba904cd958f332",
+  "checks": [
+    "cargo fmt --all -- --check",
+    "cargo clippy --locked --all-features --all-targets -- -D warnings",
+    "cargo build --locked --all-features --example pty_live_probe",
+    "cargo test --locked --all-features",
+    "cargo build --locked --no-default-features --example pty_live_probe",
+    "cargo test --locked --no-default-features",
+    "RUSTDOCFLAGS=-Dwarnings cargo doc --locked --all-features --no-deps",
+    "cargo build --locked --bin workspace-supervisor",
+    "cargo test --locked --test runtime_performance -- --ignored --nocapture",
+    "cargo test --locked --test runtime_pty_performance -- --ignored --nocapture"
+  ],
+  "regressions": {
+    "new": "Three entry/aggregate-byte/depth refusal tests PASS under both feature selections on each OS",
+    "retained": "Existing child-before-parent synchronization, pre/post-rename failure and retry tests passed in full suite",
+    "test_method": "Bounds tests use real filesystem metadata and injected no-op syscall operations. They verify no rename/final publication, unchanged previous artifact, retained stage and InvalidInput. They are not hardware durability proof.",
+    "draft_fix": "Initial zero-max_files fixtures violated public limit validation. Corrected before cloud execution to positive supported limits:5121 entries exceed5120;two2052-byte files exceed4102 aggregate allowance;depth65 exceeds64. Both source reviewers rechecked. No executed red probe claimed."
+  },
+  "performance": {
+    "ubuntu-24.04": [
+      {
+        "schema_version": 1,
+        "unix_timestamp_seconds": 1792274987,
+        "operating_system": "linux",
+        "architecture": "x86_64",
+        "debug_assertions": true,
+        "retention_bytes": 32768,
+        "minimum_load_bytes_per_stream": 131072,
+        "poll_interval_ms": 10,
+        "samples": [
+          {
+            "launch_ms": 2.918727,
+            "launch_to_first_output_ms": 18.035932000000003,
+            "reconnect_ms": 0.034532,
+            "idempotent_retry_ms": 1.4683579999999998,
+            "loaded_read_ms": 1.3782670000000001,
+            "cancel_ms": 51.969104,
+            "final_stdout_offset": 192512,
+            "final_stderr_offset": 192512,
+            "retained_stdout_bytes": 16384,
+            "retained_stderr_bytes": 16384
+          },
+          {
+            "launch_ms": 2.6487,
+            "launch_to_first_output_ms": 17.883176,
+            "reconnect_ms": 0.024777,
+            "idempotent_retry_ms": 1.384145,
+            "loaded_read_ms": 1.3887669999999999,
+            "cancel_ms": 51.825668,
+            "final_stdout_offset": 192512,
+            "final_stderr_offset": 192512,
+            "retained_stdout_bytes": 16384,
+            "retained_stderr_bytes": 16384
+          },
+          {
+            "launch_ms": 2.700839,
+            "launch_to_first_output_ms": 17.811053,
+            "reconnect_ms": 0.023264999999999997,
+            "idempotent_retry_ms": 1.402713,
+            "loaded_read_ms": 1.343344,
+            "cancel_ms": 51.892117,
+            "final_stdout_offset": 188416,
+            "final_stderr_offset": 188416,
+            "retained_stdout_bytes": 16384,
+            "retained_stderr_bytes": 16384
+          }
+        ]
+      },
+      {
+        "architecture": "x86_64",
+        "debug_assertions": true,
+        "os": "linux",
+        "samples": [
+          {
+            "cancel_ms": 52.071798,
+            "elapsed_to_cancel_ms": 603.5477430000001,
+            "input_delivery_ms": 4.122559,
+            "launch_ms": 3.463508,
+            "observed_bytes_per_second": 894126.4485848635,
+            "output_bytes": 539648,
+            "population": 1,
+            "ready_ms": 9.592612,
+            "resize_observed_ms": 28.558231,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 18,
+            "supervisor_rss_kib": 7496
+          },
+          {
+            "cancel_ms": 51.741721999999996,
+            "elapsed_to_cancel_ms": 608.2303430000001,
+            "input_delivery_ms": 10.314699000000001,
+            "launch_ms": 2.76795,
+            "observed_bytes_per_second": 887242.812218594,
+            "output_bytes": 539648,
+            "population": 1,
+            "ready_ms": 8.877895,
+            "resize_observed_ms": 28.478645,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7624
+          },
+          {
+            "cancel_ms": 51.78714,
+            "elapsed_to_cancel_ms": 610.426754,
+            "input_delivery_ms": 10.156851999999999,
+            "launch_ms": 2.90033,
+            "observed_bytes_per_second": 885727.8886567283,
+            "output_bytes": 540672,
+            "population": 1,
+            "ready_ms": 9.01356,
+            "resize_observed_ms": 29.211489,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7620
+          },
+          {
+            "cancel_ms": 52.260650999999996,
+            "elapsed_to_cancel_ms": 651.352851,
+            "input_delivery_ms": 11.381120999999998,
+            "launch_ms": 2.8151309999999996,
+            "observed_bytes_per_second": 888243.5980924263,
+            "output_bytes": 578560,
+            "population": 4,
+            "ready_ms": 8.928882000000002,
+            "resize_observed_ms": 29.495853,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7644
+          },
+          {
+            "cancel_ms": 52.221833000000004,
+            "elapsed_to_cancel_ms": 632.6292030000001,
+            "input_delivery_ms": 4.436205999999999,
+            "launch_ms": 2.758145,
+            "observed_bytes_per_second": 908057.9860617025,
+            "output_bytes": 574464,
+            "population": 4,
+            "ready_ms": 8.882002,
+            "resize_observed_ms": 29.354979999999998,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7628
+          },
+          {
+            "cancel_ms": 57.123096,
+            "elapsed_to_cancel_ms": 629.677845,
+            "input_delivery_ms": 4.984738,
+            "launch_ms": 3.077456,
+            "observed_bytes_per_second": 871658.4271755662,
+            "output_bytes": 548864,
+            "population": 4,
+            "ready_ms": 9.195223,
+            "resize_observed_ms": 40.085349,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7776
+          },
+          {
+            "cancel_ms": 57.35196,
+            "elapsed_to_cancel_ms": 648.0582459999999,
+            "input_delivery_ms": 9.774375000000001,
+            "launch_ms": 2.8039739999999997,
+            "observed_bytes_per_second": 899079.6793287004,
+            "output_bytes": 582656,
+            "population": 4,
+            "ready_ms": 8.916212,
+            "resize_observed_ms": 42.247617,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7624
+          },
+          {
+            "cancel_ms": 52.13985,
+            "elapsed_to_cancel_ms": 619.622667,
+            "input_delivery_ms": 3.627218,
+            "launch_ms": 2.978562,
+            "observed_bytes_per_second": 884150.9989498173,
+            "output_bytes": 547840,
+            "population": 4,
+            "ready_ms": 9.154968,
+            "resize_observed_ms": 30.617702,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7636
+          },
+          {
+            "cancel_ms": 52.374883999999994,
+            "elapsed_to_cancel_ms": 645.333829,
+            "input_delivery_ms": 6.266967,
+            "launch_ms": 2.8186940000000003,
+            "observed_bytes_per_second": 898115.0126564959,
+            "output_bytes": 579584,
+            "population": 4,
+            "ready_ms": 8.926596,
+            "resize_observed_ms": 22.783698,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7644
+          },
+          {
+            "cancel_ms": 53.543243999999994,
+            "elapsed_to_cancel_ms": 639.2109360000001,
+            "input_delivery_ms": 9.118473999999999,
+            "launch_ms": 2.758576,
+            "observed_bytes_per_second": 893902.1030766595,
+            "output_bytes": 571392,
+            "population": 4,
+            "ready_ms": 8.870555000000001,
+            "resize_observed_ms": 31.465668,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7636
+          },
+          {
+            "cancel_ms": 52.20623,
+            "elapsed_to_cancel_ms": 629.249398,
+            "input_delivery_ms": 3.8739600000000003,
+            "launch_ms": 2.833255,
+            "observed_bytes_per_second": 882015.9411578809,
+            "output_bytes": 555008,
+            "population": 4,
+            "ready_ms": 8.939305,
+            "resize_observed_ms": 42.818526000000006,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7624
+          },
+          {
+            "cancel_ms": 52.809101999999996,
+            "elapsed_to_cancel_ms": 631.406959,
+            "input_delivery_ms": 9.657249,
+            "launch_ms": 3.014382,
+            "observed_bytes_per_second": 880623.8069986175,
+            "output_bytes": 556032,
+            "population": 4,
+            "ready_ms": 9.131889000000001,
+            "resize_observed_ms": 29.761181,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7360
+          },
+          {
+            "cancel_ms": 52.050979999999996,
+            "elapsed_to_cancel_ms": 641.200982,
+            "input_delivery_ms": 12.674503999999999,
+            "launch_ms": 3.2004479999999997,
+            "observed_bytes_per_second": 883142.7522673382,
+            "output_bytes": 566272,
+            "population": 4,
+            "ready_ms": 9.442492999999999,
+            "resize_observed_ms": 39.914970000000004,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7636
+          },
+          {
+            "cancel_ms": 52.365483999999995,
+            "elapsed_to_cancel_ms": 659.440233,
+            "input_delivery_ms": 9.128057,
+            "launch_ms": 3.0924590000000003,
+            "observed_bytes_per_second": 882008.6656738762,
+            "output_bytes": 581632,
+            "population": 4,
+            "ready_ms": 8.264642,
+            "resize_observed_ms": 49.956163,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7364
+          },
+          {
+            "cancel_ms": 52.64158,
+            "elapsed_to_cancel_ms": 650.8318429999999,
+            "input_delivery_ms": 9.699311999999999,
+            "launch_ms": 3.1849790000000002,
+            "observed_bytes_per_second": 885807.9182828183,
+            "output_bytes": 576512,
+            "population": 4,
+            "ready_ms": 9.301103999999999,
+            "resize_observed_ms": 36.150389999999994,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7492
+          }
+        ],
+        "schema_version": 1,
+        "unix_timestamp_seconds": 1792274992
+      }
+    ],
+    "macos-15": [
+      {
+        "schema_version": 1,
+        "unix_timestamp_seconds": 1792275032,
+        "operating_system": "macos",
+        "architecture": "aarch64",
+        "debug_assertions": true,
+        "retention_bytes": 32768,
+        "minimum_load_bytes_per_stream": 131072,
+        "poll_interval_ms": 10,
+        "samples": [
+          {
+            "launch_ms": 15.906334000000001,
+            "launch_to_first_output_ms": 41.184833999999995,
+            "reconnect_ms": 0.061958000000000006,
+            "idempotent_retry_ms": 3.752834,
+            "loaded_read_ms": 3.173791,
+            "cancel_ms": 76.25975,
+            "final_stdout_offset": 163840,
+            "final_stderr_offset": 163840,
+            "retained_stdout_bytes": 16384,
+            "retained_stderr_bytes": 16384
+          },
+          {
+            "launch_ms": 7.621,
+            "launch_to_first_output_ms": 29.355666999999997,
+            "reconnect_ms": 0.068583,
+            "idempotent_retry_ms": 3.507541,
+            "loaded_read_ms": 3.285625,
+            "cancel_ms": 123.724875,
+            "final_stdout_offset": 163840,
+            "final_stderr_offset": 163840,
+            "retained_stdout_bytes": 16384,
+            "retained_stderr_bytes": 16384
+          },
+          {
+            "launch_ms": 7.770625,
+            "launch_to_first_output_ms": 29.813208,
+            "reconnect_ms": 0.06612499999999999,
+            "idempotent_retry_ms": 3.366375,
+            "loaded_read_ms": 3.266583,
+            "cancel_ms": 73.22375000000001,
+            "final_stdout_offset": 167936,
+            "final_stderr_offset": 167936,
+            "retained_stdout_bytes": 16384,
+            "retained_stderr_bytes": 16384
+          }
+        ]
+      },
+      {
+        "architecture": "aarch64",
+        "debug_assertions": true,
+        "os": "macos",
+        "samples": [
+          {
+            "cancel_ms": 71.275542,
+            "elapsed_to_cancel_ms": 1539.807959,
+            "input_delivery_ms": 31.5885,
+            "launch_ms": 12.393542,
+            "observed_bytes_per_second": 188200.0922947561,
+            "output_bytes": 289792,
+            "population": 1,
+            "ready_ms": 27.521084000000002,
+            "resize_observed_ms": 45.801791,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7072
+          },
+          {
+            "cancel_ms": 98.100959,
+            "elapsed_to_cancel_ms": 1638.7982920000002,
+            "input_delivery_ms": 21.5015,
+            "launch_ms": 7.6310839999999995,
+            "observed_bytes_per_second": 176207.16436528967,
+            "output_bytes": 288768,
+            "population": 1,
+            "ready_ms": 21.746584,
+            "resize_observed_ms": 79.222834,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 6976
+          },
+          {
+            "cancel_ms": 101.232333,
+            "elapsed_to_cancel_ms": 1613.0154590000002,
+            "input_delivery_ms": 20.301750000000002,
+            "launch_ms": 7.672875,
+            "observed_bytes_per_second": 179658.53853605254,
+            "output_bytes": 289792,
+            "population": 1,
+            "ready_ms": 24.181583999999997,
+            "resize_observed_ms": 65.16404100000001,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7072
+          },
+          {
+            "cancel_ms": 179.21866599999998,
+            "elapsed_to_cancel_ms": 1319.6030839999999,
+            "input_delivery_ms": 27.4645,
+            "launch_ms": 8.03275,
+            "observed_bytes_per_second": 264612.90082889807,
+            "output_bytes": 349184,
+            "population": 4,
+            "ready_ms": 24.09475,
+            "resize_observed_ms": 173.514083,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 18,
+            "supervisor_rss_kib": 6864
+          },
+          {
+            "cancel_ms": 180.413292,
+            "elapsed_to_cancel_ms": 1392.660084,
+            "input_delivery_ms": 47.563333,
+            "launch_ms": 8.7835,
+            "observed_bytes_per_second": 266907.9154852836,
+            "output_bytes": 371712,
+            "population": 4,
+            "ready_ms": 23.840709,
+            "resize_observed_ms": 235.243708,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 18,
+            "supervisor_rss_kib": 7168
+          },
+          {
+            "cancel_ms": 116.129417,
+            "elapsed_to_cancel_ms": 1369.015667,
+            "input_delivery_ms": 5.679166,
+            "launch_ms": 8.209166999999999,
+            "observed_bytes_per_second": 270769.7281597289,
+            "output_bytes": 370688,
+            "population": 4,
+            "ready_ms": 22.012833,
+            "resize_observed_ms": 278.144333,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 18,
+            "supervisor_rss_kib": 6848
+          },
+          {
+            "cancel_ms": 114.36608299999999,
+            "elapsed_to_cancel_ms": 1412.5442079999998,
+            "input_delivery_ms": 121.942792,
+            "launch_ms": 20.295583,
+            "observed_bytes_per_second": 259526.03672422553,
+            "output_bytes": 366592,
+            "population": 4,
+            "ready_ms": 35.727583,
+            "resize_observed_ms": 215.728917,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 6928
+          },
+          {
+            "cancel_ms": 138.09520899999998,
+            "elapsed_to_cancel_ms": 1614.713917,
+            "input_delivery_ms": 68.839042,
+            "launch_ms": 8.326417,
+            "observed_bytes_per_second": 236544.68818206142,
+            "output_bytes": 381952,
+            "population": 4,
+            "ready_ms": 22.674833,
+            "resize_observed_ms": 266.898333,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 18,
+            "supervisor_rss_kib": 7008
+          },
+          {
+            "cancel_ms": 150.785084,
+            "elapsed_to_cancel_ms": 1583.01475,
+            "input_delivery_ms": 41.413540999999995,
+            "launch_ms": 9.536332999999999,
+            "observed_bytes_per_second": 240634.52346227347,
+            "output_bytes": 380928,
+            "population": 4,
+            "ready_ms": 23.599,
+            "resize_observed_ms": 277.540458,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 18,
+            "supervisor_rss_kib": 6992
+          },
+          {
+            "cancel_ms": 284.498834,
+            "elapsed_to_cancel_ms": 1789.324833,
+            "input_delivery_ms": 85.184375,
+            "launch_ms": 9.441833,
+            "observed_bytes_per_second": 223190.3300254482,
+            "output_bytes": 399360,
+            "population": 4,
+            "ready_ms": 22.206583,
+            "resize_observed_ms": 291.047042,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 18,
+            "supervisor_rss_kib": 7120
+          },
+          {
+            "cancel_ms": 228.789459,
+            "elapsed_to_cancel_ms": 1741.193833,
+            "input_delivery_ms": 102.864708,
+            "launch_ms": 8.446792,
+            "observed_bytes_per_second": 225831.26160199303,
+            "output_bytes": 393216,
+            "population": 4,
+            "ready_ms": 23.126,
+            "resize_observed_ms": 279.912583,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 18,
+            "supervisor_rss_kib": 6896
+          },
+          {
+            "cancel_ms": 108.143875,
+            "elapsed_to_cancel_ms": 1558.904042,
+            "input_delivery_ms": 82.034875,
+            "launch_ms": 30.949084000000003,
+            "observed_bytes_per_second": 240415.05436035042,
+            "output_bytes": 374784,
+            "population": 4,
+            "ready_ms": 44.408459,
+            "resize_observed_ms": 272.996583,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 18,
+            "supervisor_rss_kib": 7040
+          },
+          {
+            "cancel_ms": 86.4105,
+            "elapsed_to_cancel_ms": 1484.180333,
+            "input_delivery_ms": 70.118916,
+            "launch_ms": 32.681374999999996,
+            "observed_bytes_per_second": 234580.65860248802,
+            "output_bytes": 348160,
+            "population": 4,
+            "ready_ms": 53.401625,
+            "resize_observed_ms": 200.820583,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 18,
+            "supervisor_rss_kib": 6896
+          },
+          {
+            "cancel_ms": 172.31812499999998,
+            "elapsed_to_cancel_ms": 1636.692958,
+            "input_delivery_ms": 77.237791,
+            "launch_ms": 40.456166,
+            "observed_bytes_per_second": 232116.84155116894,
+            "output_bytes": 379904,
+            "population": 4,
+            "ready_ms": 68.753375,
+            "resize_observed_ms": 283.047958,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 18,
+            "supervisor_rss_kib": 6896
+          },
+          {
+            "cancel_ms": 135.104958,
+            "elapsed_to_cancel_ms": 1560.380167,
+            "input_delivery_ms": 120.821042,
+            "launch_ms": 10.040375000000001,
+            "observed_bytes_per_second": 234937.6182503094,
+            "output_bytes": 366592,
+            "population": 4,
+            "ready_ms": 30.593792,
+            "resize_observed_ms": 164.299208,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7088
+          }
+        ],
+        "schema_version": 1,
+        "unix_timestamp_seconds": 1792275044
+      }
+    ]
+  },
+  "performance_limits": "Three managed and fifteen PTY samples per OS qualify existing runtime behavior only; no artifact-walk throughput/RSS benchmark or measured speedup claim.",
+  "complexity": "Eliminates per-directory Vec<DirEntry> and O(k log k) sibling sorting. Metadata traversal is O(E), with one open ReadDir per active ancestor (root depth0 through64, at most65). Filesystem sync and Git/bundle costs remain.",
+  "remaining_limits": [
+    "Sibling traversal and first error among invalid siblings may differ; sibling order is not public API. Child-before-parent ordering remains.",
+    "Owned artifacts must remain quiescent. No new race-proof filesystem sandbox or symlink defense is introduced.",
+    "Durability depends on supported filesystem rename/fsync behavior; no physical power-loss/offsite qualification.",
+    "No public API, receipt retirement/expiry, retry identity or execution ownership change."
+  ],
+  "reviews": [
+    "docs/reviews/2026-10-17-artifact-stream-quality.md",
+    "docs/reviews/2026-10-17-artifact-stream-adversarial.md"
+  ]
+}
