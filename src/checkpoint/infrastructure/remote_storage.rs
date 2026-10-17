@@ -1,3 +1,4 @@
+use super::filesystem::PublicationStep;
 use super::path_policy::relative_path;
 use crate::{Error, Result};
 use fs2::FileExt;
@@ -74,6 +75,14 @@ pub(super) fn lock_project(root: &Path) -> Result<File> {
 }
 
 pub(super) fn atomic_bytes(path: &Path, bytes: &[u8]) -> Result<()> {
+    atomic_bytes_with(path, bytes, |step| step.perform())
+}
+
+pub(super) fn atomic_bytes_with(
+    path: &Path,
+    bytes: &[u8],
+    mut perform: impl FnMut(&PublicationStep) -> Result<()>,
+) -> Result<()> {
     match fs::symlink_metadata(path) {
         Ok(metadata) if !metadata.is_file() || metadata.file_type().is_symlink() => {
             return Err(Error::Conflict(
@@ -86,10 +95,10 @@ pub(super) fn atomic_bytes(path: &Path, bytes: &[u8]) -> Result<()> {
     let parent = path.parent().unwrap();
     let mut temporary = NamedTempFile::new_in(parent)?;
     temporary.write_all(bytes)?;
-    temporary.as_file().sync_all()?;
+    perform(&PublicationStep::SyncFile(temporary.path().to_owned()))?;
     temporary
         .persist(path)
         .map_err(|error| Error::Io(error.error))?;
-    File::open(parent)?.sync_all()?;
+    perform(&PublicationStep::SyncDirectory(parent.to_owned()))?;
     Ok(())
 }

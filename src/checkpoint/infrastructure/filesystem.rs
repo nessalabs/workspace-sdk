@@ -168,7 +168,7 @@ pub(super) fn create_checkpoint_directory_with(
     Ok(directory)
 }
 
-fn sync_publication_ancestors(
+pub(super) fn sync_publication_ancestors(
     directory: &Path,
     perform: &mut impl FnMut(&PublicationStep) -> Result<()>,
 ) -> Result<()> {

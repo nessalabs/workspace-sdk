@@ -56,7 +56,10 @@ pub fn export_remote_tree(project: &Path, transfer: &TreeTransfer) -> Result<Tre
 /// A durable receipt is written before publishing files. Retrying verifies all
 /// existing selected files before publishing anything further, and fails if a
 /// user edited the imported tree. New files are published atomically with
-/// new-only operations. The caller must keep project writers stopped throughout.
+/// new-only operations. Matching retries reflush selected regular files and
+/// directories before acknowledgement; a completed receipt is revalidated and
+/// flushed as well. Symlinks flush their parents without opening their targets.
+/// The caller must keep project writers stopped throughout.
 pub fn import_remote_tree(project: &Path, transfer: &TreeTransfer) -> Result<TreeImportReceipt> {
     let root = checked_project(project)?;
     let _lock = lock_project(&root)?;
