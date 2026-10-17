@@ -95,6 +95,39 @@ The service captures files, restores the target, and launches the continuation u
 
 This is portable file state plus an explicit continuation command. It does not migrate VM memory or automatically translate Codex, Claude or OpenCode conversation stores. The runnable [local workflow example](../examples/local_workflow.rs) demonstrates the shared sync path; the opt-in [Boat integration test](../tests/boat_live.rs) exercises Boat-to-Boat handoff with a deterministic worker.
 
+The ignored Boat test creates two billable fixtures only when explicitly selected.
+It records creation intent, a stable API idempotency key and the returned provider
+ID in a durable ledger before native SDK bootstrap. The fixture is created through
+the raw Boat API, then connected through the SDK attachment path. This keeps the
+cleanup handle available if readiness, supervisor upload or initialization fails;
+it qualifies attachment, files and native runs rather than the SDK-owned creation
+path. It does not fix the production provider's creation/bootstrap persistence gap.
+
+Keep the ledger beside `BOAT_SDK_REPORT` until cleanup is confirmed. A failed or
+uncertain creation retains its original identity; do not start another fixture to
+hide the uncertainty. These tests do not establish the server's idempotency-key
+retention period, so an old uncertain creation requires provider reconciliation
+rather than an assumption that replay remains safe forever. A nonblocking
+per-ledger lifetime lock prevents the live test and cleanup-only process from
+overwriting each other's ownership records. Repeated error classifications are
+deduplicated so retries do not grow the ledger indefinitely. The cleanup-only ignored test
+`cleanup_registered_boat_fixtures` loads `BOAT_FIXTURE_LEDGER` and retries cleanup
+without provisioning, uploading artifacts or launching workloads. Credentials may
+be supplied through the hidden PTY prompt; keep them out of source, report files
+and command arguments. Confirm the deletion operation belongs to the recorded
+target and reaches `completed`. A blocked or pending operation, an accepted stop,
+or a missing resource lookup is not confirmation. Incomplete cleanup fails the
+live test even if all functional checks passed. Review unresolved cleanup with
+the account owner before running another billable fixture.
+
+Select one ignored entrypoint explicitly, rather than running every ignored Boat
+test together:
+
+```sh
+cargo test --locked --all-features --test boat_live native_rust_box_workflow -- --ignored --exact --nocapture
+cargo test --locked --all-features --test boat_live cleanup_registered_boat_fixtures -- --ignored --exact --nocapture
+```
+
 ## Explicit recovery and placement
 
 `RecoveryService` adds a durable placement decision around the existing workspace,
