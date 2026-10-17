@@ -1,0 +1,37 @@
+# Git worktree removal: independent adversarial acceptance
+
+Decision: **FINAL PASS** for exact source `17f28bb6893e4de0186d5e393d0c366ad41cf183`. No unresolved P1/P2 finding affects this scope. Reviewer: independent adversarial subagent, separate from implementation and code-quality review.
+
+## Scope and source review
+
+Read the repository instructions and standards, actual removal implementation, shared validators, creation/exports changes, operation documentation, extracted native fixture, all twelve new removal cases and retained creation cases. This is an explicit Git command composed with the existing managed run identity. It does not infer ownership from an inventory, change `Workspace::destroy`, introduce an ownership registry, or add provider resource deletion.
+
+The service validates bounded absolute POSIX path syntax, deadline and output retention; uses one descriptor snapshot for qualified workspace matching and protected project/control paths; and performs component-boundary lexical containment rejection before launch. It directly submits fixed shell-free argv through the existing managed launch claim, without mutable path/inventory preflight. Creation and removal share the same run-ID namespace. No force, prune, unlock, reset or branch deletion option is introduced.
+
+Reviewed retries after successful deletion and path reuse, retries of failed removal after the target becomes clean, cross-operation identity conflicts, concurrent exact requests, unknown acknowledgement, cleanup authority, configuration effects, symlink/alias limits and misleading test claims. The eleven retained creation test bodies matched the prior accepted source after whitespace normalization during source review. The shared fixture retains intended native run identities before awaiting start and preserves storage on unresolved cleanup, retaining the previous harness fixes.
+
+## Findings and disposition
+
+- **P2 design risk, closed: no-force Git removal is not blanket local-data protection.** Git's status-based check honors configuration and does not report ignored files. The command explicitly sets `status.showUntrackedFiles=all`; the real fixture sets the repository policy to hide ordinary untracked files and verifies they are still protected. Ignored-file deletion remains intentional, prominently documented and exercised by a real successful removal. Ordinary tracked edits, locked/main/unregistered targets and a populated submodule are refused in the tested cases.
+- **P2 design risk, closed: removal could delete the storage needed for safe retry.** Pure guards reject equal/ancestor project and control paths using normalized component boundaries. A real target with an overridden descriptor control path inside it is refused before any native claim or Git invocation. This does not resolve physical aliases. The contract additionally requires stable anchor/control/common Git metadata physically outside the removed subtree; that caller obligation is explicit, not asserted as enforced protection against symlinks or external replacement.
+- **P2 contract risk, closed: failure is not proof of no mutation.** Git can partially delete a worktree and remove administrative metadata after a deletion error. The API and guide document possible partial deletion and no transaction/rollback guarantee. No extra mutable safety preflight is presented as atomic. Callers must explicitly authorize the operation, stop target users and maintain exclusive quiescent control through resolution or uncertainty.
+
+No additional actionable P1/P2 finding remained after source re-review. Earlier pure validation/guard rejection is distinguished from conflicting reuse that reaches an existing launch claim. Documentation accurately describes discovery, creation and removal under one binding and operation-specific configuration guards.
+
+## Actual gate evidence
+
+Inspected [cloud run 39080090282](https://github.com/nessalabs/workspace-sdk/actions/runs/39080090282), downloaded job metadata, the raw log and the exact local source checkout. Both Ubuntu 24.04 and macOS 15 jobs checked out `17f28bb6893e4de0186d5e393d0c366ad41cf183` and successfully completed `scripts/quality-gate.sh`. Actual checks include formatting, warning-denying all-target/all-feature Clippy, both feature selections, examples, warning-denying documentation, and managed/PTY performance qualification.
+
+Independently counted every new named test in raw logs: four private removal unit tests and twelve real Git/native integration cases passed twice per OS, once per feature selection: **64 new-test executions**. All eleven retained creation integration cases also passed twice per OS. The full gate retained existing discovery, provider, recovery and other suites.
+
+Verified the [qualification evidence](../evidence/git-worktree-remove-2026-10-17/qualification.json) against actual job metadata, exact source SHA and raw-log SHA256 `487708ea91e27f0460f302311e24a350f1aa78cad537e16db354bd9fec4c5d92`. Each OS's full three managed and fifteen PTY sample objects match the raw log. These are recorded debug-build Linux x86_64 and macOS aarch64 runtime samples, not a statistical regression baseline or Git-removal benchmark. This reviewer did not rerun builds/tests or mutate production source.
+
+## Guarantees exercised and limits
+
+- A successful removal is followed by creation of a new registered checkout at the same path. Exact retry returns the historical successful run and leaves that replacement checkout intact. Failed dirty removal, retried after cleaning, returns its historical failure rather than executing again. Changed path/deadline/retention, wrong workspace and reuse of a creation run ID cannot authorize another deletion in the tested flows.
+- Concurrent identical requests invoke removal once. The acknowledgement-loss seam injects failure after actual native start acceptance; retry reuses the actual claim and its invocation counter. This is not a physical crash/power-loss experiment.
+- Cancellation and timeout operate on a controlled wrapper before Git deletion begins. They establish lifecycle/no-relaunch behavior, not rollback or safe interruption during recursive deletion. The new Lost observation is simulated over a real active native claim; it is not a newly induced supervisor death.
+- Shared fixture cleanup targets qualified native identities through the original native backend and independently requires a terminal state; Lost is not terminal. Missing state, uncertainty or failed/timed-out cleanup preserves control storage and fails visibly. These failure-preservation branches were source-reviewed, not all separately fault-injected here. No raw PID signalling was added.
+- Paths remain locators. Pure syntax/ancestry checks cannot establish physical ownership, resolve aliases, stop external processes or serialize competing writers. Ignored data may be deleted. A nonzero exit, timeout, cancellation or transport failure does not establish that the checkout is intact.
+- Safe retry depends on retaining the same durable launch claim and stable anchor/control storage. A fresh run ID is a fresh execution authorization, not recovery from an unknown result. Custom backends must satisfy the existing managed-run contract.
+- This is native Local qualification on Linux/macOS, not live SSH/Boat/Windows qualification, automatic cleanup/failover, offsite durability or provider-owned deletion. No executed old-source failing probe, mutation probe, hardware power-loss or performance-speedup claim is made.
