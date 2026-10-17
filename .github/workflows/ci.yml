@@ -1,5 +1,6 @@
 name: Workspace SDK quality gate
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
