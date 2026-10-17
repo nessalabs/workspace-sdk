@@ -8,9 +8,13 @@
 //! process behavior; synchronization coordinates them without owning their state.
 
 pub mod handoff;
+pub mod recovery;
 pub mod sync_session;
 pub mod workflow_record;
 
 pub use handoff::{HandoffPhase, HandoffReceipt};
+pub use recovery::{
+    RecoveryAttempt, RecoveryCandidate, RecoveryHead, RecoveryPhase, RecoverySession,
+};
 pub use sync_session::SyncSession;
 pub use workflow_record::WorkflowRecord;

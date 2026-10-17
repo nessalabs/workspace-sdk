@@ -95,6 +95,76 @@ The service captures files, restores the target, and launches the continuation u
 
 This is portable file state plus an explicit continuation command. It does not migrate VM memory or automatically translate Codex, Claude or OpenCode conversation stores. The runnable [local workflow example](../examples/local_workflow.rs) demonstrates the shared sync path; the opt-in [Boat integration test](../tests/boat_live.rs) exercises Boat-to-Boat handoff with a deterministic worker.
 
+## Explicit recovery and placement
+
+`RecoveryService` adds a durable placement decision around the existing workspace,
+checkpoint transfer, and native process APIs. Configure it with an `Arc<WorkspaceSdk>`,
+an `Arc<SyncService>`, and an `Arc<dyn IRecoveryRepository>`. The file and memory
+repositories implement this port. Keep both the authority repository and immutable
+checkpoint artifacts outside projects and on storage that survives the host you
+intend to recover from. A directory on the failed laptop is not an offsite backup.
+
+1. Capture a complete checkpoint at a consistent boundary. Call `create` with its
+   reference and priority-ordered `RecoveryCandidate` values, for example laptop,
+   development machine, then Boat. Each provider must be registered separately.
+   The candidate configuration must create a fresh target, not attach a live project.
+2. Call `recover` with a stable `RecoveryRequest` ID, `expected_previous_epoch: 0`,
+   caller-observed available providers, a continuation command, and a safety mode.
+   The first available candidate in the stored priority order wins. Its epoch,
+   target, checkpoint and deterministic workspace/run IDs are saved before opening
+   a target. An open failure remains pinned: retry it rather than silently moving
+   possibly accepted work elsewhere.
+3. Keep that request ID and expected epoch when retrying. Progress is
+   `Preparing → Restored → LaunchRequested → Started`. Once launch intent is
+   durable, changed nonsecret commands conflict. The native salted claim checks
+   transient credentials on launch retries; a completed `Started` retry simply
+   returns its historical reference and does not authenticate new credentials.
+   Retry never restores over files
+   changed by an already accepted run. `Started` means the native claim was accepted,
+   not that the workload completed successfully.
+4. After the run is terminal and **all** writers are stopped, `publish(id, epoch,
+   true)` captures a new complete checkpoint and conditionally advances the head.
+   Failed capture or stale epoch never advances it. This quiescence assertion does
+   not stop editors or unmanaged writers for you.
+   Publication is a new capture on every call. After an ambiguous publication
+   response, inspect the committed generation and checkpoint before retrying;
+   another call can create another complete generation and retained artifact.
+5. To move again, submit a new request against the current epoch. Every move gets a
+   fresh isolated workspace, even when returning to the laptop. Old directories
+   remain available for inspection or reviewed reconciliation. Their identities are
+   not recycled. Updating availability on an existing request does not preempt it.
+
+`RecoverySafety::ConfirmedStopped` queries the previous run and refuses running,
+lost, or unreachable work. `ExternallyFenced` is an explicit application assertion:
+the caller guarantees that the old process cannot perform unfenced external
+effects. The SDK cannot verify that promise. Epoch checks protect canonical
+checkpoint publication; they do not stop an old process or prevent it from sending
+an API request. A network timeout alone is not evidence that it stopped. An
+unfinished attempt cannot be replaced by a new epoch, even with this assertion;
+resolve its pinned launch uncertainty first.
+
+The repository uses a nonexpiring, fail-fast session lease across provider work,
+plus short atomic revision checks for authority writes. Concurrent operations on
+that session return a conflict; they do not steal a live controller's lease.
+All controllers must share the same authority implementation and lock semantics.
+Once polled, create/recover/publish continue in an owned Tokio task if their caller
+is dropped or times out. The task keeps its session lease through effects and
+transfer cleanup. Read session state and retry the same identity to reconcile;
+dropping a caller is not a stop command. Providers must bound their own operations.
+Runtime or process loss can still interrupt work and leave transfer staging or
+unpublished artifacts; there is no aggregate garbage collector for crash orphans.
+This is explicit placement, not an automatic health monitor or a distributed
+expiring ownership service. File repository format 3 reads format 1/2 records;
+older binaries cannot read format 3. Back up authority state before upgrading and
+do not run old binaries against the upgraded repository.
+
+Checkpoint transfer still uses bounded full archives, with time and memory
+proportional to selected project data. There is no incremental transfer or
+deduplication claim. Periodic capture, remote artifact replication, health policy,
+native agent conversation conversion, and abandoned cloud resource cleanup remain
+application responsibilities. Poll deletion receipts to completion when cleaning up
+billable targets; an accepted delete request is not proof billing stopped.
+
 ## Deletion and extension
 
 `destroy` is restricted to owned resources. Save its `DeleteOperation` and inspect asynchronous provider cleanup until completed. Boat may report blocked cleanup even after a delete request is accepted; a missing Boat lookup does not prove deletion finished. Local deletion receipts persist outside the deleted workspace. SSH target deletion is currently unsupported; stopping its managed runs is supported.

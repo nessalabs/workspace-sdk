@@ -1,5 +1,9 @@
 use super::repository_state::RepositoryState;
-use crate::{ports::IWorkflowLease, WorkflowRecord};
+use crate::{
+    domain::RecoverySession,
+    ports::{IRecoveryRepository, IWorkflowLease},
+    WorkflowRecord,
+};
 use crate::{
     ports::IWorkflowRepository, BackendDescriptor, Error, IWorkspaceRepository, OperationId,
     Result, WorkspaceId,
@@ -57,10 +61,10 @@ impl FileStateRepository {
                 return Err(Error::State("invalid state file".into()));
             }
             let mut state: RepositoryState = serde_json::from_slice(&fs::read(path)?)?;
-            if !matches!(state.version, 1 | 2) {
+            if !matches!(state.version, 1 | 2 | 3) {
                 return Err(Error::Unsupported("state repository version".into()));
             }
-            state.version = 2;
+            state.version = 3;
             state
         } else {
             RepositoryState::default()
@@ -132,6 +136,25 @@ impl IWorkflowRepository for FileStateRepository {
     }
     fn save(&self, id: &OperationId, receipt: &WorkflowRecord) -> Result<()> {
         self.access(true, |state| state.save_workflow(id, receipt))
+    }
+}
+
+impl IRecoveryRepository for FileStateRepository {
+    fn acquire_recovery(&self, id: &OperationId) -> Result<Box<dyn IWorkflowLease>> {
+        IWorkflowRepository::acquire(self, id)
+    }
+    fn load_recovery(&self, id: &OperationId) -> Result<Option<RecoverySession>> {
+        self.access(false, |state| state.load_recovery(id))
+    }
+    fn compare_exchange_recovery(
+        &self,
+        id: &OperationId,
+        expected_revision: Option<u64>,
+        replacement: &RecoverySession,
+    ) -> Result<()> {
+        self.access(true, |state| {
+            state.compare_exchange_recovery(id, expected_revision, replacement)
+        })
     }
 }
 

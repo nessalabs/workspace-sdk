@@ -47,6 +47,37 @@ Return sync compares a shared baseline, local changes, and the remote snapshot. 
 
 Handoff requires a confirmed-stopped source run, captures selected files, restores an empty target, and starts an explicit continuation under a stable run identity. Recorded phases make retry behavior inspectable. `Lost` is not a safe-to-duplicate terminal state. VM memory and automatic conversation-format conversion are outside this contract.
 
+Explicit recovery reuses those checkpoint transfers and native run claims.
+`RecoverySession` is one canonical record: immutable candidate configuration,
+revision, committed checkpoint generation and the pinned current attempt.
+`IRecoveryRepository` shares the existing repository and workflow identity
+namespace. Its CAS validates transitions under the existing short storage lock;
+ordinary workflow saves cannot overwrite recovery records. A separate nonexpiring
+per-session lease serializes provider effects, including restore and launch.
+Neither mechanism is an expiring distributed ownership lease.
+
+```mermaid
+flowchart LR
+  A[Complete seed checkpoint] --> B[CAS: pin epoch and target]
+  B --> C[Open fresh workspace]
+  C --> D[Restore pinned checkpoint]
+  D --> E[CAS: launch intent]
+  E --> F[Native stable run claim]
+  F --> G[CAS: Started reference]
+  G --> H[Terminal and all writers stopped]
+  H --> I[Capture complete checkpoint]
+  I --> J[CAS: publish current epoch head]
+  J --> B
+```
+
+Retry follows recorded progress without redoing restore after launch intent.
+Replacing an accepted run requires a confirmed stop or the caller's explicit
+external-effect fencing assertion. Stale epoch publications conflict. Fresh
+workspaces preserve old trees rather than overwriting a laptop's changed files.
+This protects canonical state and retry identity; it does not fence arbitrary
+external actions or provide offsite storage, health detection, or automatic
+agent-specific conversation migration.
+
 ## Boat client integration
 
 The vendored Boat client tracks upstream `main` at `4d68256bb0b6a889633abc567fb09214681874db`, without source patches. The adapter delegates HTTP transport, retries, response limits, diagnostic redaction, readiness polling, command defaults, and text-file encoding to that client. Workspace creation uses its typed `CreateOptions` with the existing stable idempotency key. Hosting explicitly requests `public: false` and verifies the returned protection status.
