@@ -60,6 +60,8 @@ impl FakeBoat {
             while !stop.load(Ordering::Acquire) {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
+                        // Accepted sockets inherit nonblocking mode on macOS.
+                        stream.set_nonblocking(false).unwrap();
                         let request = read_request(&mut stream);
                         recorded.lock().unwrap().push(request.clone());
                         if let Some(Response(status, body)) = handler(&request) {
