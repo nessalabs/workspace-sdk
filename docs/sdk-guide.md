@@ -76,6 +76,21 @@ Mandatory exclusions include Git metadata, credentials, agent auth state, `.env*
 
 `export`/`import` move immutable Git checkpoint bundles between controllers. `export_checkpoint_archive`/`capture_archive` preserve an already-selected file tree over provider transfers, including tracked files that match `.gitignore`.
 
+Checkpoint capture/import acknowledge publication only after syncing the owned
+artifact files, directories and final directory entry. Export also validates and
+syncs existing artifacts before acknowledging readiness. Directory sync errors
+are returned; a post-rename error can leave a visible checkpoint whose publication
+is uncertain. Retry the same import or inspect/export that identity to validate
+and sync it. Do not delete uncertain artifacts merely to permit a retry.
+
+The storage filesystem must support file/directory sync and atomic rename.
+Constructor setup syncs canonical directory ancestry through the filesystem root,
+including when retrying previously interrupted setup. This is not proof that a
+remote mount or disk controller honors persistence. Store both artifacts and
+recovery authority independently of a host you need to survive. Full validation,
+Git tree reads and artifact syncing add work proportional to checkpoint size and
+entry count; this is a durability change, not an incremental sync optimization.
+
 ## Handoff
 
 Ask the source workload to flush portable state and exit. Confirm its managed run is terminal. Open an empty destination, then call:
