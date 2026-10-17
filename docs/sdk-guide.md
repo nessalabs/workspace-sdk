@@ -115,7 +115,7 @@ namespace. To inspect an existing run without repeating verification, use
 The command uses Git's non-resetting `worktree add -b` behavior, described in the
 [Git worktree documentation](https://git-scm.com/docs/git-worktree). Branch
 validation follows [Git reference rules](https://git-scm.com/docs/git-check-ref-format).
-The SDK never adds force/reset options or issues rollback or deletion. Git may
+Creation never adds force/reset options or issues rollback or deletion. Git may
 reuse an existing empty directory. Git's own failure/signal cleanup may remove
 an in-progress worktree, while partial files or a new branch may also remain.
 The caller must keep the repository stable and serialize access to an exclusive,
@@ -126,6 +126,39 @@ bound to the workspace connection; concurrent external replacement of its
 repository is not prevented. After confirmed zero exit, discover afresh and explicitly attach
 the desired path through the existing provider. Creation does not grant deletion
 permission or add a separate worktree registry, attachment, or cleanup lifecycle.
+
+To remove a checkout, separately authorize its deletion and persist a
+`GitWorktreeRemoveRequest::new(run_ref, target_host_path)` before calling
+`GitWorktrees::start_remove(request.clone())`. It uses the same qualified run
+identity, path syntax, deadline and output bounds as creation, and returns an
+ordinary managed `Run`. It executes the literal argv
+`git --no-pager -c status.showUntrackedFiles=all worktree remove -- PATH`.
+The explicit setting keeps ordinary untracked-file checks effective even if host
+configuration hides them. Git's dirty, locked, main-worktree and populated
+submodule safeguards remain enabled. **Git can delete ignored files even without
+force.** Failed or interrupted removal can partially delete files; no rollback or
+blanket local-data preservation is promised. There is no force, unlock, prune,
+reset, branch deletion, automatic cleanup or provider attachment destruction.
+
+Stop all processes and users of the target before removal, and maintain exclusive,
+quiescent access through terminal resolution or uncertainty. Creation and inventory
+paths do not establish ownership or deletion permission. Pure lexical checks reject
+a target equal to, or containing, the anchor's project or control directory, and
+refuse malformed descriptor paths. The caller must additionally keep the anchor,
+control storage and common Git repository metadata stable and physically outside
+the removal subtree, including aliases and symlinks. These syntax checks do not
+resolve physical aliases or prevent concurrent external repository replacement.
+
+Removal performs no mutable existence or inventory preflight. Retry the exact
+persisted request and run ID after an uncertain reply: built-in native backends
+reconnect the existing launch claim even if its old target was removed and a new
+checkout now occupies the path. A fresh ID authorizes a new execution; never use
+one merely because the old outcome is unknown. Custom backends must honor the
+managed launch contract. As with creation, successful start handling is not Git
+success, waiting timeouts do not cancel, and transport errors or `Lost` remain
+uncertain. Inspect the run before interpreting the outcome and discover afresh
+after confirmed success. This operation does not change `Workspace::destroy`
+permissions or introduce a worktree ownership registry.
 
 ## Credentials and preparation
 

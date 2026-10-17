@@ -1,4 +1,9 @@
-use super::{command::git_command, porcelain, GitWorktrees};
+use super::{
+    command::git_command,
+    porcelain,
+    validation::{valid_launch_bounds, valid_worktree_path},
+    GitWorktrees,
+};
 use crate::{CommandSpec, Error, ExecResult, LaunchRequest, Result, Run, RunRef};
 use serde::{Deserialize, Serialize};
 
@@ -55,15 +60,7 @@ impl GitWorktreeCreateRequest {
     /// Check bounded locator, branch, object-ID shape, deadline and retention.
     /// This pure validation does not inspect a repository or authorize mutation.
     pub fn validate(&self) -> Result<()> {
-        if self.path.len() > 16 * 1024
-            || !self.path.starts_with('/')
-            || self.path.contains(['\0', '\u{fffd}'])
-            || self
-                .path
-                .split('/')
-                .skip(1)
-                .any(|part| matches!(part, "" | "." | ".."))
-        {
+        if !valid_worktree_path(&self.path, false) {
             return Err(Error::InvalidInput(
                 "invalid Git worktree creation path".into(),
             ));
@@ -82,9 +79,7 @@ impl GitWorktreeCreateRequest {
         {
             return Err(Error::InvalidInput("invalid pinned Git object ID".into()));
         }
-        if !(1..=3600).contains(&self.timeout_seconds)
-            || !(2..=16 * 1024 * 1024).contains(&self.output_limit_bytes)
-        {
+        if !valid_launch_bounds(self.timeout_seconds, self.output_limit_bytes) {
             return Err(Error::InvalidInput(
                 "Git worktree creation launch bounds exceeded".into(),
             ));

@@ -1,12 +1,13 @@
 use super::{command::git_command, porcelain, GitWorktreeInventory};
 use crate::{CommandSpec, Error, ExecResult, Result, Workspace};
 
-/// Git worktree discovery and managed creation through one workspace connection.
+/// Git worktree discovery, creation and removal through one workspace connection.
 ///
 /// The anchor binds execution to an existing provider connection. Inventory paths
-/// are observations, not ownership. Creation uses the caller's existing managed
+/// are observations, not ownership. Changes use the caller's existing managed
 /// run identity and lifecycle; this service owns no background task or registry.
-/// Host Git configuration, hooks, filters, and `safe.directory` remain in effect.
+/// Host Git configuration remains subject to each operation's documented guards;
+/// hooks, filters and `safe.directory` retain their ordinary Git behavior.
 /// Only use a Git executable and host configuration that the caller trusts.
 #[derive(Clone)]
 pub struct GitWorktrees {
