@@ -1,3 +1,19 @@
+# SPACE attachment qualification — 2026-10-18
+
+[Qualification and retained failure evidence](space-provider-2026-10-18/qualification.json)
+pin source `068d8193438ba14e2d44ce915ac1f1e95c4bb377` and the full Ubuntu 24.04 /
+macOS 15 quality gate. Twelve SPACE contract tests run with all features and
+with SPACE alone on each OS; three deliberate semantic faults were caught.
+HTTP/SSE fixtures execute the real native supervisor. They do not qualify a live
+SPACE deployment or resource lifecycle. See the [provider contract](../space-provider.md)
+and independent [quality](../reviews/2026-10-18-space-quality.md) /
+[adversarial](../reviews/2026-10-18-space-adversarial.md) reviews.
+
+The first cloud attempt's Ubuntu GPU boundary failure remains recorded with its
+cause unproven. Its byte-limit test now verifies completed real child output in
+a finite private file; production GPU collection and separate live-stream tests
+remain unchanged.
+
 # Vercel-hosted Linux PTY qualification — 2026-10-12
 
 [Live PTY evidence](vercel-linux-pty-live.json), [auditable artifacts and exact reproduction commands](vercel-linux-pty-artifacts/README.md) qualify SDK revision
