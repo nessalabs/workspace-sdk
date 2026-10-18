@@ -1,0 +1,1356 @@
+{
+  "scope": "Classify native terminal-control socket deadline expiry with existing stage-specific timeout diagnostics; retry interrupted reads within original absolute deadline, without replaying operations",
+  "source_commit": "85c2807c15e3c26f8732a6265f828194727f1151",
+  "production_fix_commit": "28daf23061dcaac2111d2cacd952676a8f0dbfed",
+  "corrected_red_source_commit": "d5c5065b37e9fd933c616676160f3be27e9eecfb",
+  "cloud_url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39091296657",
+  "cloud_run": {
+    "conclusion": "success",
+    "headSha": "85c2807c15e3c26f8732a6265f828194727f1151",
+    "jobs": [
+      {
+        "completedAt": "2026-10-18T02:49:32Z",
+        "conclusion": "success",
+        "databaseId": 117568445438,
+        "name": "quality (ubuntu-24.04)",
+        "startedAt": "2026-10-18T02:46:56Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T02:46:58Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T02:46:57Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T02:46:59Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v4",
+            "number": 2,
+            "startedAt": "2026-10-18T02:46:58Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T02:47:10Z",
+            "conclusion": "success",
+            "name": "Run dtolnay/rust-toolchain@stable",
+            "number": 3,
+            "startedAt": "2026-10-18T02:46:59Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T02:47:15Z",
+            "conclusion": "success",
+            "name": "Run Swatinem/rust-cache@v2",
+            "number": 4,
+            "startedAt": "2026-10-18T02:47:10Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T02:49:30Z",
+            "conclusion": "success",
+            "name": "Run scripts/quality-gate.sh",
+            "number": 5,
+            "startedAt": "2026-10-18T02:47:15Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T02:49:30Z",
+            "conclusion": "success",
+            "name": "Post Run Swatinem/rust-cache@v2",
+            "number": 9,
+            "startedAt": "2026-10-18T02:49:30Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T02:49:30Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v4",
+            "number": 10,
+            "startedAt": "2026-10-18T02:49:30Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T02:49:30Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 11,
+            "startedAt": "2026-10-18T02:49:30Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39091296657/job/117568445438"
+      },
+      {
+        "completedAt": "2026-10-18T02:50:52Z",
+        "conclusion": "success",
+        "databaseId": 117568445646,
+        "name": "quality (macos-15)",
+        "startedAt": "2026-10-18T02:47:02Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T02:47:04Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T02:47:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T02:47:06Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v4",
+            "number": 2,
+            "startedAt": "2026-10-18T02:47:04Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T02:47:16Z",
+            "conclusion": "success",
+            "name": "Run dtolnay/rust-toolchain@stable",
+            "number": 3,
+            "startedAt": "2026-10-18T02:47:06Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T02:47:28Z",
+            "conclusion": "success",
+            "name": "Run Swatinem/rust-cache@v2",
+            "number": 4,
+            "startedAt": "2026-10-18T02:47:16Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T02:50:47Z",
+            "conclusion": "success",
+            "name": "Run scripts/quality-gate.sh",
+            "number": 5,
+            "startedAt": "2026-10-18T02:47:28Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T02:50:48Z",
+            "conclusion": "success",
+            "name": "Post Run Swatinem/rust-cache@v2",
+            "number": 9,
+            "startedAt": "2026-10-18T02:50:47Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T02:50:48Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v4",
+            "number": 10,
+            "startedAt": "2026-10-18T02:50:48Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T02:50:50Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 11,
+            "startedAt": "2026-10-18T02:50:48Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39091296657/job/117568445646"
+      }
+    ],
+    "status": "completed",
+    "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39091296657"
+  },
+  "raw_log_sha256": "1ee05ff19376dcd20c3aaa0af96392dcced70ff937bd6e79c4c74ad5097c6ea0",
+  "test_file_sha256": "c64e2ddc043bd2fc42ee64ce72dec91000ec5dc617d90059afd4b0fd0896b655",
+  "unchanged_corrected_red_regression_bodies": [
+    "held_open_empty_frame_read_reports_timeout",
+    "partial_frame_with_held_writer_reports_timeout_without_acknowledging_completion",
+    "blocked_frame_write_reports_timeout_after_partial_delivery"
+  ],
+  "platforms": {
+    "ubuntu-24.04": {
+      "new_test_pass_counts": {
+        "held_open_empty_frame_read_reports_timeout": 2,
+        "partial_frame_with_held_writer_reports_timeout_without_acknowledging_completion": 2,
+        "blocked_frame_write_reports_timeout_after_partial_delivery": 2,
+        "complete_newline_frame_round_trips_without_timeout": 2,
+        "frame_size_boundary_remains_exact": 2,
+        "closed_peer_and_partial_eof_remain_incomplete_state_errors": 2
+      },
+      "retained_input_uncertainty_pass_counts": {
+        "delivered_input_with_a_lost_transport_reply_is_unknown_and_never_replayed": 2,
+        "delivered_input_with_a_not_found_transport_error_is_unknown_and_never_replayed": 2,
+        "delivered_input_with_an_unsupported_transport_error_is_unknown_and_never_replayed": 2,
+        "delivered_input_with_a_wrong_success_variant_is_unknown_and_never_replayed": 2,
+        "delivered_input_with_an_impossible_accepted_count_is_unknown_and_never_replayed": 2
+      },
+      "test_summaries": [
+        "test result: ok. 137 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.53s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.56s",
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.25s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s",
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s",
+        "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.38s",
+        "test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.88s",
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.97s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.44s",
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s",
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.58s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+        "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.70s",
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.73s",
+        "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s",
+        "test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.08s",
+        "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.18s",
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s",
+        "test result: ok. 130 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.35s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.20s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s",
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s",
+        "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.35s",
+        "test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.74s",
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.95s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.45s",
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s",
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.17s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+        "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s",
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.72s",
+        "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s",
+        "test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.08s",
+        "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.16s",
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.44s"
+      ],
+      "performance_reports": [
+        {
+          "schema_version": 1,
+          "unix_timestamp_seconds": 1792291764,
+          "operating_system": "linux",
+          "architecture": "x86_64",
+          "debug_assertions": true,
+          "retention_bytes": 32768,
+          "minimum_load_bytes_per_stream": 131072,
+          "poll_interval_ms": 10,
+          "samples": [
+            {
+              "launch_ms": 5.5756499999999996,
+              "launch_to_first_output_ms": 23.436697,
+              "reconnect_ms": 0.039634,
+              "idempotent_retry_ms": 1.965445,
+              "loaded_read_ms": 2.528262,
+              "cancel_ms": 53.332563,
+              "final_stdout_offset": 184320,
+              "final_stderr_offset": 184320,
+              "retained_stdout_bytes": 16384,
+              "retained_stderr_bytes": 16384
+            },
+            {
+              "launch_ms": 3.57023,
+              "launch_to_first_output_ms": 21.735341,
+              "reconnect_ms": 0.054461,
+              "idempotent_retry_ms": 2.90878,
+              "loaded_read_ms": 2.614772,
+              "cancel_ms": 53.024206,
+              "final_stdout_offset": 233472,
+              "final_stderr_offset": 233472,
+              "retained_stdout_bytes": 16384,
+              "retained_stderr_bytes": 16384
+            },
+            {
+              "launch_ms": 3.448024,
+              "launch_to_first_output_ms": 21.598837,
+              "reconnect_ms": 0.04301000000000001,
+              "idempotent_retry_ms": 2.477349,
+              "loaded_read_ms": 2.533892,
+              "cancel_ms": 53.146355,
+              "final_stdout_offset": 233472,
+              "final_stderr_offset": 233472,
+              "retained_stdout_bytes": 16384,
+              "retained_stderr_bytes": 16384
+            }
+          ]
+        },
+        {
+          "architecture": "x86_64",
+          "debug_assertions": true,
+          "os": "linux",
+          "samples": [
+            {
+              "cancel_ms": 52.966544,
+              "elapsed_to_cancel_ms": 613.650096,
+              "input_delivery_ms": 7.025485,
+              "launch_ms": 4.380158000000001,
+              "observed_bytes_per_second": 862719.6564473446,
+              "output_bytes": 529408,
+              "population": 1,
+              "ready_ms": 10.535435,
+              "resize_observed_ms": 29.937181,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7300
+            },
+            {
+              "cancel_ms": 52.951746,
+              "elapsed_to_cancel_ms": 618.168893,
+              "input_delivery_ms": 11.083782000000001,
+              "launch_ms": 3.6075209999999998,
+              "observed_bytes_per_second": 864695.7264476911,
+              "output_bytes": 534528,
+              "population": 1,
+              "ready_ms": 9.752818999999999,
+              "resize_observed_ms": 30.814594,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7580
+            },
+            {
+              "cancel_ms": 52.867657,
+              "elapsed_to_cancel_ms": 617.8988840000001,
+              "input_delivery_ms": 8.97631,
+              "launch_ms": 3.69967,
+              "observed_bytes_per_second": 866730.8096319527,
+              "output_bytes": 535552,
+              "population": 1,
+              "ready_ms": 9.998213,
+              "resize_observed_ms": 31.375298000000004,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7324
+            },
+            {
+              "cancel_ms": 54.023996999999994,
+              "elapsed_to_cancel_ms": 689.857703,
+              "input_delivery_ms": 8.214351,
+              "launch_ms": 3.5766050000000003,
+              "observed_bytes_per_second": 877259.1758680412,
+              "output_bytes": 605184,
+              "population": 4,
+              "ready_ms": 9.74726,
+              "resize_observed_ms": 50.946712,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7232
+            },
+            {
+              "cancel_ms": 53.682883000000004,
+              "elapsed_to_cancel_ms": 680.67854,
+              "input_delivery_ms": 16.838106,
+              "launch_ms": 3.9407690000000004,
+              "observed_bytes_per_second": 877054.2406111408,
+              "output_bytes": 596992,
+              "population": 4,
+              "ready_ms": 10.096376000000001,
+              "resize_observed_ms": 51.686873,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7500
+            },
+            {
+              "cancel_ms": 53.805691,
+              "elapsed_to_cancel_ms": 655.091823,
+              "input_delivery_ms": 5.215381,
+              "launch_ms": 4.637195999999999,
+              "observed_bytes_per_second": 864416.2239833056,
+              "output_bytes": 566272,
+              "population": 4,
+              "ready_ms": 17.047224999999997,
+              "resize_observed_ms": 32.158806999999996,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7492
+            },
+            {
+              "cancel_ms": 54.406338999999996,
+              "elapsed_to_cancel_ms": 669.3357450000001,
+              "input_delivery_ms": 12.258614,
+              "launch_ms": 6.643657,
+              "observed_bytes_per_second": 859789.7307874989,
+              "output_bytes": 575488,
+              "population": 4,
+              "ready_ms": 12.831515,
+              "resize_observed_ms": 35.505058999999996,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7312
+            },
+            {
+              "cancel_ms": 53.614696,
+              "elapsed_to_cancel_ms": 666.446231,
+              "input_delivery_ms": 11.545585,
+              "launch_ms": 3.9673470000000006,
+              "observed_bytes_per_second": 860444.5089884528,
+              "output_bytes": 573440,
+              "population": 4,
+              "ready_ms": 10.12999,
+              "resize_observed_ms": 29.076652000000003,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7412
+            },
+            {
+              "cancel_ms": 53.640373,
+              "elapsed_to_cancel_ms": 677.1145160000001,
+              "input_delivery_ms": 11.756677,
+              "launch_ms": 3.870199,
+              "observed_bytes_per_second": 865035.3613154558,
+              "output_bytes": 585728,
+              "population": 4,
+              "ready_ms": 10.032912,
+              "resize_observed_ms": 38.137285,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7456
+            },
+            {
+              "cancel_ms": 54.585601999999994,
+              "elapsed_to_cancel_ms": 648.672962,
+              "input_delivery_ms": 10.264192,
+              "launch_ms": 4.108903,
+              "observed_bytes_per_second": 874548.5525570587,
+              "output_bytes": 567296,
+              "population": 4,
+              "ready_ms": 10.317118,
+              "resize_observed_ms": 50.506862999999996,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7396
+            },
+            {
+              "cancel_ms": 54.159048,
+              "elapsed_to_cancel_ms": 657.9220879999999,
+              "input_delivery_ms": 4.114972,
+              "launch_ms": 4.017595,
+              "observed_bytes_per_second": 862254.0728561161,
+              "output_bytes": 567296,
+              "population": 4,
+              "ready_ms": 10.176871,
+              "resize_observed_ms": 23.554733000000002,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7464
+            },
+            {
+              "cancel_ms": 53.599837,
+              "elapsed_to_cancel_ms": 656.9854760000001,
+              "input_delivery_ms": 17.995084000000002,
+              "launch_ms": 4.101729,
+              "observed_bytes_per_second": 858807.4175326214,
+              "output_bytes": 564224,
+              "population": 4,
+              "ready_ms": 10.265444,
+              "resize_observed_ms": 26.024955,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7372
+            },
+            {
+              "cancel_ms": 53.619536000000004,
+              "elapsed_to_cancel_ms": 648.160983,
+              "input_delivery_ms": 10.119503,
+              "launch_ms": 4.255877,
+              "observed_bytes_per_second": 861020.6640593174,
+              "output_bytes": 558080,
+              "population": 4,
+              "ready_ms": 10.589197,
+              "resize_observed_ms": 42.108962,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7208
+            },
+            {
+              "cancel_ms": 54.0796,
+              "elapsed_to_cancel_ms": 680.499504,
+              "input_delivery_ms": 17.684563999999998,
+              "launch_ms": 3.82227,
+              "observed_bytes_per_second": 881799.3201652649,
+              "output_bytes": 600064,
+              "population": 4,
+              "ready_ms": 9.982268000000001,
+              "resize_observed_ms": 46.417368,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7372
+            },
+            {
+              "cancel_ms": 53.961525,
+              "elapsed_to_cancel_ms": 668.986279,
+              "input_delivery_ms": 6.3605,
+              "launch_ms": 4.824244,
+              "observed_bytes_per_second": 870953.5879733642,
+              "output_bytes": 582656,
+              "population": 4,
+              "ready_ms": 10.981065,
+              "resize_observed_ms": 25.469414,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7576
+            }
+          ],
+          "schema_version": 1,
+          "unix_timestamp_seconds": 1792291770
+        }
+      ]
+    },
+    "macos-15": {
+      "new_test_pass_counts": {
+        "held_open_empty_frame_read_reports_timeout": 2,
+        "partial_frame_with_held_writer_reports_timeout_without_acknowledging_completion": 2,
+        "blocked_frame_write_reports_timeout_after_partial_delivery": 2,
+        "complete_newline_frame_round_trips_without_timeout": 2,
+        "frame_size_boundary_remains_exact": 2,
+        "closed_peer_and_partial_eof_remain_incomplete_state_errors": 2
+      },
+      "retained_input_uncertainty_pass_counts": {
+        "delivered_input_with_a_lost_transport_reply_is_unknown_and_never_replayed": 2,
+        "delivered_input_with_a_not_found_transport_error_is_unknown_and_never_replayed": 2,
+        "delivered_input_with_an_unsupported_transport_error_is_unknown_and_never_replayed": 2,
+        "delivered_input_with_a_wrong_success_variant_is_unknown_and_never_replayed": 2,
+        "delivered_input_with_an_impossible_accepted_count_is_unknown_and_never_replayed": 2
+      },
+      "test_summaries": [
+        "test result: ok. 137 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.74s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.45s",
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s",
+        "test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.77s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s",
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s",
+        "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.66s",
+        "test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.06s",
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.32s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.65s",
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s",
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.91s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+        "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.42s",
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.46s",
+        "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.27s",
+        "test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.91s",
+        "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.05s",
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s",
+        "test result: ok. 130 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.97s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.94s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s",
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s",
+        "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.76s",
+        "test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.85s",
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.46s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.75s",
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s",
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.44s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+        "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.33s",
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.31s",
+        "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.70s",
+        "test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.57s",
+        "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.00s",
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.89s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 19.53s"
+      ],
+      "performance_reports": [
+        {
+          "schema_version": 1,
+          "unix_timestamp_seconds": 1792291827,
+          "operating_system": "macos",
+          "architecture": "aarch64",
+          "debug_assertions": true,
+          "retention_bytes": 32768,
+          "minimum_load_bytes_per_stream": 131072,
+          "poll_interval_ms": 10,
+          "samples": [
+            {
+              "launch_ms": 13.952000000000002,
+              "launch_to_first_output_ms": 40.613791000000006,
+              "reconnect_ms": 0.063458,
+              "idempotent_retry_ms": 4.257958,
+              "loaded_read_ms": 5.016,
+              "cancel_ms": 126.35991699999998,
+              "final_stdout_offset": 159744,
+              "final_stderr_offset": 159744,
+              "retained_stdout_bytes": 16384,
+              "retained_stderr_bytes": 16384
+            },
+            {
+              "launch_ms": 17.529667,
+              "launch_to_first_output_ms": 42.796583,
+              "reconnect_ms": 0.073042,
+              "idempotent_retry_ms": 5.891291,
+              "loaded_read_ms": 4.442333,
+              "cancel_ms": 143.55975,
+              "final_stdout_offset": 167936,
+              "final_stderr_offset": 167936,
+              "retained_stdout_bytes": 16384,
+              "retained_stderr_bytes": 16384
+            },
+            {
+              "launch_ms": 13.848541,
+              "launch_to_first_output_ms": 43.777708,
+              "reconnect_ms": 0.094083,
+              "idempotent_retry_ms": 7.4272089999999995,
+              "loaded_read_ms": 4.790833,
+              "cancel_ms": 149.649917,
+              "final_stdout_offset": 167936,
+              "final_stderr_offset": 167936,
+              "retained_stdout_bytes": 16384,
+              "retained_stderr_bytes": 16384
+            }
+          ]
+        },
+        {
+          "architecture": "aarch64",
+          "debug_assertions": true,
+          "os": "macos",
+          "samples": [
+            {
+              "cancel_ms": 203.27200000000002,
+              "elapsed_to_cancel_ms": 2603.725292,
+              "input_delivery_ms": 6.6853750000000005,
+              "launch_ms": 16.791,
+              "observed_bytes_per_second": 114051.97042576487,
+              "output_bytes": 296960,
+              "population": 1,
+              "ready_ms": 40.364875000000005,
+              "resize_observed_ms": 126.992167,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 6800
+            },
+            {
+              "cancel_ms": 187.93475,
+              "elapsed_to_cancel_ms": 2353.92475,
+              "input_delivery_ms": 18.39725,
+              "launch_ms": 15.989166999999998,
+              "observed_bytes_per_second": 128330.35550520466,
+              "output_bytes": 302080,
+              "population": 1,
+              "ready_ms": 32.518584000000004,
+              "resize_observed_ms": 176.031667,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7056
+            },
+            {
+              "cancel_ms": 75.869375,
+              "elapsed_to_cancel_ms": 2475.5269169999997,
+              "input_delivery_ms": 18.251666999999998,
+              "launch_ms": 10.603167000000001,
+              "observed_bytes_per_second": 116235.45598474299,
+              "output_bytes": 287744,
+              "population": 1,
+              "ready_ms": 34.162709,
+              "resize_observed_ms": 145.915292,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 6960
+            },
+            {
+              "cancel_ms": 313.71495799999997,
+              "elapsed_to_cancel_ms": 2828.544708,
+              "input_delivery_ms": 336.708584,
+              "launch_ms": 13.480542,
+              "observed_bytes_per_second": 135396.8346043198,
+              "output_bytes": 382976,
+              "population": 4,
+              "ready_ms": 35.216667,
+              "resize_observed_ms": 237.573375,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 18,
+              "supervisor_rss_kib": 7184
+            },
+            {
+              "cancel_ms": 184.466833,
+              "elapsed_to_cancel_ms": 2955.913042,
+              "input_delivery_ms": 340.5505,
+              "launch_ms": 25.583167,
+              "observed_bytes_per_second": 137530.43280493093,
+              "output_bytes": 406528,
+              "population": 4,
+              "ready_ms": 43.7875,
+              "resize_observed_ms": 394.942959,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 18,
+              "supervisor_rss_kib": 7216
+            },
+            {
+              "cancel_ms": 189.202708,
+              "elapsed_to_cancel_ms": 2910.998,
+              "input_delivery_ms": 351.86895899999996,
+              "launch_ms": 32.866959,
+              "observed_bytes_per_second": 136134.7551595707,
+              "output_bytes": 396288,
+              "population": 4,
+              "ready_ms": 48.384417,
+              "resize_observed_ms": 357.331875,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 18,
+              "supervisor_rss_kib": 7168
+            },
+            {
+              "cancel_ms": 234.942,
+              "elapsed_to_cancel_ms": 2876.6847909999997,
+              "input_delivery_ms": 293.437791,
+              "launch_ms": 11.657,
+              "observed_bytes_per_second": 140250.33304387503,
+              "output_bytes": 403456,
+              "population": 4,
+              "ready_ms": 35.309625,
+              "resize_observed_ms": 395.43850000000003,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 18,
+              "supervisor_rss_kib": 6992
+            },
+            {
+              "cancel_ms": 188.091334,
+              "elapsed_to_cancel_ms": 2196.962916,
+              "input_delivery_ms": 137.37433399999998,
+              "launch_ms": 15.71425,
+              "observed_bytes_per_second": 171524.06044526972,
+              "output_bytes": 376832,
+              "population": 4,
+              "ready_ms": 31.671333000000004,
+              "resize_observed_ms": 151.12537500000002,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7040
+            },
+            {
+              "cancel_ms": 194.43491600000002,
+              "elapsed_to_cancel_ms": 2167.8196669999998,
+              "input_delivery_ms": 54.831459,
+              "launch_ms": 14.955459000000001,
+              "observed_bytes_per_second": 169578.68110345915,
+              "output_bytes": 367616,
+              "population": 4,
+              "ready_ms": 30.599542,
+              "resize_observed_ms": 219.707917,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 18,
+              "supervisor_rss_kib": 6944
+            },
+            {
+              "cancel_ms": 139.95725000000002,
+              "elapsed_to_cancel_ms": 2278.346375,
+              "input_delivery_ms": 23.821667,
+              "launch_ms": 13.457334,
+              "observed_bytes_per_second": 167194.94637859883,
+              "output_bytes": 380928,
+              "population": 4,
+              "ready_ms": 37.172,
+              "resize_observed_ms": 370.684916,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7040
+            },
+            {
+              "cancel_ms": 182.850834,
+              "elapsed_to_cancel_ms": 2288.822917,
+              "input_delivery_ms": 105.240875,
+              "launch_ms": 19.784625,
+              "observed_bytes_per_second": 171350.95820958173,
+              "output_bytes": 392192,
+              "population": 4,
+              "ready_ms": 35.812792,
+              "resize_observed_ms": 336.503208,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 18,
+              "supervisor_rss_kib": 7104
+            },
+            {
+              "cancel_ms": 101.085458,
+              "elapsed_to_cancel_ms": 2282.993042,
+              "input_delivery_ms": 139.81799999999998,
+              "launch_ms": 14.953833999999999,
+              "observed_bytes_per_second": 136802.8698529866,
+              "output_bytes": 312320,
+              "population": 4,
+              "ready_ms": 50.981625,
+              "resize_observed_ms": 97.03204099999999,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7312
+            },
+            {
+              "cancel_ms": 126.96325,
+              "elapsed_to_cancel_ms": 2549.018542,
+              "input_delivery_ms": 266.807583,
+              "launch_ms": 90.475125,
+              "observed_bytes_per_second": 134979.01028606956,
+              "output_bytes": 344064,
+              "population": 4,
+              "ready_ms": 115.057542,
+              "resize_observed_ms": 130.171666,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 6992
+            },
+            {
+              "cancel_ms": 174.457,
+              "elapsed_to_cancel_ms": 2487.868167,
+              "input_delivery_ms": 189.31400000000002,
+              "launch_ms": 33.581458000000005,
+              "observed_bytes_per_second": 139943.1065593115,
+              "output_bytes": 348160,
+              "population": 4,
+              "ready_ms": 49.379417000000004,
+              "resize_observed_ms": 142.764375,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 18,
+              "supervisor_rss_kib": 7024
+            },
+            {
+              "cancel_ms": 207.890583,
+              "elapsed_to_cancel_ms": 2805.577083,
+              "input_delivery_ms": 264.02308400000004,
+              "launch_ms": 18.892374999999998,
+              "observed_bytes_per_second": 128475.52903967029,
+              "output_bytes": 360448,
+              "population": 4,
+              "ready_ms": 43.171041,
+              "resize_observed_ms": 288.612792,
+              "retained_bytes": 131072,
+              "supervisor_open_descriptors": 17,
+              "supervisor_rss_kib": 7296
+            }
+          ],
+          "schema_version": 1,
+          "unix_timestamp_seconds": 1792291847
+        }
+      ]
+    }
+  },
+  "prior_actual_runs": [
+    {
+      "cloud_run": {
+        "conclusion": "failure",
+        "headSha": "5d2d2599432d97010fca1374ee5d7e3d05dfb8dd",
+        "jobs": [
+          {
+            "completedAt": "2026-10-18T02:38:15Z",
+            "conclusion": "failure",
+            "databaseId": 117566744294,
+            "name": "quality (ubuntu-24.04)",
+            "startedAt": "2026-10-18T02:37:15Z",
+            "status": "completed",
+            "steps": [
+              {
+                "completedAt": "2026-10-18T02:37:18Z",
+                "conclusion": "success",
+                "name": "Set up job",
+                "number": 1,
+                "startedAt": "2026-10-18T02:37:16Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:37:19Z",
+                "conclusion": "success",
+                "name": "Run actions/checkout@v4",
+                "number": 2,
+                "startedAt": "2026-10-18T02:37:18Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:37:27Z",
+                "conclusion": "success",
+                "name": "Run dtolnay/rust-toolchain@stable",
+                "number": 3,
+                "startedAt": "2026-10-18T02:37:19Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:37:34Z",
+                "conclusion": "success",
+                "name": "Run Swatinem/rust-cache@v2",
+                "number": 4,
+                "startedAt": "2026-10-18T02:37:27Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:38:12Z",
+                "conclusion": "failure",
+                "name": "Run scripts/quality-gate.sh",
+                "number": 5,
+                "startedAt": "2026-10-18T02:37:34Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:38:12Z",
+                "conclusion": "skipped",
+                "name": "Post Run Swatinem/rust-cache@v2",
+                "number": 9,
+                "startedAt": "2026-10-18T02:38:12Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:38:12Z",
+                "conclusion": "success",
+                "name": "Post Run actions/checkout@v4",
+                "number": 10,
+                "startedAt": "2026-10-18T02:38:12Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:38:12Z",
+                "conclusion": "success",
+                "name": "Complete job",
+                "number": 11,
+                "startedAt": "2026-10-18T02:38:12Z",
+                "status": "completed"
+              }
+            ],
+            "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39090735789/job/117566744294"
+          },
+          {
+            "completedAt": "2026-10-18T02:38:42Z",
+            "conclusion": "failure",
+            "databaseId": 117566744514,
+            "name": "quality (macos-15)",
+            "startedAt": "2026-10-18T02:37:19Z",
+            "status": "completed",
+            "steps": [
+              {
+                "completedAt": "2026-10-18T02:37:22Z",
+                "conclusion": "success",
+                "name": "Set up job",
+                "number": 1,
+                "startedAt": "2026-10-18T02:37:20Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:37:23Z",
+                "conclusion": "success",
+                "name": "Run actions/checkout@v4",
+                "number": 2,
+                "startedAt": "2026-10-18T02:37:22Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:37:31Z",
+                "conclusion": "success",
+                "name": "Run dtolnay/rust-toolchain@stable",
+                "number": 3,
+                "startedAt": "2026-10-18T02:37:23Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:37:38Z",
+                "conclusion": "success",
+                "name": "Run Swatinem/rust-cache@v2",
+                "number": 4,
+                "startedAt": "2026-10-18T02:37:31Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:38:40Z",
+                "conclusion": "failure",
+                "name": "Run scripts/quality-gate.sh",
+                "number": 5,
+                "startedAt": "2026-10-18T02:37:38Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:38:40Z",
+                "conclusion": "skipped",
+                "name": "Post Run Swatinem/rust-cache@v2",
+                "number": 9,
+                "startedAt": "2026-10-18T02:38:40Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:38:41Z",
+                "conclusion": "success",
+                "name": "Post Run actions/checkout@v4",
+                "number": 10,
+                "startedAt": "2026-10-18T02:38:40Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:38:41Z",
+                "conclusion": "success",
+                "name": "Complete job",
+                "number": 11,
+                "startedAt": "2026-10-18T02:38:41Z",
+                "status": "completed"
+              }
+            ],
+            "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39090735789/job/117566744514"
+          }
+        ],
+        "status": "completed",
+        "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39090735789"
+      },
+      "raw_log_sha256": "40344fb7a488092889142a33946c052cfc749f523c830bf5d98e50f66aa14199",
+      "result": "Initial actual old-code RED: three expected Io(WouldBlock) timeout failures bothOS; extra macOS EOF fixture Io(EINVAL) setting timeout after full peer closure. Initial allfeatures unit only; not full qualification."
+    },
+    {
+      "cloud_run": {
+        "conclusion": "failure",
+        "headSha": "d5c5065b37e9fd933c616676160f3be27e9eecfb",
+        "jobs": [
+          {
+            "completedAt": "2026-10-18T02:41:52Z",
+            "conclusion": "failure",
+            "databaseId": 117567256138,
+            "name": "quality (macos-15)",
+            "startedAt": "2026-10-18T02:40:17Z",
+            "status": "completed",
+            "steps": [
+              {
+                "completedAt": "2026-10-18T02:40:20Z",
+                "conclusion": "success",
+                "name": "Set up job",
+                "number": 1,
+                "startedAt": "2026-10-18T02:40:18Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:40:22Z",
+                "conclusion": "success",
+                "name": "Run actions/checkout@v4",
+                "number": 2,
+                "startedAt": "2026-10-18T02:40:20Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:40:32Z",
+                "conclusion": "success",
+                "name": "Run dtolnay/rust-toolchain@stable",
+                "number": 3,
+                "startedAt": "2026-10-18T02:40:22Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:40:46Z",
+                "conclusion": "success",
+                "name": "Run Swatinem/rust-cache@v2",
+                "number": 4,
+                "startedAt": "2026-10-18T02:40:32Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:41:49Z",
+                "conclusion": "failure",
+                "name": "Run scripts/quality-gate.sh",
+                "number": 5,
+                "startedAt": "2026-10-18T02:40:46Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:41:49Z",
+                "conclusion": "skipped",
+                "name": "Post Run Swatinem/rust-cache@v2",
+                "number": 9,
+                "startedAt": "2026-10-18T02:41:49Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:41:50Z",
+                "conclusion": "success",
+                "name": "Post Run actions/checkout@v4",
+                "number": 10,
+                "startedAt": "2026-10-18T02:41:49Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:41:50Z",
+                "conclusion": "success",
+                "name": "Complete job",
+                "number": 11,
+                "startedAt": "2026-10-18T02:41:50Z",
+                "status": "completed"
+              }
+            ],
+            "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39090901531/job/117567256138"
+          },
+          {
+            "completedAt": "2026-10-18T02:41:12Z",
+            "conclusion": "failure",
+            "databaseId": 117567256245,
+            "name": "quality (ubuntu-24.04)",
+            "startedAt": "2026-10-18T02:40:07Z",
+            "status": "completed",
+            "steps": [
+              {
+                "completedAt": "2026-10-18T02:40:09Z",
+                "conclusion": "success",
+                "name": "Set up job",
+                "number": 1,
+                "startedAt": "2026-10-18T02:40:07Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:40:10Z",
+                "conclusion": "success",
+                "name": "Run actions/checkout@v4",
+                "number": 2,
+                "startedAt": "2026-10-18T02:40:09Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:40:21Z",
+                "conclusion": "success",
+                "name": "Run dtolnay/rust-toolchain@stable",
+                "number": 3,
+                "startedAt": "2026-10-18T02:40:10Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:40:26Z",
+                "conclusion": "success",
+                "name": "Run Swatinem/rust-cache@v2",
+                "number": 4,
+                "startedAt": "2026-10-18T02:40:21Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:41:10Z",
+                "conclusion": "failure",
+                "name": "Run scripts/quality-gate.sh",
+                "number": 5,
+                "startedAt": "2026-10-18T02:40:26Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:41:10Z",
+                "conclusion": "skipped",
+                "name": "Post Run Swatinem/rust-cache@v2",
+                "number": 9,
+                "startedAt": "2026-10-18T02:41:10Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:41:10Z",
+                "conclusion": "success",
+                "name": "Post Run actions/checkout@v4",
+                "number": 10,
+                "startedAt": "2026-10-18T02:41:10Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:41:10Z",
+                "conclusion": "success",
+                "name": "Complete job",
+                "number": 11,
+                "startedAt": "2026-10-18T02:41:10Z",
+                "status": "completed"
+              }
+            ],
+            "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39090901531/job/117567256245"
+          }
+        ],
+        "status": "completed",
+        "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39090901531"
+      },
+      "raw_log_sha256": "a2b40dbdea4240361d5c3a1def9f8da404ea2d8c961f91239e6138d523bfac08",
+      "result": "Corrected actual old-code RED: exactly three timeout failures and three retained framing passes bothOS; EOF fixture now retains write-half-shutdown peer. Initial allfeatures unit gate only."
+    },
+    {
+      "cloud_run": {
+        "conclusion": "failure",
+        "headSha": "28daf23061dcaac2111d2cacd952676a8f0dbfed",
+        "jobs": [
+          {
+            "completedAt": "2026-10-18T02:44:54Z",
+            "conclusion": "success",
+            "databaseId": 117567715181,
+            "name": "quality (ubuntu-24.04)",
+            "startedAt": "2026-10-18T02:42:42Z",
+            "status": "completed",
+            "steps": [
+              {
+                "completedAt": "2026-10-18T02:42:44Z",
+                "conclusion": "success",
+                "name": "Set up job",
+                "number": 1,
+                "startedAt": "2026-10-18T02:42:43Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:42:45Z",
+                "conclusion": "success",
+                "name": "Run actions/checkout@v4",
+                "number": 2,
+                "startedAt": "2026-10-18T02:42:44Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:42:53Z",
+                "conclusion": "success",
+                "name": "Run dtolnay/rust-toolchain@stable",
+                "number": 3,
+                "startedAt": "2026-10-18T02:42:45Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:42:57Z",
+                "conclusion": "success",
+                "name": "Run Swatinem/rust-cache@v2",
+                "number": 4,
+                "startedAt": "2026-10-18T02:42:53Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:44:52Z",
+                "conclusion": "success",
+                "name": "Run scripts/quality-gate.sh",
+                "number": 5,
+                "startedAt": "2026-10-18T02:42:57Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:44:52Z",
+                "conclusion": "success",
+                "name": "Post Run Swatinem/rust-cache@v2",
+                "number": 9,
+                "startedAt": "2026-10-18T02:44:52Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:44:52Z",
+                "conclusion": "success",
+                "name": "Post Run actions/checkout@v4",
+                "number": 10,
+                "startedAt": "2026-10-18T02:44:52Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:44:52Z",
+                "conclusion": "success",
+                "name": "Complete job",
+                "number": 11,
+                "startedAt": "2026-10-18T02:44:52Z",
+                "status": "completed"
+              }
+            ],
+            "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39091057439/job/117567715181"
+          },
+          {
+            "completedAt": "2026-10-18T02:44:31Z",
+            "conclusion": "failure",
+            "databaseId": 117567715327,
+            "name": "quality (macos-15)",
+            "startedAt": "2026-10-18T02:42:48Z",
+            "status": "completed",
+            "steps": [
+              {
+                "completedAt": "2026-10-18T02:42:51Z",
+                "conclusion": "success",
+                "name": "Set up job",
+                "number": 1,
+                "startedAt": "2026-10-18T02:42:49Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:42:53Z",
+                "conclusion": "success",
+                "name": "Run actions/checkout@v4",
+                "number": 2,
+                "startedAt": "2026-10-18T02:42:51Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:43:03Z",
+                "conclusion": "success",
+                "name": "Run dtolnay/rust-toolchain@stable",
+                "number": 3,
+                "startedAt": "2026-10-18T02:42:53Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:43:15Z",
+                "conclusion": "success",
+                "name": "Run Swatinem/rust-cache@v2",
+                "number": 4,
+                "startedAt": "2026-10-18T02:43:03Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:44:27Z",
+                "conclusion": "failure",
+                "name": "Run scripts/quality-gate.sh",
+                "number": 5,
+                "startedAt": "2026-10-18T02:43:15Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:44:27Z",
+                "conclusion": "skipped",
+                "name": "Post Run Swatinem/rust-cache@v2",
+                "number": 9,
+                "startedAt": "2026-10-18T02:44:27Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:44:28Z",
+                "conclusion": "success",
+                "name": "Post Run actions/checkout@v4",
+                "number": 10,
+                "startedAt": "2026-10-18T02:44:27Z",
+                "status": "completed"
+              },
+              {
+                "completedAt": "2026-10-18T02:44:29Z",
+                "conclusion": "success",
+                "name": "Complete job",
+                "number": 11,
+                "startedAt": "2026-10-18T02:44:28Z",
+                "status": "completed"
+              }
+            ],
+            "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39091057439/job/117567715327"
+          }
+        ],
+        "status": "completed",
+        "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39091057439"
+      },
+      "raw_log_sha256": "ac38ad8b270f4cd2956219e598f61499fad88a7cd625dd0f54b5fa0aac458f80",
+      "result": "First production fix: Ubuntu full gate PASS; macOS unit gate failed only over-limit boundary helper Io(EINVAL) due producer full-close before next read-timeout setup; timeout regressions pass. Final helper retains writer in scoped join result until read completes; production fix unchanged."
+    }
+  ],
+  "checks": [
+    "Full scripts/quality-gate.sh bothOS: formatting, warning-denying Clippy, builds, bothfeature test selections, warning-denying docs, managed+PTY performance qualifications.",
+    "6newtests twiceOS=24executions; retained5input-uncertainty cases twiceOS=20executions;3managed+15PTYactualsamplesOS.",
+    "All three timeout regression bodies exactly match corrected actual RED. Final entire testfile differs in boundary-producer socket ownership; no wholefile identity or final-helper-old-source RED claimed."
+  ],
+  "limits": [
+    "Historical loaded PTY resize EAGAIN origin remains unproven; this error classification does not repair or qualify native control starvation or transport service latency.",
+    "Private helper returns Error::Timeout; existing supervisor fault conversion still maps it to State across protocol. No new public wire error variant.",
+    "No operation retry/retransmission/budgetincrease; request input exchange errors remain Unknown; timeout is not proof of no delivery.",
+    "Blocked write fixture pre-delivers prefix before calling helper on remainder; it does not show helper itself delivered that prefix during this invocation.",
+    "EOF case uses retained peer write-half shutdown, not full closure. Fully closed-peer macOS timeout-setup EINVAL remains I/O failure, not newly normalized. Boundary producer is retained in join result until framing completes.",
+    "Interrupted read handling, repeated trickle deadline and other I/O branches source-reviewed, not newly fault-injected. TimedOut portability branch reviewed; actual red observed WouldBlock on both OS.",
+    "No live Boat, GPU, deployment, cross-host transport or powerloss qualification. Hosted debug runtime samples are not a statistical regression baseline."
+  ]
+}
