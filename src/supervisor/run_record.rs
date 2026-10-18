@@ -29,6 +29,9 @@ pub fn run_directory(context: &SupervisorContext, id: &RunId, create: bool) -> R
 }
 pub fn inspect(path: &Path) -> Result<RunState> {
     let value: RunState = read_json(&path.join("status.json"))?;
+    inspect_after_status(path, value)
+}
+fn inspect_after_status(path: &Path, value: RunState) -> Result<RunState> {
     if value.is_active() && !live_lock(&path.join("active.lock"))? {
         Ok(RunState::Lost {
             reason:
@@ -140,3 +143,7 @@ pub fn output(path: &Path, cursor: OutputCursor, limit: u32) -> Result<OutputPag
         complete: state.is_terminal() && out_next == out_end && err_next == err_end,
     })
 }
+
+#[cfg(test)]
+#[path = "run_record_tests.rs"]
+mod tests;
