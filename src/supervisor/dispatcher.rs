@@ -73,6 +73,18 @@ pub(super) fn handle(request: SupervisorRequest) -> Result<SupervisorValue> {
             &execution,
             output_limit_bytes,
         )?)),
+        SupervisorOperation::StartPipedCleanEnvironment {
+            id,
+            execution,
+            output_limit_bytes,
+        } => Ok(SupervisorValue::Run(
+            workload::start_piped_with_clean_environment(
+                context,
+                &id,
+                &execution,
+                output_limit_bytes,
+            )?,
+        )),
         SupervisorOperation::PipeInput { id, input } => {
             let path = match run_record::run_directory(context, &id, false) {
                 Ok(path) => path,

@@ -64,6 +64,12 @@ pub trait IBackend: Send + Sync {
     async fn start_piped(&self, _request: LaunchRequest) -> Result<RunRef> {
         Err(Error::Unsupported("piped managed launch".into()))
     }
+    /// Start a piped run with an absolute executable and no inherited child
+    /// environment. Apply explicit public values and then secrets after clearing.
+    /// Providers must reject unsupported clearing rather than inherit silently.
+    async fn start_piped_with_clean_environment(&self, _request: LaunchRequest) -> Result<RunRef> {
+        Err(Error::Unsupported("clean environment piped launch".into()))
+    }
     /// Submit one transient bounded input request. Never replay an unknown result.
     async fn write_input(&self, _run: &RunRef, _input: &SecretInput) -> Result<InputOutcome> {
         Err(Error::Unsupported("managed pipe input".into()))

@@ -45,7 +45,15 @@ pub fn start(
     execution: &SupervisorExecution,
     limit: u64,
 ) -> Result<RunState> {
-    start_mode(context, id, execution, limit, None, false)
+    start_mode(context, id, execution, limit, None, false, false)
+}
+fn validate_piped(execution: &SupervisorExecution) -> Result<()> {
+    if execution.command.stdin.is_some() || execution.private_stdin.is_some() {
+        return Err(Error::InvalidInput(
+            "piped launch requires no launch stdin".into(),
+        ));
+    }
+    Ok(())
 }
 pub fn start_piped(
     context: &SupervisorContext,
@@ -53,12 +61,22 @@ pub fn start_piped(
     execution: &SupervisorExecution,
     limit: u64,
 ) -> Result<RunState> {
-    if execution.command.stdin.is_some() || execution.private_stdin.is_some() {
+    validate_piped(execution)?;
+    start_mode(context, id, execution, limit, None, true, false)
+}
+pub fn start_piped_with_clean_environment(
+    context: &SupervisorContext,
+    id: &RunId,
+    execution: &SupervisorExecution,
+    limit: u64,
+) -> Result<RunState> {
+    if !Path::new(&execution.command.program).is_absolute() {
         return Err(Error::InvalidInput(
-            "piped launch requires no launch stdin".into(),
+            "clean environment requires an absolute executable".into(),
         ));
     }
-    start_mode(context, id, execution, limit, None, true)
+    validate_piped(execution)?;
+    start_mode(context, id, execution, limit, None, true, true)
 }
 pub(super) fn start_terminal(
     context: &SupervisorContext,
@@ -75,7 +93,7 @@ pub(super) fn start_terminal(
             "terminal launch requires 2 bytes..=128 KiB retention and no launch stdin".into(),
         ));
     }
-    start_mode(context, id, execution, limit, Some(size), false)
+    start_mode(context, id, execution, limit, Some(size), false, false)
 }
 fn start_mode(
     context: &SupervisorContext,
@@ -84,6 +102,7 @@ fn start_mode(
     limit: u64,
     terminal: Option<crate::TerminalSize>,
     piped: bool,
+    clear_environment: bool,
 ) -> Result<RunState> {
     valid_execution(execution)?;
     if !(2..=MAX_OUTPUT).contains(&limit) {
@@ -115,6 +134,11 @@ fn start_mode(
     }
     let mut hash = Sha256::new();
     hash.update(salt);
+    // Only the new clean mode adds this tag; all earlier modes retain their
+    // exact salted fingerprint encoding and continue reconnecting unchanged.
+    if clear_environment {
+        hash.update(b"workspace-sdk-clean-env-v1");
+    }
     // Preserve exact legacy ordinary/terminal fingerprint encoding.
     if piped {
         hash.update(b"workspace-sdk-piped-v1");
@@ -170,7 +194,15 @@ fn start_mode(
     }
     let result = match terminal {
         Some(size) => super::terminal::work(&path, &cwd, id, execution, limit as usize, size),
-        None => work(&path, &cwd, id, execution, limit as usize, piped),
+        None => work(
+            &path,
+            &cwd,
+            id,
+            execution,
+            limit as usize,
+            piped,
+            clear_environment,
+        ),
     };
     if result.is_err() {
         let _ = write_json(
@@ -249,6 +281,7 @@ fn work(
     execution: &SupervisorExecution,
     limit: usize,
     piped: bool,
+    clear_environment: bool,
 ) -> Result<()> {
     let _directory = if piped {
         Some(super::control_channel::DirectoryGuard::enter(path)?)
@@ -278,6 +311,9 @@ fn work(
             Stdio::null()
         })
         .process_group(0);
+    if clear_environment {
+        command.env_clear();
+    }
     for key in &execution.command.env_remove {
         command.env_remove(key);
     }

@@ -95,6 +95,37 @@ impl Workspace {
             reference,
         })
     }
+    /// Start an explicitly piped run with no inherited child environment.
+    ///
+    /// The executable must be an absolute target path. Explicit command values
+    /// and transient secrets are applied after clearing; no PATH or HOME is
+    /// supplied automatically. This does not isolate the supervisor or transport.
+    /// Clean and inherited modes cannot reuse the same launch ID. All pipe input,
+    /// EOF, uncertainty and execution ownership rules of `start_piped` apply.
+    pub async fn start_piped_with_clean_environment(&self, request: LaunchRequest) -> Result<Run> {
+        request.execution.command.validate()?;
+        if !std::path::Path::new(&request.execution.command.program).is_absolute() {
+            return Err(Error::InvalidInput(
+                "clean environment launch requires an absolute executable".into(),
+            ));
+        }
+        if request.execution.command.stdin.is_some() || request.execution.private_stdin.is_some() {
+            return Err(Error::InvalidInput(
+                "piped launch cannot include initial stdin".into(),
+            ));
+        }
+        if !self.descriptor().capabilities.managed_runs {
+            return Err(Error::Unsupported("managed runs".into()));
+        }
+        let reference = self
+            .backend
+            .start_piped_with_clean_environment(request)
+            .await?;
+        Ok(Run {
+            backend: self.backend.clone(),
+            reference,
+        })
+    }
     /// Construct a handle to an existing run without starting or polling a process.
     pub fn run(&self, id: RunId) -> Run {
         Run {

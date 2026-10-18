@@ -56,8 +56,16 @@ impl ManagedBackend {
         request: LaunchRequest,
         directory: WorkingDirectory,
         piped: bool,
+        clean_environment: bool,
     ) -> Result<RunRef> {
         request.execution.command.validate()?;
+        if clean_environment
+            && !std::path::Path::new(&request.execution.command.program).is_absolute()
+        {
+            return Err(Error::InvalidInput(
+                "clean environment launch requires an absolute executable".into(),
+            ));
+        }
         if piped
             && (request.execution.command.stdin.is_some()
                 || request.execution.private_stdin.is_some())
@@ -88,7 +96,13 @@ impl ManagedBackend {
             private_stdin: request.execution.private_stdin,
             directory,
         };
-        let operation = if piped {
+        let operation = if clean_environment {
+            SupervisorOperation::StartPipedCleanEnvironment {
+                id: request.id,
+                execution: Box::new(execution),
+                output_limit_bytes: request.output_limit_bytes,
+            }
+        } else if piped {
             SupervisorOperation::StartPiped {
                 id: request.id,
                 execution: Box::new(execution),
@@ -121,6 +135,7 @@ impl ManagedBackend {
                     output_limit_bytes: 1024 * 1024,
                 },
                 directory,
+                false,
                 false,
             )
             .await?;
@@ -216,12 +231,17 @@ impl IBackend for ManagedBackend {
     }
     async fn start(&self, request: LaunchRequest) -> Result<RunRef> {
         let cwd = request.execution.command.cwd.clone();
-        self.launch(request, WorkingDirectory::Project(cwd), false)
+        self.launch(request, WorkingDirectory::Project(cwd), false, false)
             .await
     }
     async fn start_piped(&self, request: LaunchRequest) -> Result<RunRef> {
         let cwd = request.execution.command.cwd.clone();
-        self.launch(request, WorkingDirectory::Project(cwd), true)
+        self.launch(request, WorkingDirectory::Project(cwd), true, false)
+            .await
+    }
+    async fn start_piped_with_clean_environment(&self, request: LaunchRequest) -> Result<RunRef> {
+        let cwd = request.execution.command.cwd.clone();
+        self.launch(request, WorkingDirectory::Project(cwd), true, true)
             .await
     }
     async fn write_input(&self, run: &RunRef, input: &SecretInput) -> Result<InputOutcome> {
@@ -263,7 +283,7 @@ impl IBackend for ManagedBackend {
         }
     }
     async fn start_private(&self, request: LaunchRequest, cwd: WorkspacePath) -> Result<RunRef> {
-        self.launch(request, WorkingDirectory::Control(cwd), false)
+        self.launch(request, WorkingDirectory::Control(cwd), false, false)
             .await
     }
     async fn start_terminal(

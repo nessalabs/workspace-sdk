@@ -69,6 +69,11 @@ pub enum SupervisorOperation {
         execution: Box<SupervisorExecution>,
         output_limit_bytes: u64,
     },
+    StartPipedCleanEnvironment {
+        id: RunId,
+        execution: Box<SupervisorExecution>,
+        output_limit_bytes: u64,
+    },
     PipeInput {
         id: RunId,
         #[serde(with = "secret_input")]
@@ -144,6 +149,7 @@ impl SupervisorOperation {
         match self {
             Self::Start { .. }
             | Self::StartPiped { .. }
+            | Self::StartPipedCleanEnvironment { .. }
             | Self::PipeInput { .. }
             | Self::StartTerminal { .. }
             | Self::TerminalInput { .. }
