@@ -103,3 +103,5 @@ Related domain concepts share focused files inside context modules. Module entry
 Run `scripts/quality-gate.sh` for the mechanical and local performance checks.
 Acceptance additionally requires separate independent code-quality/design and
 adversarial agent reviews under [the coding standards](coding_standards.md).
+
+See [recovery at an expected checkpoint](docs/recovery-expected-head.md) for exact-head admission and retry behavior.

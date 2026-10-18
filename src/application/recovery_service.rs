@@ -143,7 +143,30 @@ impl RecoveryService {
         let service = self.clone();
         let id = id.clone();
         owned(tokio::spawn(async move {
-            service.recover_owned(&id, request).await
+            service.recover_owned(&id, request, None).await
+        }))
+        .await
+    }
+
+    /// Place or retry fresh recovery pinned to an exact canonical head.
+    ///
+    /// For a new attempt, check the current head under the same recovery lease
+    /// that protects preparation and launch. A mismatched head is refused before
+    /// provider effects. For an exact retry, compare the attempt's pinned head,
+    /// allowing the accepted run to be reconnected after later publication.
+    /// Keep the same request and expected head across retries. Cancellation,
+    /// uncertainty and target ownership follow [`Self::recover`].
+    pub async fn recover_at_head(
+        &self,
+        id: &OperationId,
+        expected_committed: &RecoveryHead,
+        request: RecoveryRequest,
+    ) -> Result<RecoverySession> {
+        let service = self.clone();
+        let id = id.clone();
+        let expected = expected_committed.clone();
+        owned(tokio::spawn(async move {
+            service.recover_owned(&id, request, Some(expected)).await
         }))
         .await
     }
@@ -152,6 +175,7 @@ impl RecoveryService {
         &self,
         id: &OperationId,
         request: RecoveryRequest,
+        expected_committed: Option<RecoveryHead>,
     ) -> Result<RecoverySession> {
         request.continuation.command.validate()?;
         let _lease = self.repository.acquire_recovery(id)?;
@@ -160,6 +184,16 @@ impl RecoveryService {
             attempt.request_id == request.request_id
                 && attempt.expected_previous_epoch == request.expected_previous_epoch
         });
+        if let Some(expected) = expected_committed {
+            let pinned = session
+                .current_attempt
+                .as_ref()
+                .filter(|_| retry)
+                .map_or(&session.committed, |attempt| &attempt.checkpoint);
+            if *pinned != expected {
+                return Err(Error::Conflict("recovery canonical head changed".into()));
+            }
+        }
         if retry
             && session
                 .current_attempt

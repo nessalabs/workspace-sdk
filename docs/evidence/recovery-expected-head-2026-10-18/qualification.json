@@ -1,0 +1,54 @@
+{
+  "status": "Local checks and semantic probes passed; exact-commit cloud qualification and final reviews pending",
+  "scope": "Conditional canonical-head recovery using the existing owned recovery lease and pinned attempt",
+  "source": {
+    "README.md": "5adfa69050154ef5e04a4db53c8a73384c0751c9507eb70bd518c85ce1aaf943",
+    "docs/recovery-expected-head.md": "85520af8b02bdb9a01649adc8f12918e9da0bce6ddcd5071154fd73c90855163",
+    "src/application/recovery_service.rs": "e6b392b405b816e00136949342faa60bef3bf5c4ff49e0e880134e57545c56aa",
+    "tests/recovery_expected_head.rs": "4d6c49abad94d942226d64abf9f2d5e57513ef09c05d5a64b622f2f1113e7a9e"
+  },
+  "local_checks": {
+    "affected": "169 passed: 133 library, 2 cancellation, 11 continuation, 2 expected-head, 3 replication, 7 repository, 11 workflow",
+    "restored_expected_head": "2 passed in 2.73 seconds after the shared-fixture lint annotation",
+    "clippy": "All features, all targets, -D warnings: passed in 3.91 seconds",
+    "docs": "All features, no dependencies, RUSTDOCFLAGS=-D warnings: passed",
+    "fmt": "cargo fmt --all -- --check: passed"
+  },
+  "fault_probes": [
+    {
+      "probe": "missing-head",
+      "test": "conditional_recovery_refuses_superseded_head_and_retries_its_original_checkpoint",
+      "exit": 101,
+      "assertion_failure": true,
+      "compile_error": false,
+      "restored": true
+    },
+    {
+      "probe": "retry-current-head",
+      "test": "conditional_recovery_refuses_superseded_head_and_retries_its_original_checkpoint",
+      "exit": 101,
+      "assertion_failure": true,
+      "compile_error": false,
+      "restored": true
+    },
+    {
+      "probe": "prelease-head",
+      "test": "conditional_head_is_checked_after_effect_lease_acquisition",
+      "exit": 101,
+      "assertion_failure": true,
+      "compile_error": false,
+      "restored": true
+    }
+  ],
+  "initial_failures": [
+    "Test assumed RecoveryRequest implements Clone; corrected to construct the same request for each retry.",
+    "Clippy found unused helpers in the imported shared fixture; added a narrow dead_code allowance on that test module. Production lint policy is unchanged."
+  ],
+  "limits": [
+    "The exact-head check is serialized with authority publication; it does not fence global filesystem writes or external effects.",
+    "Ordinary recover keeps its behavior; fresh and retained retry guards remain unchanged.",
+    "No offsite durability, power-loss, physical host-failure or live provider qualification.",
+    "An existing no-default dependency warning remains visible; no zero-warning claim.",
+    "The full mechanical and performance gate awaits manual cloud execution on the exact source commit."
+  ]
+}
