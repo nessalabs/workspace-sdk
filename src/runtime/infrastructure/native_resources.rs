@@ -2,7 +2,7 @@ use crate::domain::{HostGpu, HostResources};
 use crate::Result;
 use std::env::consts::{ARCH, OS};
 use std::fs;
-use std::io::{ErrorKind, Read};
+use std::io::{Error as IoError, ErrorKind, Read};
 use std::os::fd::AsRawFd;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
@@ -179,9 +179,25 @@ fn collect_gpus(mut child: Child, budget: Duration) -> Vec<HostGpu> {
                     None
                 };
             }
-            sleep(
-                Duration::from_millis(25).min(deadline.saturating_duration_since(Instant::now())),
-            );
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if eof {
+                sleep(Duration::from_millis(25).min(remaining));
+            } else {
+                // Wake for bytes instead of imposing a 25-ms gap on every short
+                // producer burst. Retain a bounded wait to recheck child status.
+                let mut readiness = libc::pollfd {
+                    fd: output.as_raw_fd(),
+                    events: libc::POLLIN,
+                    revents: 0,
+                };
+                let timeout_ms = remaining.as_millis().clamp(1, 25) as libc::c_int;
+                let ready = unsafe { libc::poll(&mut readiness, 1, timeout_ms) };
+                if (ready < 0 && IoError::last_os_error().kind() != ErrorKind::Interrupted)
+                    || readiness.revents & (libc::POLLERR | libc::POLLNVAL) != 0
+                {
+                    return None;
+                }
+            }
         }
     })();
     if !reaped {
