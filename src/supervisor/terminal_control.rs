@@ -1,100 +1,26 @@
 //! Bounded transient control channel to the separately owned PTY supervisor.
-use super::{
-    filesystem,
-    protocol::{SupervisorFault, SupervisorOperation, SupervisorResponse, SupervisorValue},
-};
+use super::protocol::{SupervisorFault, SupervisorOperation, SupervisorResponse, SupervisorValue};
 use crate::{Error, InputOutcome, Result, RunId};
 use std::{
     fs,
-    io::{ErrorKind, Read, Write},
     os::unix::{
         fs::PermissionsExt,
         net::{UnixListener, UnixStream},
     },
-    path::{Path, PathBuf},
-    time::{Duration, Instant},
+    path::Path,
 };
 
-const FRAME_LIMIT: usize = 128 * 1024;
-const FRAME_BUDGET: Duration = Duration::from_millis(250);
-// The reply includes queue service and a separately bounded native operation.
-const RESPONSE_BUDGET: Duration = Duration::from_secs(2);
-
-/// Only used in the dedicated CLI process, never in a threaded SDK host.
-pub(super) struct DirectoryGuard(PathBuf);
-impl DirectoryGuard {
-    pub fn enter(path: &Path) -> Result<Self> {
-        filesystem::directory(path, false)?;
-        let previous = std::env::current_dir()?;
-        std::env::set_current_dir(path)?;
-        Ok(Self(previous))
-    }
-}
-impl Drop for DirectoryGuard {
-    fn drop(&mut self) {
-        let _ = std::env::set_current_dir(&self.0);
-    }
-}
+#[cfg(test)]
+use super::control_channel::FRAME_LIMIT;
+pub(super) use super::control_channel::{
+    read_frame, write_frame, DirectoryGuard, FRAME_BUDGET, RESPONSE_BUDGET,
+};
 
 pub(super) fn listen() -> Result<UnixListener> {
     let socket = UnixListener::bind("pty.sock")?;
     fs::set_permissions("pty.sock", fs::Permissions::from_mode(0o600))?;
     socket.set_nonblocking(true)?;
     Ok(socket)
-}
-
-fn read_frame(stream: &mut UnixStream, budget: Duration) -> Result<Vec<u8>> {
-    let deadline = Instant::now() + budget;
-    let mut frame = Vec::new();
-    loop {
-        let remaining = deadline
-            .checked_duration_since(Instant::now())
-            .ok_or_else(|| Error::Timeout("terminal control frame timed out".into()))?;
-        stream.set_read_timeout(Some(remaining))?;
-        let mut bytes = [0; 4096];
-        let size = match stream.read(&mut bytes) {
-            Ok(size) => size,
-            Err(error) if error.kind() == ErrorKind::Interrupted => continue,
-            Err(error) if matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
-                return Err(Error::Timeout("terminal control frame timed out".into()));
-            }
-            Err(error) => return Err(error.into()),
-        };
-        if size == 0 {
-            return Err(Error::State("incomplete terminal control frame".into()));
-        }
-        if frame.len() + size > FRAME_LIMIT {
-            return Err(Error::InvalidInput(
-                "terminal control frame exceeds its bound".into(),
-            ));
-        }
-        frame.extend_from_slice(&bytes[..size]);
-        if frame.last() == Some(&b'\n') {
-            return Ok(frame);
-        }
-    }
-}
-fn write_frame(stream: &mut UnixStream, bytes: &[u8]) -> Result<()> {
-    let deadline = Instant::now() + FRAME_BUDGET;
-    let mut offset = 0;
-    while offset < bytes.len() {
-        let remaining = deadline
-            .checked_duration_since(Instant::now())
-            .ok_or_else(|| Error::Timeout("terminal control acknowledgement timed out".into()))?;
-        stream.set_write_timeout(Some(remaining))?;
-        match stream.write(&bytes[offset..]) {
-            Ok(0) => return Err(Error::State("terminal control channel closed".into())),
-            Ok(size) => offset += size,
-            Err(error) if error.kind() == ErrorKind::Interrupted => (),
-            Err(error) if matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
-                return Err(Error::Timeout(
-                    "terminal control acknowledgement timed out".into(),
-                ));
-            }
-            Err(error) => return Err(error.into()),
-        }
-    }
-    Ok(())
 }
 
 pub(super) fn receive(stream: &mut UnixStream) -> Result<SupervisorOperation> {

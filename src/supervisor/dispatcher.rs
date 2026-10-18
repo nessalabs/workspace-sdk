@@ -63,6 +63,38 @@ pub(super) fn handle(request: SupervisorRequest) -> Result<SupervisorValue> {
             &execution,
             output_limit_bytes,
         )?)),
+        SupervisorOperation::StartPiped {
+            id,
+            execution,
+            output_limit_bytes,
+        } => Ok(SupervisorValue::Run(workload::start_piped(
+            context,
+            &id,
+            &execution,
+            output_limit_bytes,
+        )?)),
+        SupervisorOperation::PipeInput { id, input } => {
+            let path = match run_record::run_directory(context, &id, false) {
+                Ok(path) => path,
+                Err(error) => {
+                    return Ok(SupervisorValue::InputRejected(SupervisorFault::from_error(
+                        error,
+                    )))
+                }
+            };
+            super::pipe_control::request(&path, SupervisorOperation::PipeInput { id, input })
+        }
+        SupervisorOperation::PipeCloseInput { id } => {
+            let path = match run_record::run_directory(context, &id, false) {
+                Ok(path) => path,
+                Err(error) => {
+                    return Ok(SupervisorValue::InputCloseRejected(
+                        SupervisorFault::from_error(error),
+                    ))
+                }
+            };
+            super::pipe_control::request(&path, SupervisorOperation::PipeCloseInput { id })
+        }
         SupervisorOperation::StartTerminal {
             id,
             execution,

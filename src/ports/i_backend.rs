@@ -60,6 +60,18 @@ pub trait IBackend: Send + Sync {
     }
     /// Start or reconnect to the exact request identified by its stable run ID.
     async fn start(&self, request: LaunchRequest) -> Result<RunRef>;
+    /// Start or reconnect to an explicitly piped run; reject launch-time stdin.
+    async fn start_piped(&self, _request: LaunchRequest) -> Result<RunRef> {
+        Err(Error::Unsupported("piped managed launch".into()))
+    }
+    /// Submit one transient bounded input request. Never replay an unknown result.
+    async fn write_input(&self, _run: &RunRef, _input: &SecretInput) -> Result<InputOutcome> {
+        Err(Error::Unsupported("managed pipe input".into()))
+    }
+    /// Idempotently close only the identified piped run's stdin endpoint.
+    async fn close_input(&self, _run: &RunRef) -> Result<InputCloseOutcome> {
+        Err(Error::Unsupported("managed input EOF".into()))
+    }
     /// Start a terminal under the same durable run identity. `private_cwd` selects
     /// private control state; otherwise the command's project-relative cwd applies.
     /// The supervisor owns the terminal independently of this backend handle.

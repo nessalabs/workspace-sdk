@@ -72,6 +72,29 @@ impl Workspace {
             reference,
         })
     }
+    /// Start or reconnect to a managed process whose stdin remains open.
+    ///
+    /// Launch-time ordinary/private stdin is rejected before effects. Reuse the
+    /// same ID for launch retries; ordinary, terminal and piped modes cannot
+    /// rebind that ID. Dropping a handle does not close input or stop the run.
+    /// Optional providers may reject this capability. Use explicit input EOF
+    /// and confirmed cancellation/termination to release execution ownership.
+    pub async fn start_piped(&self, request: LaunchRequest) -> Result<Run> {
+        request.execution.command.validate()?;
+        if request.execution.command.stdin.is_some() || request.execution.private_stdin.is_some() {
+            return Err(Error::InvalidInput(
+                "piped launch cannot include initial stdin".into(),
+            ));
+        }
+        if !self.descriptor().capabilities.managed_runs {
+            return Err(Error::Unsupported("managed runs".into()));
+        }
+        let reference = self.backend.start_piped(request).await?;
+        Ok(Run {
+            backend: self.backend.clone(),
+            reference,
+        })
+    }
     /// Construct a handle to an existing run without starting or polling a process.
     pub fn run(&self, id: RunId) -> Run {
         Run {

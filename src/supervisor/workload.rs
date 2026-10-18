@@ -1,5 +1,6 @@
 use super::{
     filesystem::{self, atomic, check, lock, read_json, working_directory, write_json},
+    pipe_control,
     protocol::{SupervisorContext, SupervisorExecution},
     run_record::{self, ProcessIdentity, RunClaim, MAX_OUTPUT},
 };
@@ -44,7 +45,20 @@ pub fn start(
     execution: &SupervisorExecution,
     limit: u64,
 ) -> Result<RunState> {
-    start_mode(context, id, execution, limit, None)
+    start_mode(context, id, execution, limit, None, false)
+}
+pub fn start_piped(
+    context: &SupervisorContext,
+    id: &RunId,
+    execution: &SupervisorExecution,
+    limit: u64,
+) -> Result<RunState> {
+    if execution.command.stdin.is_some() || execution.private_stdin.is_some() {
+        return Err(Error::InvalidInput(
+            "piped launch requires no launch stdin".into(),
+        ));
+    }
+    start_mode(context, id, execution, limit, None, true)
 }
 pub(super) fn start_terminal(
     context: &SupervisorContext,
@@ -61,7 +75,7 @@ pub(super) fn start_terminal(
             "terminal launch requires 2 bytes..=128 KiB retention and no launch stdin".into(),
         ));
     }
-    start_mode(context, id, execution, limit, Some(size))
+    start_mode(context, id, execution, limit, Some(size), false)
 }
 fn start_mode(
     context: &SupervisorContext,
@@ -69,6 +83,7 @@ fn start_mode(
     execution: &SupervisorExecution,
     limit: u64,
     terminal: Option<crate::TerminalSize>,
+    piped: bool,
 ) -> Result<RunState> {
     valid_execution(execution)?;
     if !(2..=MAX_OUTPUT).contains(&limit) {
@@ -100,13 +115,17 @@ fn start_mode(
     }
     let mut hash = Sha256::new();
     hash.update(salt);
+    // Preserve exact legacy ordinary/terminal fingerprint encoding.
+    if piped {
+        hash.update(b"workspace-sdk-piped-v1");
+    }
     hash.update(serde_json::to_vec(&(execution, limit, terminal))?);
     let fingerprint = format!("{:x}", hash.finalize());
     let _launch_lock = lock(&path.join("launch.lock"))?;
     let claim_path = path.join("claim.json");
     if claim_path.exists() {
         let claim: RunClaim = read_json(&claim_path)?;
-        if claim.version != 1 || claim.fingerprint != fingerprint {
+        if claim.version != 1 || claim.fingerprint != fingerprint || claim.piped != piped {
             return Err(Error::Conflict(
                 "run ID was already claimed for a different execution".into(),
             ));
@@ -120,6 +139,7 @@ fn start_mode(
         &RunClaim {
             version: 1,
             fingerprint,
+            piped,
         },
     )?;
     let pid = unsafe { libc::fork() };
@@ -150,7 +170,7 @@ fn start_mode(
     }
     let result = match terminal {
         Some(size) => super::terminal::work(&path, &cwd, id, execution, limit as usize, size),
-        None => work(&path, &cwd, execution, limit as usize),
+        None => work(&path, &cwd, id, execution, limit as usize, piped),
     };
     if result.is_err() {
         let _ = write_json(
@@ -222,7 +242,24 @@ impl Drop for OwnedProcessGroup {
         }
     }
 }
-fn work(path: &Path, cwd: &Path, execution: &SupervisorExecution, limit: usize) -> Result<()> {
+fn work(
+    path: &Path,
+    cwd: &Path,
+    id: &RunId,
+    execution: &SupervisorExecution,
+    limit: usize,
+    piped: bool,
+) -> Result<()> {
+    let _directory = if piped {
+        Some(super::control_channel::DirectoryGuard::enter(path)?)
+    } else {
+        None
+    };
+    let listener = if piped {
+        Some(pipe_control::listen()?)
+    } else {
+        None
+    };
     let started = Instant::now();
     let input = execution
         .private_stdin
@@ -235,7 +272,7 @@ fn work(path: &Path, cwd: &Path, execution: &SupervisorExecution, limit: usize) 
         .current_dir(cwd)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .stdin(if input.is_some() {
+        .stdin(if input.is_some() || piped {
             Stdio::piped()
         } else {
             Stdio::null()
@@ -295,13 +332,16 @@ fn work(path: &Path, cwd: &Path, execution: &SupervisorExecution, limit: usize) 
     }
     let bytes = input.unwrap_or(&[]);
     let mut written = 0;
-    if bytes.is_empty() {
+    if bytes.is_empty() && !piped {
         stdin = None;
     }
     let mut exited = false;
     let mut terminal = None;
     let mut terminated: Option<Instant> = None;
     while stdout.is_some() || stderr.is_some() || !exited {
+        if let Some(listener) = &listener {
+            pipe_control::serve_one(listener, id, &mut stdin)?;
+        }
         if terminal.is_none() && path.join("cancel").exists() {
             terminal = Some(RunState::Canceled);
             terminated = Some(Instant::now());
@@ -334,7 +374,7 @@ fn work(path: &Path, cwd: &Path, execution: &SupervisorExecution, limit: usize) 
                 revents: 0,
             });
         }
-        if let Some(stream) = stdin.as_ref() {
+        if let Some(stream) = stdin.as_ref().filter(|_| !piped) {
             descriptors.push(libc::pollfd {
                 fd: stream.as_raw_fd(),
                 events: libc::POLLOUT,
@@ -376,7 +416,7 @@ fn work(path: &Path, cwd: &Path, execution: &SupervisorExecution, limit: usize) 
                 Err(e) => return Err(e.into()),
             }
         }
-        if let Some(stream) = stdin.as_mut() {
+        if let Some(stream) = stdin.as_mut().filter(|_| !piped) {
             match stream.write(&bytes[written..(written + 65536).min(bytes.len())]) {
                 Ok(size) => {
                     written += size;
@@ -400,6 +440,9 @@ fn work(path: &Path, cwd: &Path, execution: &SupervisorExecution, limit: usize) 
     // Finalize descendants and reap the retained leader before publishing a
     // terminal state that permits the project to be checkpointed or handed off.
     let status = group.finish()?;
+    // A terminal receipt must never outlive this owner's input writer. Close it
+    // explicitly before publishing completion, including a still-open pipe mode.
+    drop(stdin);
     let code = status
         .code()
         .unwrap_or_else(|| -status.signal().unwrap_or(1));

@@ -16,6 +16,21 @@ pub const MAX_OUTPUT: u64 = 16 * 1024 * 1024;
 pub struct RunClaim {
     pub version: u32,
     pub fingerprint: String,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub piped: bool,
+}
+fn is_false(value: &bool) -> bool {
+    !value
+}
+
+pub(super) fn require_piped(path: &Path) -> Result<()> {
+    let claim: RunClaim = filesystem::read_json(&path.join("claim.json"))?;
+    if claim.version != 1 || !claim.piped {
+        return Err(Error::Unsupported(
+            "run does not own managed pipe input".into(),
+        ));
+    }
+    Ok(())
 }
 #[derive(Serialize, Deserialize)]
 pub struct ProcessIdentity {

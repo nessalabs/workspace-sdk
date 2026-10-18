@@ -3,9 +3,9 @@
 //! Request values are serialized only when crossing a process/API boundary.
 //! Credentials are transient fields, never part of persisted run records.
 use crate::{
-    CommandSpec, Error, HostResources, InputOutcome, OutputBytesPage, OutputCursor, OutputPage,
-    Ownership, Result, RunId, RunState, SecretEnvironment, SecretInput, TerminalSize,
-    TreeExportReceipt, TreeImportReceipt, TreeTransfer, WorkspaceId, WorkspacePath,
+    CommandSpec, Error, HostResources, InputCloseOutcome, InputOutcome, OutputBytesPage,
+    OutputCursor, OutputPage, Ownership, Result, RunId, RunState, SecretEnvironment, SecretInput,
+    TerminalSize, TreeExportReceipt, TreeImportReceipt, TreeTransfer, WorkspaceId, WorkspacePath,
 };
 use serde::{Deserialize, Serialize};
 use std::io::ErrorKind;
@@ -63,6 +63,19 @@ pub enum SupervisorOperation {
         id: RunId,
         execution: Box<SupervisorExecution>,
         output_limit_bytes: u64,
+    },
+    StartPiped {
+        id: RunId,
+        execution: Box<SupervisorExecution>,
+        output_limit_bytes: u64,
+    },
+    PipeInput {
+        id: RunId,
+        #[serde(with = "secret_input")]
+        input: Option<SecretInput>,
+    },
+    PipeCloseInput {
+        id: RunId,
     },
     StartTerminal {
         id: RunId,
@@ -130,6 +143,8 @@ impl SupervisorOperation {
     pub(crate) fn requires_private_transport(&self) -> bool {
         match self {
             Self::Start { .. }
+            | Self::StartPiped { .. }
+            | Self::PipeInput { .. }
             | Self::StartTerminal { .. }
             | Self::TerminalInput { .. }
             | Self::WriteFile { .. }
@@ -138,6 +153,7 @@ impl SupervisorOperation {
             | Self::Ready
             | Self::ReadFile { .. }
             | Self::TerminalResize { .. }
+            | Self::PipeCloseInput { .. }
             | Self::Inspect { .. }
             | Self::Cancel { .. }
             | Self::Output { .. }
@@ -230,6 +246,8 @@ pub enum SupervisorValue {
     Empty,
     Run(RunState),
     Input(InputOutcome),
+    InputClosed(InputCloseOutcome),
+    InputCloseRejected(SupervisorFault),
     /// Definitive rejection established before any input could be dispatched.
     InputRejected(SupervisorFault),
     Output(OutputPage),

@@ -1,5 +1,8 @@
 use crate::{
-    domain::{OutputBytesPage, OutputCursor, OutputPage, RunRef, RunState},
+    domain::{
+        InputCloseOutcome, InputOutcome, OutputBytesPage, OutputCursor, OutputPage, RunRef,
+        RunState, SecretInput,
+    },
     ports::IBackend,
     Error, Result,
 };
@@ -40,6 +43,26 @@ impl Run {
         self.backend
             .read_output_bytes(&self.reference, cursor, limit)
             .await
+    }
+    /// Submit at most 64 KiB to an explicitly piped run once, without replay.
+    /// An accepted prefix means kernel pipe admission, not child consumption.
+    /// Submit only an unaccepted suffix after a known short result. Unknown
+    /// delivery must not be resubmitted. Aborting this future cannot revoke bytes.
+    pub async fn write_input(&self, input: &SecretInput) -> Result<InputOutcome> {
+        if input.expose().is_empty() || input.expose().len() > 65536 {
+            return Err(Error::InvalidInput(
+                "managed input must contain 1..=65536 bytes".into(),
+            ));
+        }
+        self.backend.write_input(&self.reference, input).await
+    }
+    /// Close this piped run's input with real EOF; this is idempotent.
+    /// Await a write's acknowledgement before close when ordering is required.
+    /// Concurrent callers are ordered by native dispatch. Unknown close can be
+    /// retried on this same RunRef; it never permits replay of submitted bytes.
+    /// Closed is not process termination or a successful cleanup acknowledgement.
+    pub async fn close_input(&self) -> Result<InputCloseOutcome> {
+        self.backend.close_input(&self.reference).await
     }
     /// Cancel this managed process group and observe the resulting state.
     pub async fn cancel(&self) -> Result<RunState> {
