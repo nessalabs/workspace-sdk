@@ -128,11 +128,17 @@ fn boundary_frame(size: usize) -> (super::Result<Vec<u8>>, std::io::Result<()>) 
     let mut frame = vec![b'x'; size];
     *frame.last_mut().unwrap() = b'\n';
     thread::scope(|scope| {
-        let producer = scope.spawn(move || writer.write_all(&frame));
+        let producer = scope.spawn(move || {
+            let sent = writer.write_all(&frame);
+            // The join handle retains the peer after writing finishes. Closing
+            // it here can make macOS reject the reader's next timeout setting.
+            (writer, sent)
+        });
         let result = read_frame(&mut reader, Duration::from_secs(2));
         // Join before assertions. The producer has a socket timeout even when
         // framing refuses bytes; it cannot outlive its disposable owned peer.
-        let sent = producer.join().unwrap();
+        let (writer, sent) = producer.join().unwrap();
+        drop(writer);
         (result, sent)
     })
 }
