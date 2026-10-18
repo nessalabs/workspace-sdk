@@ -33,7 +33,7 @@ mod run_id_tests {
 /// [`RunId`] names a run within a workspace; this value supplies the workspace
 /// and provider needed to find it after the original client has exited. It
 /// describes a process, not an agent conversation or a copy of process memory.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunRef {
     /// Workspace in which the process was launched.
     pub workspace: WorkspaceRef,

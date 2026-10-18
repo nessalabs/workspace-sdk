@@ -1,4 +1,8 @@
 //! Explicit checkpoint-boundary placement with durable, retryable launch intent.
+mod continuation;
+
+pub use continuation::RecoveryContinuationRequest;
+
 use super::{SyncService, WorkspaceSdk};
 use crate::{checkpoint::CheckpointRef, domain::*, ports::IRecoveryRepository, Error, Result};
 use sha2::{Digest, Sha256};
@@ -35,7 +39,8 @@ pub struct RecoveryRequest {
 /// and checkpoint transfers. It does not watch health, replicate storage offsite,
 /// or migrate process memory. Authority and artifacts must survive the failed host.
 ///
-/// Each epoch gets a fresh isolated workspace. Old directories are retained.
+/// Fresh placements get isolated workspaces; explicit acknowledged successors
+/// can retain the current workspace. Old directories are retained.
 /// A nonexpiring repository lease serializes effects for one session; short CAS
 /// writes also reject stale publications. A controller cannot steal a live lease.
 /// Once polled, a use case runs in an owned Tokio task: dropping its caller does
@@ -155,10 +160,20 @@ impl RecoveryService {
             attempt.request_id == request.request_id
                 && attempt.expected_previous_epoch == request.expected_previous_epoch
         });
+        if retry
+            && session
+                .current_attempt
+                .as_ref()
+                .is_some_and(|attempt| attempt.retained.is_some())
+        {
+            return Err(Error::Conflict(
+                "retry retained work through continue_current".into(),
+            ));
+        }
         if !retry {
             self.prepare(&mut session, &request).await?;
         }
-        self.resume(session, request.continuation).await
+        self.resume(session, request.continuation, false).await
     }
 
     async fn prepare(
@@ -202,6 +217,7 @@ impl RecoveryService {
             epoch,
             provider: candidate.provider.clone(),
             workspace_id,
+            retained: None,
             run_id,
             checkpoint: session.committed.clone(),
             phase: RecoveryPhase::Preparing,
@@ -213,6 +229,7 @@ impl RecoveryService {
         &self,
         mut session: RecoverySession,
         execution: ExecutionRequest,
+        retained_verified: bool,
     ) -> Result<RecoverySession> {
         // Do not persist an unsalted oracle for transient credential values.
         // The native target claim binds the complete execution with its own
@@ -224,8 +241,20 @@ impl RecoveryService {
                 .current_attempt
                 .clone()
                 .ok_or_else(|| Error::State("missing recovery attempt".into()))?;
+            if let Some(retained) = &attempt.retained {
+                require_launch_identity(&identity, &retained.launch_identity)?;
+            }
             match attempt.phase {
                 RecoveryPhase::Preparing => {
+                    if let Some(retained) = &attempt.retained {
+                        self.advance(
+                            &mut session,
+                            RecoveryPhase::Restored {
+                                workspace: retained.predecessor.workspace.clone(),
+                            },
+                        )?;
+                        continue;
+                    }
                     let candidate = session
                         .candidates
                         .iter()
@@ -259,6 +288,11 @@ impl RecoveryService {
                     )?;
                 }
                 RecoveryPhase::Restored { workspace } => {
+                    if let Some(retained) = &attempt.retained {
+                        if !retained_verified {
+                            self.verify_retained(retained, &attempt.checkpoint).await?;
+                        }
+                    }
                     self.advance(
                         &mut session,
                         RecoveryPhase::LaunchRequested {

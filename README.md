@@ -66,6 +66,7 @@ Requirements: Rust 1.89+ to build, a supported POSIX target for process supervis
 
 - [Domain model and context boundaries](docs/domain-model.md): entities, value objects, commands, snapshots, and interfaces.
 - [Rust SDK guide](docs/sdk-guide.md): configuration, runs, preparation, sync, handoff, and explicit recovery.
+- [Acknowledged workspace continuation](docs/recovery-continuation.md): new cooperative steps in the same retained workspace, with durable run ownership and canonical-state checks.
 - [Architecture](docs/architecture.md): dependency direction and the Rust supervisor boundary.
 - [Build and distribution](docs/release.md): native artifacts and generated Rust documentation.
 - [Native authentication integration](docs/pty-integration.md): session controls, durable PTY ownership and verification limits.

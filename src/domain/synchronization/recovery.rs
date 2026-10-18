@@ -37,9 +37,9 @@ pub struct RecoveryHead {
 pub enum RecoveryPhase {
     /// Identity and checkpoint are durable before workspace side effects.
     Preparing,
-    /// The pinned checkpoint was restored to this workspace.
+    /// The pinned checkpoint was restored, or the retained canonical tree verified.
     Restored {
-        /// Exact provider reference observed during preparation.
+        /// Exact provider reference prepared for launch without further restoration.
         workspace: WorkspaceRef,
     },
     /// Stable launch intent is durable before requesting the native launch claim.
@@ -58,6 +58,18 @@ pub enum RecoveryPhase {
     },
 }
 
+/// Provenance for continuing the exact preceding acknowledged workspace.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveryRetainedWorkspace {
+    /// The preceding accepted run, whose successful exit must be confirmed.
+    pub predecessor: RunRef,
+    /// Epoch that originally allocated this workspace; its identity stays unchanged.
+    pub workspace_epoch: u64,
+    /// Nonsecret command fingerprint pinned before a retained successor is reserved.
+    pub launch_identity: String,
+}
+
 /// Durable intent for one epoch; uncertain effects retain these exact identities.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -70,8 +82,12 @@ pub struct RecoveryAttempt {
     pub epoch: u64,
     /// Selected registered provider; pinned before opening a workspace.
     pub provider: ProviderId,
-    /// Deterministic fresh workspace identity for this session and epoch.
+    /// Deterministic workspace identity, retained only with explicit provenance.
     pub workspace_id: WorkspaceId,
+    /// Exact preceding workspace retained by an acknowledged cooperative successor.
+    /// Absent for fresh placement, including records written before this capability.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retained: Option<RecoveryRetainedWorkspace>,
     /// Deterministic run identity reused for native launch retries.
     pub run_id: RunId,
     /// Complete committed head pinned before any restore or launch.
@@ -128,7 +144,24 @@ impl RecoverySession {
             {
                 return invalid("recovery attempt has inconsistent epoch, provider or checkpoint");
             }
-            let (workspace_id, run_id) = Self::attempt_ids(&self.id, attempt.epoch)?;
+            let workspace_epoch = if let Some(retained) = &attempt.retained {
+                if retained.workspace_epoch == 0
+                    || retained.launch_identity.is_empty()
+                    || retained.workspace_epoch > attempt.expected_previous_epoch
+                    || retained.predecessor.id
+                        != Self::attempt_ids(&self.id, attempt.expected_previous_epoch)?.1
+                    || retained.predecessor.workspace.version != 1
+                    || retained.predecessor.workspace.provider != attempt.provider
+                    || retained.predecessor.workspace.id != attempt.workspace_id
+                {
+                    return invalid("invalid retained recovery workspace provenance");
+                }
+                retained.workspace_epoch
+            } else {
+                attempt.epoch
+            };
+            let workspace_id = Self::attempt_ids(&self.id, workspace_epoch)?.0;
+            let run_id = Self::attempt_ids(&self.id, attempt.epoch)?.1;
             if attempt.workspace_id != workspace_id || attempt.run_id != run_id {
                 return invalid("recovery attempt identities do not match session and epoch");
             }
@@ -136,6 +169,10 @@ impl RecoverySession {
                 if workspace.version != 1
                     || workspace.id != attempt.workspace_id
                     || workspace.provider != attempt.provider
+                    || attempt
+                        .retained
+                        .as_ref()
+                        .is_some_and(|retained| workspace != &retained.predecessor.workspace)
                 {
                     return invalid("recovery workspace reference does not match pinned target");
                 }
@@ -147,6 +184,12 @@ impl RecoverySession {
             }
             if launch_identity(&attempt.phase).is_some_and(str::is_empty) {
                 return invalid("recovery launch identity must be nonempty");
+            }
+            if attempt.retained.as_ref().is_some_and(|retained| {
+                launch_identity(&attempt.phase)
+                    .is_some_and(|identity| identity != retained.launch_identity)
+            }) {
+                return invalid("retained recovery launch identity changed");
             }
             if attempt.checkpoint.generation < self.committed.generation
                 && !matches!(attempt.phase, RecoveryPhase::Started { .. })
@@ -204,6 +247,26 @@ impl RecoverySession {
                         "new recovery attempt must pin the current head and successor epoch",
                     );
                 }
+                if let Some(retained) = &new.retained {
+                    let Some(old) = old else {
+                        return conflict("retained recovery requires a preceding attempt");
+                    };
+                    let RecoveryPhase::Started { run, .. } = &old.phase else {
+                        return conflict("retained recovery requires an accepted predecessor");
+                    };
+                    let workspace_epoch = old
+                        .retained
+                        .as_ref()
+                        .map_or(old.epoch, |retained| retained.workspace_epoch);
+                    if retained.predecessor != *run
+                        || retained.workspace_epoch != workspace_epoch
+                        || old.checkpoint.generation >= previous.committed.generation
+                    {
+                        return conflict(
+                            "retained recovery must continue the exact acknowledged predecessor",
+                        );
+                    }
+                }
                 Ok(())
             }
             (Some(old), Some(new)) => {
@@ -211,6 +274,7 @@ impl RecoverySession {
                     || old.expected_previous_epoch != new.expected_previous_epoch
                     || old.provider != new.provider
                     || old.workspace_id != new.workspace_id
+                    || old.retained != new.retained
                     || old.run_id != new.run_id
                     || old.checkpoint != new.checkpoint
                 {
@@ -374,6 +438,7 @@ mod tests {
             epoch,
             provider: next.candidates[0].provider.clone(),
             workspace_id,
+            retained: None,
             run_id,
             checkpoint: previous.committed.clone(),
             phase: RecoveryPhase::Preparing,
@@ -528,6 +593,137 @@ mod tests {
         let mut wrong = valid;
         wrong.committed.checkpoint = CheckpointRef("../unsafe".into());
         assert!(wrong.validate().is_err());
+    }
+
+    fn retained_successor(previous: &RecoverySession) -> RecoverySession {
+        let old = previous.current_attempt.as_ref().unwrap();
+        let RecoveryPhase::Started { run, .. } = &old.phase else {
+            panic!("expected started predecessor");
+        };
+        let mut next = preparing(previous, "continue-2");
+        let attempt = next.current_attempt.as_mut().unwrap();
+        attempt.workspace_id = run.workspace.id.clone();
+        attempt.retained = Some(RecoveryRetainedWorkspace {
+            predecessor: run.clone(),
+            workspace_epoch: old.epoch,
+            launch_identity: "successor-command".into(),
+        });
+        next
+    }
+
+    #[test]
+    fn retained_target_requires_acknowledged_exact_predecessor_and_origin() {
+        let original = started();
+        let unacknowledged = retained_successor(&original);
+        assert!(unacknowledged
+            .validate_replacement(Some(&original))
+            .is_err());
+        let mut published = original;
+        published.revision += 1;
+        published.committed = RecoveryHead {
+            generation: 1,
+            checkpoint: CheckpointRef("acknowledged".into()),
+        };
+        let successor = retained_successor(&published);
+        successor.validate_replacement(Some(&published)).unwrap();
+        let mut rebound = successor.clone();
+        rebound
+            .current_attempt
+            .as_mut()
+            .unwrap()
+            .retained
+            .as_mut()
+            .unwrap()
+            .predecessor
+            .workspace
+            .locator = WorkspaceLocator::from_locator(&"foreign-root").unwrap();
+        // A structurally valid ref still cannot replace the exact accepted target.
+        rebound.validate().unwrap();
+        assert!(rebound.validate_replacement(Some(&published)).is_err());
+        let mut wrong = successor.clone();
+        wrong
+            .current_attempt
+            .as_mut()
+            .unwrap()
+            .retained
+            .as_mut()
+            .unwrap()
+            .workspace_epoch = 2;
+        assert!(wrong.validate().is_err());
+        let mut wrong = successor;
+        wrong
+            .current_attempt
+            .as_mut()
+            .unwrap()
+            .retained
+            .as_mut()
+            .unwrap()
+            .predecessor
+            .id = RunId::new("foreign-run").unwrap();
+        assert!(wrong.validate().is_err());
+    }
+
+    #[test]
+    fn retained_provenance_and_command_are_immutable_across_phases() {
+        let mut published = started();
+        published.committed = RecoveryHead {
+            generation: 1,
+            checkpoint: CheckpointRef("acknowledged".into()),
+        };
+        let successor = retained_successor(&published);
+        let workspace = successor
+            .current_attempt
+            .as_ref()
+            .unwrap()
+            .retained
+            .as_ref()
+            .unwrap()
+            .predecessor
+            .workspace
+            .clone();
+        let restored = advance(
+            &successor,
+            RecoveryPhase::Restored {
+                workspace: workspace.clone(),
+            },
+        );
+        restored.validate_replacement(Some(&successor)).unwrap();
+        let wrong_command = advance(
+            &restored,
+            RecoveryPhase::LaunchRequested {
+                workspace: workspace.clone(),
+                launch_identity: "different-command".into(),
+            },
+        );
+        assert!(wrong_command.validate().is_err());
+        let requested = advance(
+            &restored,
+            RecoveryPhase::LaunchRequested {
+                workspace,
+                launch_identity: "successor-command".into(),
+            },
+        );
+        requested.validate_replacement(Some(&restored)).unwrap();
+        let mut rewritten = requested;
+        rewritten
+            .current_attempt
+            .as_mut()
+            .unwrap()
+            .retained
+            .as_mut()
+            .unwrap()
+            .launch_identity = "different-command".into();
+        assert!(rewritten.validate_replacement(Some(&restored)).is_err());
+    }
+
+    #[test]
+    fn historical_fresh_records_need_no_retained_provenance() {
+        let encoded = serde_json::to_value(started()).unwrap();
+        assert!(encoded["current_attempt"].get("retained").is_none());
+        serde_json::from_value::<RecoverySession>(encoded)
+            .unwrap()
+            .validate()
+            .unwrap();
     }
 
     #[test]

@@ -14,7 +14,8 @@ pub mod workflow_record;
 
 pub use handoff::{HandoffPhase, HandoffReceipt};
 pub use recovery::{
-    RecoveryAttempt, RecoveryCandidate, RecoveryHead, RecoveryPhase, RecoverySession,
+    RecoveryAttempt, RecoveryCandidate, RecoveryHead, RecoveryPhase, RecoveryRetainedWorkspace,
+    RecoverySession,
 };
 pub use sync_session::SyncSession;
 pub use workflow_record::WorkflowRecord;

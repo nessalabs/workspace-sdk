@@ -1,0 +1,72 @@
+{
+  "status": "Precloud checks and both independent source reviews passed; full exact-commit gate pending",
+  "scope": "Explicit acknowledged same-workspace cooperative successor; no provider-specific dependency",
+  "source": {
+    "README.md": "cf3f4a9aa50671bd80c66f0973074cd7c292cc496faf3a0e09a9cbb06d3dae5e",
+    "docs/recovery-continuation.md": "113927e323eccdb4c7b449444893dd89ef7e4d299b36674c4e538c634a0c8461",
+    "src/application/mod.rs": "668fd1ae394a36e7c42ee2e29a4b926b64912bd1e03f62f9fe30fe883f27d974",
+    "src/application/recovery_service.rs": "eef201b57b39bca50c16bf8d4a374d36f94ea7faf3a877f183fcde00b44c1132",
+    "src/application/recovery_service/continuation.rs": "dcac0e9f213a15b73196ff6affff2cc7cc7c9a789a6db451a5c86bc5e427cae1",
+    "src/domain/execution/run.rs": "87b46757515362132ba413092ff93192acd3820f55a8c9b87ddbe6fcb4e7f2bc",
+    "src/domain/synchronization/mod.rs": "bcba981d62cfbbfb3e244351d73028cf84f64429cdf4917ed05213629edca9f8",
+    "src/domain/synchronization/recovery.rs": "8d5559e39d3db3203369fb7795c30683685245dfc99d81839b48a8f5187d11f1",
+    "tests/recovery_continuation.rs": "27dd064f3b52052bc44797fefc2b72c42086ccd4e979e16c56ca1e70daaef7f8",
+    "tests/support/recovery_continuation_fixture.rs": "ed4a5add1cdf30d6d169561a3d3e69012e5c056357ed549e425297f369c421b2"
+  },
+  "checks": {
+    "native_integration": "11 passed after source restoration, 19.82s; initial updated run 20.54s",
+    "related": "133 library, 2 cancellation, 3 replication, 7 repository, 11 workflow passed",
+    "clippy": "all-features all-targets -D warnings passed 9.20s",
+    "docs": "all-features no-deps RUSTDOCFLAGS=-D warnings passed 4.07s",
+    "fmt": "all --check passed"
+  },
+  "fault_probes": [
+    {
+      "probe": "divergence",
+      "exit": 101,
+      "assertion_failure": true,
+      "compile_error": false,
+      "test": "stale_head_epoch_quiescence_and_divergence_refuse_without_authority_or_native_mutation",
+      "restored": true
+    },
+    {
+      "probe": "prelaunch",
+      "exit": 101,
+      "assertion_failure": true,
+      "compile_error": false,
+      "test": "prelaunch_preparing_and_restored_retries_recheck_selected_tree_before_native_start",
+      "restored": true
+    },
+    {
+      "probe": "postlaunch",
+      "exit": 101,
+      "assertion_failure": true,
+      "compile_error": false,
+      "test": "retained_launch_before_started_receipt_retry_never_restores_or_executes_twice",
+      "restored": true
+    }
+  ],
+  "samples": {
+    "os": "macos",
+    "arch": "aarch64",
+    "profile": "debug",
+    "scenario": "retained native small selected tree",
+    "not_statistical_regression_baseline": true,
+    "continue_current_ms": [
+      274.875375,
+      273.522375,
+      281.432917
+    ],
+    "publish_ms": [
+      186.302791,
+      200.997,
+      192.9955
+    ]
+  },
+  "limits": [
+    "Caller-established exclusivity must cover all writers until owned operation completion. No global process/filesystem fence.",
+    "Selected-tree verification creates immutable checkpoint artifacts; bounds are not a quota or reservation.",
+    "Offline and Lost cases are modeled observations with real native ownership; no physical host failure qualification.",
+    "No external-effect exactly-once, process memory migration, live provider or application-specific cross-host resume claim."
+  ]
+}
