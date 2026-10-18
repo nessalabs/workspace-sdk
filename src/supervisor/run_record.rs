@@ -33,6 +33,13 @@ pub fn inspect(path: &Path) -> Result<RunState> {
 }
 fn inspect_after_status(path: &Path, value: RunState) -> Result<RunState> {
     if value.is_active() && !live_lock(&path.join("active.lock"))? {
+        // The supervisor publishes its final status before releasing liveness.
+        // Resolve a status read that raced with that publication before declaring
+        // an unknown outcome; a stored Lost remains unknown with its own reason.
+        let latest: RunState = read_json(&path.join("status.json"))?;
+        if !latest.is_active() {
+            return Ok(latest);
+        }
         Ok(RunState::Lost {
             reason:
                 "supervisor disappeared after durable launch claim; execution outcome is unknown"

@@ -88,6 +88,28 @@ fn already_observed_terminal_and_lost_states_do_not_require_a_liveness_lock() {
 }
 
 #[test]
+fn freshly_published_lost_reason_is_preserved_without_claiming_terminal_completion() {
+    for initial in [RunState::Starting, RunState::Running] {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path();
+        let owner = filesystem::lock(&path.join("active.lock")).unwrap();
+        filesystem::write_json(&path.join("status.json"), &initial).unwrap();
+        let observed = filesystem::read_json(&path.join("status.json")).unwrap();
+        let lost = RunState::Lost {
+            reason: "persisted observation failure after accepted launch".into(),
+        };
+        filesystem::write_json(&path.join("status.json"), &lost).unwrap();
+        let published = fs::read(path.join("status.json")).unwrap();
+        drop(owner);
+        let result = inspect_after_status(path, observed).unwrap();
+        assert_eq!(result, lost);
+        assert!(!result.is_terminal());
+        assert_eq!(inspect(path).unwrap(), lost);
+        assert_eq!(fs::read(path.join("status.json")).unwrap(), published);
+    }
+}
+
+#[test]
 fn missing_or_malformed_status_after_liveness_release_is_an_error() {
     for missing in [true, false] {
         let temporary = tempfile::tempdir().unwrap();
