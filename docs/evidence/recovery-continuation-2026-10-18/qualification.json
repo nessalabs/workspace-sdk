@@ -1,5 +1,5 @@
 {
-  "status": "Precloud checks and both independent source reviews passed; full exact-commit gate pending",
+  "status": "ACCEPTED: exact-source full mechanical gate and both independent final reviews passed",
   "scope": "Explicit acknowledged same-workspace cooperative successor; no provider-specific dependency",
   "source": {
     "README.md": "cf3f4a9aa50671bd80c66f0973074cd7c292cc496faf3a0e09a9cbb06d3dae5e",
@@ -68,5 +68,28 @@
     "Selected-tree verification creates immutable checkpoint artifacts; bounds are not a quota or reservation.",
     "Offline and Lost cases are modeled observations with real native ownership; no physical host failure qualification.",
     "No external-effect exactly-once, process memory migration, live provider or application-specific cross-host resume claim."
+  ],
+  "cloud": {
+    "run": "https://github.com/nessalabs/workspace-sdk/actions/runs/39150579591",
+    "source_commit": "81b843496d8f13566ea9d41e6b233d513ac19b31",
+    "ubuntu_24_04": "success",
+    "macos_15": "success",
+    "script": "scripts/quality-gate.sh",
+    "continuation_cases": "11 per feature selection per OS, 44 total executions",
+    "performance": "3 managed and15 PTY samples per OS; actualreports performance.json",
+    "raw_log_sha256": "f67c30aca03cef0d2245df3d403829d1f252c4a8426495558d498d751e4580b3",
+    "metadata_sha256": "9bdf6c8b850b124645e6db5446977ff522fae4e02ab831efa77154e92571291f"
+  },
+  "reviews": [
+    {
+      "path": "docs/reviews/2026-10-18-continuation-quality.md",
+      "sha256": "86d2869aae50ad46615bd2477ee116754ba53090646b09683aa2e691629272e3",
+      "decision": "FINAL PASS; no unresolved P1/P2"
+    },
+    {
+      "path": "docs/reviews/2026-10-18-continuation-adversarial.md",
+      "sha256": "9891367bc69ff73c143d404e1b59409ca7d74c51baf788f56e3eb9e5c074d917",
+      "decision": "FINAL PASS; no unresolved P1/P2"
+    }
   ]
 }

@@ -1,6 +1,6 @@
 # Retained recovery continuation: adversarial review
 
-**Precloud source PASS; final acceptance pending.** Independent reviewer: `workspace_handoff_adversarial_review`. No unresolved P1/P2 source findings were identified in the frozen `continue_current` implementation, domain lineage validation, documentation and eleven native integration cases. The reviewer did not implement these changes or run builds/probes.
+**FINAL PASS** for exact source `81b843496d8f13566ea9d41e6b233d513ac19b31`. Independent reviewer: `workspace_handoff_adversarial_review`. No unresolved P1/P2 findings were identified in the frozen `continue_current` implementation, domain lineage validation, documentation and eleven native integration cases. The reviewer did not implement these changes or run builds/probes.
 
 The reviewed boundary retains the exact immediately preceding acknowledged workspace, requires its authoritative run to exit zero, verifies the selected tree against the canonical checkpoint before reserving a successor, and binds new deterministic run identity, originating workspace epoch, predecessor reference and nonsecret command fingerprint. It reuses the existing effect lease, CAS repository and phases. Fresh/retained entrypoint retry mismatches conflict; this adds no independent execution journal.
 
@@ -12,4 +12,14 @@ Local focused evidence records eleven passing cases, including real native multi
 
 Three actual parent-run semantic probes were independently read: bypassed divergence verification failed the expected Conflict assertion; bypassed prelaunch verification failed the new prelaunch retry assertion; postlaunch recapture caused an exact accepted retry to fail after its workload changed selected data. Each exited 101 through an assertion rather than a compile error. Restored source hashes match the proof: continuation module `dcac0e9f213a15b73196ff6affff2cc7cc7c9a789a6db451a5c86bc5e427cae1`, service `eef201b57b39bca50c16bf8d4a374d36f94ea7faf3a877f183fcde00b44c1132`. This establishes sensitivity to those faults, not exhaustive fault coverage.
 
-Final acceptance requires the exact frozen-source full mechanical gate and independent final evidence review. No hosted performance baseline, physical host-loss fencing, application session migration or arbitrary external-effect exactly-once guarantee is established by this preliminary source decision.
+## Final exact-source evidence
+
+Independently verified the ten-file source manifest against the checkout; its raw SHA256 is `8aa62ad2cb558f76967e1791bae5eefa03a6a74e1a7129096020a1919ea2bd81`. The source restoration hashes above remain exact. The final restored local focused run passed eleven cases in 19.82 seconds, with related recovery checks and all-feature/all-target Clippy, strict docs and fmt recorded separately.
+
+[Full cloud gate 39150579591](https://github.com/nessalabs/workspace-sdk/actions/runs/39150579591) completed successfully at the exact source on both Ubuntu 24.04 and macOS 15. Independently read both completed successful job records and raw log SHA256 `f67c30aca03cef0d2245df3d403829d1f252c4a8426495558d498d751e4580b3`. Every one of the eleven new integration test names appears passing four times: both feature selections on both OS, 44 case executions. The complete script passed fmt, all-feature/all-target Clippy with denied warnings, examples/builds, retained tests and strict docs. Known no-default dependency dead-code warnings remain visible; no zero-warning claim is made.
+
+Independently decoded the complete managed and PTY performance objects from each raw job log: three managed and fifteen PTY samples per OS, debug Linux x86_64 and macOS aarch64. The separate local retained-admission/publication observation contains three samples each for a small selected tree. These are actual qualification observations, not a statistical regression baseline, storage quota, latency guarantee or measured comparison against the prior implementation. See the [qualification record](../evidence/recovery-continuation-2026-10-18/qualification.json) for retained evidence and limits.
+
+No physical host-loss fencing, application-specific session migration, process-memory migration or arbitrary external-effect exactly-once guarantee follows from this acceptance. Native unknown outcomes remain pinned; callers still own all-writer quiescence and artifact retention/offsite durability.
+
+Final evidence-document re-review: all four complete objects in `performance.json` match independent decoding of the raw log; qualification cloud source/counts/log hash agree with actual results. Raw metadata SHA256 `9bdf6c8b850b124645e6db5446977ff522fae4e02ab831efa77154e92571291f` also matches. No private application context is included in this public record.

@@ -1,6 +1,6 @@
 # Acknowledged workspace continuation: independent quality review
 
-Decision: **PRECLOUD QUALITY PASS**. No open P1/P2 findings in the reviewed generic SDK scope. This is not final full-gate acceptance: restored-source local checks, exact-commit cloud quality gate, and separate adversarial acceptance remain required.
+Decision: **FINAL QUALITY PASS** for source commit `81b843496d8f13566ea9d41e6b233d513ac19b31`. No open P1/P2 findings. The independent quality decision incorporates actual restored-source local checks and the complete exact-commit Ubuntu/macOS cloud gate. The separate adversarial decision remains independently required for aggregate acceptance.
 
 Reviewer: `nessa_workload_quality`. Base: `cc57eeb97af706bf5a3d64c34466e797cb9dbdc6`; reviewed uncommitted source identified below. The reviewer read code and actual evidence; did not run builds, tests, or mutation probes.
 
@@ -39,4 +39,18 @@ Source hashes (SHA-256):
 
 Residual limits: real native fixtures with modeled availability/status faults; no live remote transport or host-death qualification. Selected/excluded paths follow existing checkpoint policy. Verification creates an additional artifact; caller owns retention and durability. No arbitrary external-effects exactly-once claim. An unchanged no-default dependency warning remains visible; passing focused checks does not mean every dependency emitted zero warnings.
 
-Final exact-commit cloud and remaining local results will be appended after they complete.
+## Final exact-source verification
+
+The reviewer independently hashed all ten source files above and compared each with both the current tree and `git show 81b843496d8f13566ea9d41e6b233d513ac19b31:<path>`; every hash matched. Source-manifest SHA-256: `8aa62ad2cb558f76967e1791bae5eefa03a6a74e1a7129096020a1919ea2bd81`.
+
+After all mutation probes were restored, the eleven native continuation tests passed again in 19.82 seconds. Local all-feature/all-target Clippy with `-D warnings` passed in 9.20 seconds; strict all-feature documentation passed in 4.07 seconds; formatting passed.
+
+[GitHub Actions run 39150579591](https://github.com/nessalabs/workspace-sdk/actions/runs/39150579591) completed successfully for the exact source commit on Ubuntu 24.04 and macOS 15. Both jobs ran the complete `scripts/quality-gate.sh`: formatting, all-feature/all-target Clippy, both example feature builds, all-feature tests, SPACE-only contract tests, no-default tests, strict documentation, supervisor build and both explicit performance qualifications. Both raw logs contain the mechanical-completion marker.
+
+The new continuation suite passed in both all-feature and no-default configurations on both platforms: 44 case executions, zero failures. Suite times were 3.39/3.43 seconds on Ubuntu and 6.61/7.50 seconds on macOS. The raw cloud log also contains three managed-runtime samples and fifteen PTY samples per platform, covering output-load reconnect/read/cancel and PTY interaction/resize/cancel scenarios. These measured samples do not establish a statistical regression baseline.
+
+The reviewer inspected the complete run metadata and raw test/performance output. SHA-256 of run metadata: `9bdf6c8b850b124645e6db5446977ff522fae4e02ab831efa77154e92571291f`; raw log: `f67c30aca03cef0d2245df3d403829d1f252c4a8426495558d498d751e4580b3`.
+
+No production/test source changed during this final review. Subsequent review/qualification prose may be committed separately without claiming that cloud tested that later documentation commit. All findings above remain closed. Final independent quality decision: **PASS**.
+
+The final evidence-only delta was also reviewed: `docs/evidence/recovery-continuation-2026-10-18/qualification.json` correctly binds the source hashes, exact successful cloud run, 44 continuation case executions and measured limits. Every object in `performance.json` was independently re-extracted from the raw cloud log and compared for exact JSON equality: four reports, with 3 managed and 15 PTY samples per OS. No application-private material is included. The evidence-only delta introduces no new source behavior or unresolved quality finding.
