@@ -4,7 +4,7 @@ use std::env::consts::{ARCH, OS};
 use std::fs;
 use std::io::Read;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::thread::{available_parallelism, sleep};
 use std::time::{Duration, Instant};
 #[cfg(target_os = "macos")]
@@ -97,7 +97,7 @@ fn physical_memory() -> Option<u64> {
 }
 
 fn inspect_gpus() -> Vec<HostGpu> {
-    let Ok(mut child) = Command::new("nvidia-smi")
+    let Ok(child) = Command::new("nvidia-smi")
         .args([
             "--query-gpu=name,memory.total",
             "--format=csv,noheader,nounits",
@@ -109,7 +109,11 @@ fn inspect_gpus() -> Vec<HostGpu> {
     else {
         return Vec::new();
     };
-    let deadline = Instant::now() + Duration::from_secs(5);
+    collect_gpus(child, Duration::from_secs(5))
+}
+
+fn collect_gpus(mut child: Child, budget: Duration) -> Vec<HostGpu> {
+    let deadline = Instant::now() + budget;
     loop {
         match child.try_wait() {
             Ok(Some(status)) if status.success() => {
@@ -163,3 +167,7 @@ mod tests {
         assert_eq!(actual[1].memory_mib, 49_152);
     }
 }
+
+#[cfg(test)]
+#[path = "native_resources_tests.rs"]
+mod collection_tests;
