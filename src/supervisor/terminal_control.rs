@@ -6,7 +6,7 @@ use super::{
 use crate::{Error, InputOutcome, Result, RunId};
 use std::{
     fs,
-    io::{Read, Write},
+    io::{ErrorKind, Read, Write},
     os::unix::{
         fs::PermissionsExt,
         net::{UnixListener, UnixStream},
@@ -52,7 +52,14 @@ fn read_frame(stream: &mut UnixStream, budget: Duration) -> Result<Vec<u8>> {
             .ok_or_else(|| Error::Timeout("terminal control frame timed out".into()))?;
         stream.set_read_timeout(Some(remaining))?;
         let mut bytes = [0; 4096];
-        let size = stream.read(&mut bytes)?;
+        let size = match stream.read(&mut bytes) {
+            Ok(size) => size,
+            Err(error) if error.kind() == ErrorKind::Interrupted => continue,
+            Err(error) if matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
+                return Err(Error::Timeout("terminal control frame timed out".into()));
+            }
+            Err(error) => return Err(error.into()),
+        };
         if size == 0 {
             return Err(Error::State("incomplete terminal control frame".into()));
         }
@@ -78,7 +85,12 @@ fn write_frame(stream: &mut UnixStream, bytes: &[u8]) -> Result<()> {
         match stream.write(&bytes[offset..]) {
             Ok(0) => return Err(Error::State("terminal control channel closed".into())),
             Ok(size) => offset += size,
-            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => (),
+            Err(error) if error.kind() == ErrorKind::Interrupted => (),
+            Err(error) if matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
+                return Err(Error::Timeout(
+                    "terminal control acknowledgement timed out".into(),
+                ));
+            }
             Err(error) => return Err(error.into()),
         }
     }
