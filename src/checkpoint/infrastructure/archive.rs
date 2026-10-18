@@ -126,6 +126,12 @@ impl GitCheckpointEngine {
         self.archive_bytes(&self.load_tree(reference)?)
     }
 
+    pub(super) fn fingerprint_archive_operation(&self, bytes: &[u8]) -> Result<String> {
+        // Archive decoding validates the entire bounded selected tree. It uses
+        // only immutable limits, so no Git process, artifact, or engine lock is needed.
+        self.archive_tree(bytes)?.fingerprint()
+    }
+
     pub(super) fn capture_archive_operation(
         &self,
         bytes: &[u8],

@@ -119,7 +119,7 @@ impl RecoveryService {
             self.replace(&mut session, next)?;
         }
         // Reuse only this call's verified boundary while its same lease and
-        // caller-established exclusivity are held. A prelaunch retry recaptures.
+        // caller-established exclusivity are held. A prelaunch retry revalidates.
         self.resume(session, request.continuation, !retry).await
     }
 
@@ -148,8 +148,8 @@ impl RecoveryService {
         })
         .await
         .map_err(|error| Error::State(format!("checkpoint verification failed: {error}")))??;
-        let current = self.sync.capture_workspace(&workspace, true).await?;
-        if current.manifest.tree_fingerprint != canonical_fingerprint {
+        let current = self.sync.fingerprint_workspace(&workspace, true).await?;
+        if current != canonical_fingerprint {
             return Err(Error::Conflict(
                 "current selected files differ from the acknowledged checkpoint".into(),
             ));

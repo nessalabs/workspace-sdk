@@ -47,6 +47,16 @@ pub trait ICheckpointEngine: Send + Sync {
     fn import_tree_archive(&self, bytes: &[u8], destination: &Path) -> Result<RestoreTreeReceipt>;
     /// Export an already selected snapshot without reapplying working-tree ignores.
     fn export_checkpoint_archive(&self, checkpoint: &CheckpointRef) -> Result<Vec<u8>>;
+    /// Validate a complete selected-tree archive and return its tree fingerprint.
+    ///
+    /// The compatibility default captures exactly once with default options and
+    /// may persist a checkpoint, matching existing capture errors and side effects.
+    /// Engines may override this with a pure validation path. Errors propagate;
+    /// callers must not silently retry with another validation mechanism.
+    fn fingerprint_archive(&self, bytes: &[u8]) -> Result<String> {
+        self.capture_archive(bytes, CaptureOptions::default())
+            .map(|checkpoint| checkpoint.manifest.tree_fingerprint)
+    }
     /// Capture a validated target archive without losing tracked-but-ignored files.
     fn capture_archive(&self, bytes: &[u8], options: CaptureOptions) -> Result<Checkpoint>;
 }

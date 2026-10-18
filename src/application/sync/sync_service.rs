@@ -206,6 +206,27 @@ impl SyncService {
         quiescent: bool,
     ) -> Result<Checkpoint> {
         require_quiescent(quiescent)?;
+        let bytes = self.workspace_archive(source).await?;
+        let engine = self.checkpoints.clone();
+        blocking(move || engine.capture_archive(&bytes, CaptureOptions::default())).await
+    }
+    /// Validate the current selected target tree and return its fingerprint.
+    ///
+    /// The built-in Git engine publishes no checkpoint for this verification.
+    /// Custom engines retain their documented `fingerprint_archive` behavior;
+    /// the compatibility default may capture a checkpoint. Full transfer and
+    /// archive validation still apply. Hold exclusive access to all writers.
+    pub async fn fingerprint_workspace(
+        &self,
+        source: &Workspace,
+        quiescent: bool,
+    ) -> Result<String> {
+        require_quiescent(quiescent)?;
+        let bytes = self.workspace_archive(source).await?;
+        let engine = self.checkpoints.clone();
+        blocking(move || engine.fingerprint_archive(&bytes)).await
+    }
+    async fn workspace_archive(&self, source: &Workspace) -> Result<Vec<u8>> {
         let transfer = TreeTransfer::new();
         let outcome = async {
             let metadata = source.backend().export_tree(&transfer).await?;
@@ -245,8 +266,7 @@ impl SyncService {
             if offset != expected || metadata.sha256 != hash {
                 return Err(Error::State("snapshot transfer checksum mismatch".into()));
             }
-            let engine = self.checkpoints.clone();
-            blocking(move || engine.capture_archive(&bytes, CaptureOptions::default())).await
+            Ok(bytes)
         }
         .await;
         self.cleanup(source, &transfer).await;

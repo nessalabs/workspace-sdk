@@ -62,6 +62,10 @@ impl ICheckpointEngine for GitCheckpointEngine {
         self.export_checkpoint_archive_operation(reference)
     }
 
+    fn fingerprint_archive(&self, bytes: &[u8]) -> Result<String> {
+        self.fingerprint_archive_operation(bytes)
+    }
+
     fn capture_archive(&self, bytes: &[u8], options: CaptureOptions) -> Result<Checkpoint> {
         self.capture_archive_operation(bytes, options)
     }

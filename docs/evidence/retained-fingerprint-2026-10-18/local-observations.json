@@ -1,0 +1,53 @@
+{
+  "environment": "macOS arm64/Rust1.99/debugassertions/jobs1/noincremental; engine Git-count observations use an injected Python counting wrapper",
+  "statistical_baseline": false,
+  "observations": [
+    {
+      "bandwidth_or_memory_claim": false,
+      "baseline": false,
+      "large_file_bytes": 2097152,
+      "observations": [
+        {
+          "archive_bytes": 2797242,
+          "capture_artifacts_added": 1,
+          "capture_git_calls": 13,
+          "capture_ms": 578.306,
+          "capture_state_bytes_added": 4199287,
+          "fingerprint_artifacts_added": 0,
+          "fingerprint_git_calls": 0,
+          "fingerprint_ms": 64.346334,
+          "fingerprint_state_bytes_added": 0
+        },
+        {
+          "archive_bytes": 2797242,
+          "capture_artifacts_added": 1,
+          "capture_git_calls": 13,
+          "capture_ms": 563.370083,
+          "capture_state_bytes_added": 4199285,
+          "fingerprint_artifacts_added": 0,
+          "fingerprint_git_calls": 0,
+          "fingerprint_ms": 64.150833,
+          "fingerprint_state_bytes_added": 0
+        }
+      ],
+      "profile": "same-archive-capture-vs-fingerprint"
+    },
+    {
+      "arch": "aarch64",
+      "capture_added_artifacts": 1,
+      "capture_added_bytes": 13307,
+      "capture_ms": 681.577667,
+      "full_download_unchanged": true,
+      "inspect_ms": 549.208542,
+      "inspection_added_artifacts": 0,
+      "not_statistical_baseline": true,
+      "os": "macos",
+      "retained_admission_ms": [
+        768.46875,
+        740.5772499999999
+      ],
+      "scenario": "same_native_2MiB_archive_capture_vs_fingerprint"
+    }
+  ],
+  "limits": "Functional same-archive/native scenarios; no claimed peak-memory/bandwidth/COW or statistical speedup improvement"
+}

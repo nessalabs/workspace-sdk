@@ -43,10 +43,11 @@ currently publishes another durable checkpoint whose identity the caller does
 not use. A read-only inspection path could avoid the extra Git packing and
 artifact publication while retaining complete archive checksum verification,
 selection rules, bounds, exact predecessor checks, writer quiescence, the held
-recovery lease and retry verification. This is a proposal, not implemented or
-qualified behavior. Measure artifact count/bytes, Git subprocess count, admission
-time, memory and downloaded bytes before changing it. Initial bandwidth would
-remain unchanged; this is not a delta-transfer or COW claim.
+recovery lease and retry verification. The resulting [fingerprint inspection change](../retained-fingerprint-inspection.md)
+implements this candidate using the existing validated archive parser. Its native
+checks record artifact count/bytes, Git subprocess counts and observed timings;
+peak-memory and bandwidth improvements are not established. Full archive download
+remains unchanged. This is not a delta-transfer or COW claim.
 
 The clean-child-environment increment was already designed and implemented before
 this repository was shared. It is not attributed to LayerFS. This learning is
