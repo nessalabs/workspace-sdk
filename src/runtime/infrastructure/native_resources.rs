@@ -2,7 +2,8 @@ use crate::domain::{HostGpu, HostResources};
 use crate::Result;
 use std::env::consts::{ARCH, OS};
 use std::fs;
-use std::io::Read;
+use std::io::{ErrorKind, Read};
+use std::os::fd::AsRawFd;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::thread::{available_parallelism, sleep};
@@ -114,31 +115,82 @@ fn inspect_gpus() -> Vec<HostGpu> {
 
 fn collect_gpus(mut child: Child, budget: Duration) -> Vec<HostGpu> {
     let deadline = Instant::now() + budget;
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) if status.success() => {
-                let mut output = String::new();
-                if child
-                    .stdout
-                    .take()
-                    .is_some_and(|stream| stream.take(65_537).read_to_string(&mut output).is_ok())
-                    && output.len() <= 65_536
-                {
-                    return parse_gpus(&output);
-                }
-                return Vec::new();
-            }
-            Ok(Some(_)) => return Vec::new(),
-            Ok(None) if Instant::now() < deadline => {
-                sleep(Duration::from_millis(25));
-            }
-            _ => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Vec::new();
-            }
+    let mut reaped = false;
+    let observed = (|| {
+        let mut output = child.stdout.take()?;
+        let flags = unsafe { libc::fcntl(output.as_raw_fd(), libc::F_GETFL) };
+        if flags < 0
+            || unsafe { libc::fcntl(output.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK) }
+                < 0
+        {
+            return None;
         }
+        let mut bytes = Vec::new();
+        let mut chunk = [0; 8192];
+        let mut eof = false;
+        loop {
+            if Instant::now() >= deadline {
+                return None;
+            }
+            if !reaped {
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        reaped = true;
+                        if !status.success() {
+                            return None;
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        // An external reaper can make ownership unavailable too.
+                        reaped = error.raw_os_error() == Some(libc::ECHILD);
+                        return None;
+                    }
+                }
+            }
+            if !eof {
+                loop {
+                    if Instant::now() >= deadline {
+                        return None;
+                    }
+                    match output.read(&mut chunk) {
+                        Ok(0) => {
+                            eof = true;
+                            break;
+                        }
+                        Ok(size) => {
+                            if size > 65_536_usize.saturating_sub(bytes.len()) {
+                                return None;
+                            }
+                            bytes.extend_from_slice(&chunk[..size]);
+                        }
+                        Err(error) if error.kind() == ErrorKind::Interrupted => continue,
+                        Err(error) if error.kind() == ErrorKind::WouldBlock => break,
+                        Err(_) => return None,
+                    }
+                }
+            }
+            if reaped {
+                // A surviving writer cannot extend the probe after its leader
+                // exits. Only a complete stream establishes an observation.
+                return if eof {
+                    std::str::from_utf8(&bytes).ok().map(parse_gpus)
+                } else {
+                    None
+                };
+            }
+            sleep(
+                Duration::from_millis(25).min(deadline.saturating_duration_since(Instant::now())),
+            );
+        }
+    })();
+    if !reaped {
+        // Only this directly owned, unreaped child may be killed. Descendants
+        // are not owned by this probe, and no numeric PID is signaled after reap.
+        let _ = child.kill();
+        let _ = child.wait();
     }
+    observed.unwrap_or_default()
 }
 
 fn parse_gpus(output: &str) -> Vec<HostGpu> {
