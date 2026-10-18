@@ -7,6 +7,7 @@ cargo fmt --all -- --check
 cargo clippy --locked --all-features --all-targets -- -D warnings
 cargo build --locked --all-features --example pty_live_probe
 cargo test --locked --all-features
+cargo test --locked --no-default-features --features space --test space_provider_contract
 cargo build --locked --no-default-features --example pty_live_probe
 cargo test --locked --no-default-features
 RUSTDOCFLAGS='-D warnings' cargo doc --locked --all-features --no-deps

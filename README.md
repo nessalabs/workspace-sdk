@@ -56,6 +56,10 @@ async fn run_workload(
 
 Storage roots are explicit configuration. For Boat, construct `BoatOpenOptions::new(target_root)` and configure an `BoatProvider` with your own Boat client and supervisor deployment. Remote adapters use either a preinstalled supervisor or an explicitly supplied binary compiled for that target’s operating system and architecture.
 
+With the optional `space` feature, `SpaceProvider` attaches to an existing SPACE
+sandbox using explicit configuration and a preinstalled supervisor. See the
+[pinned API, ownership and transport limits](docs/space-provider.md).
+
 Requirements: Rust 1.89+ to build, a supported POSIX target for process supervision, and Git for checkpoint operations. The SDK does not require a Rust toolchain on a target using a prebuilt supervisor. Your workload can have its own runtime requirements.
 
 ## Find the model and API
@@ -73,7 +77,7 @@ Generate browsable API documentation with `cargo doc --no-deps`. Public domain t
 
 | Area | Responsibility |
 | --- | --- |
-| Providers | Local trusted host, Boat, SSH, and Docker/Podman-compatible containers through injected `IProvider` / `IBackend` interfaces. |
+| Providers | Local trusted host, Boat, SPACE attachments, SSH, and Docker/Podman-compatible containers through injected `IProvider` / `IBackend` interfaces. |
 | Execution | Durable run identity, duplicate-launch protection, reconnection, bounded output, deadlines, and process-group cancellation. |
 | Files and checkpoints | Binary chunks, validated relative paths, filtered snapshots, three-way reconciliation, conflict preservation, and apply recovery. |
 | Synchronization | Empty-target initialization, reviewed return sync, and stopped-source handoff with an explicit continuation command. |
