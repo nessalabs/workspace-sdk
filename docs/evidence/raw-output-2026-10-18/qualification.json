@@ -1,5 +1,5 @@
 {
-  "status": "Local focused checks and semantic probes passed; precloud independent reviews pending",
+  "status": "ACCEPTED: exact-source full mechanical/performance gate and both independent final reviews passed",
   "scope": "Additive raw retained stdout/stderr paging; existing text API keeps lossy per-page behavior",
   "source": {
     "README.md": "f500037317b9264c845c7af57e4e90496b3254e1ead2b2b14047e331eaee6b3a",
@@ -62,7 +62,36 @@
     "No live stdin/inputEOF/envclearing/duplexHarnessHost/agentmigration capability",
     "RawbyteAPIdoesnotbackpressureproducer or reservebuffer; ordinarytextAPI unchangedlossy",
     "Nativeintegration establishes process/output behavior; no liveprovider/physicalhostfailure qualification",
-    "Protocol/base64 tests do not substitute for real remote transport qualification; providers lacking capability fail without text fallback",
-    "Fullmechanical/performance cloud qualification pending on exactcandidatecommit"
+    "Protocol/base64 tests do not substitute for real remote transport qualification; providers lacking capability fail without text fallback"
+  ],
+  "cloud": {
+    "run": "https://github.com/nessalabs/workspace-sdk/actions/runs/39163398052",
+    "source_commit": "2bcf55eaa2752c9b0a56b0201f8f30e0b55ac541",
+    "ubuntu_24_04": "success",
+    "macos_15": "success",
+    "script": "scripts/quality-gate.sh",
+    "new_test_executions": {
+      "byte_page_debug_omits_output_contents": 4,
+      "byte_output_wire_preserves_binary_and_rejects_malformed_base64": 4,
+      "maximum_byte_page_fits_native_transport_and_never_falls_back_to_text": 4,
+      "binary_pages_preserve_every_byte_and_independent_cursors_across_reconnect": 4,
+      "binary_retention_reports_gaps_and_refuses_invalid_limits_cursors_and_targets": 4
+    },
+    "total_new_test_executions": 20,
+    "performance": "3managed/15PTYsamplesperOS;actualreports performance.json",
+    "raw_log_sha256": "506baf8010e98dafe30931815b39b68fbf2a2931d10fb7cbd26f4686eda1fc03",
+    "metadata_sha256": "0b1386b80a9c321108efef48b58340d7d85a8a09fa5fb33ef71745bf11a1e237"
+  },
+  "reviews": [
+    {
+      "path": "docs/reviews/2026-10-18-raw-output-quality.md",
+      "sha256": "8f419b741d1f3a9beb94a8dee9664beb2022a51e74c76d42494d2990d5857ba4",
+      "decision": "FINAL PASS; no unresolvedP1/P2"
+    },
+    {
+      "path": "docs/reviews/2026-10-18-raw-output-adversarial.md",
+      "sha256": "585a32386522eff4a3c01a4dd5c943459a20d5c780d7db5a30a80772b52941fc",
+      "decision": "FINAL PASS; no unresolvedP1/P2"
+    }
   ]
 }

@@ -24,3 +24,15 @@ Local raw log hashes:
 | fmt | e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 |
 
 The qualification accurately limits this change to retained byte reads. These logs are bounded retention, not backpressured pipes; consumers must treat a gap as incomplete protocol output. There is no new stdin stream, input EOF, child environment isolation, duplex transport, conversation migration or live remote-provider qualification. The wire tests are not evidence of actual remote transport behavior. Existing providers and older supervisors may refuse the new optional operation, and must never fall back to lossy text. No new performance baseline or latency improvement is claimed from these functional checks.
+
+## Final exact-source cloud assessment
+
+Decision: **FINAL QUALITY PASS**. No unresolved P1/P2 finding remains within this retained-byte-output scope. I independently verified all eleven frozen current files and their Git blobs at candidate `2bcf55eaa2752c9b0a56b0201f8f30e0b55ac541` against the same source manifest. The subsequent qualification/performance evidence agrees with the actual run; no source change or extra local execution was needed for this review.
+
+GitHub Actions [39163398052](https://github.com/nessalabs/workspace-sdk/actions/runs/39163398052) completed successfully for that exact candidate on Ubuntu24.04 and macOS15. Both jobs executed the complete `scripts/quality-gate.sh`: formatting, all-feature/all-target strict Clippy, both feature-mode test suites, the Space contract, strict documentation, supervisor build, and both ignored performance suites. The five newly added test names each appear as passing four times in the actual raw log (two feature modes on two operating systems), for twenty new-test executions.
+
+I extracted the four multiline performance objects directly from the raw log and compared their full parsed contents with `docs/evidence/raw-output-2026-10-18/performance.json`: all match exactly. Each operating system supplies three managed-run and fifteen PTY samples. These are actual debug-build functional/performance measurements, not a statistical regression baseline or evidence of a new stdin/PTY feature in this change.
+
+Cloud raw log SHA256: `506baf8010e98dafe30931815b39b68fbf2a2931d10fb7cbd26f4686eda1fc03`. Metadata SHA256: `0b1386b80a9c321108efef48b58340d7d85a8a09fa5fb33ef71745bf11a1e237`. Extracted performance artifact SHA256: `cac55101e5246874098fbc5dd266ac5ff89bb3cde4696643465f19b77eb7a824`.
+
+The earlier scope limits remain: bounded retained logs may gap; no live input/EOF, cleared child environment, duplex host adapter, conversation migration, physical-host failure or live remote transport qualification is implied. This final quality decision remains distinct from the independently required adversarial acceptance decision.
