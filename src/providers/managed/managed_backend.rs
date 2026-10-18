@@ -339,6 +339,36 @@ impl IBackend for ManagedBackend {
             .await?
             .output()
     }
+    async fn read_output_bytes(
+        &self,
+        run: &RunRef,
+        cursor: OutputCursor,
+        limit: u32,
+    ) -> Result<OutputBytesPage> {
+        self.validate_run(run)?;
+        if !(2..=MAX_CHUNK as u32).contains(&limit) {
+            return Err(Error::InvalidInput(
+                "output page limit must be 2..=262144 bytes".into(),
+            ));
+        }
+        let page = self
+            .target
+            .invoke(self.protocol_request(SupervisorOperation::OutputBytes {
+                id: run.id.clone(),
+                cursor,
+                limit,
+            }))
+            .await?
+            .output_bytes()?;
+        let stdout_budget = limit as usize / 2;
+        let stderr_budget = limit as usize - stdout_budget;
+        if page.stdout.len() > stdout_budget || page.stderr.len() > stderr_budget {
+            return Err(Error::State(
+                "supervisor byte output exceeds requested stream budgets".into(),
+            ));
+        }
+        Ok(page)
+    }
     async fn cancel(&self, run: &RunRef) -> Result<RunState> {
         self.validate_run(run)?;
         self.target

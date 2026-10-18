@@ -109,6 +109,14 @@ pub(super) fn handle(request: SupervisorRequest) -> Result<SupervisorValue> {
                 limit,
             )?))
         }
+        SupervisorOperation::OutputBytes { id, cursor, limit } => Ok(SupervisorValue::OutputBytes(
+            run_record::output_bytes(
+                &run_record::run_directory(context, &id, false)?,
+                cursor,
+                limit,
+            )?
+            .into(),
+        )),
         SupervisorOperation::StopOwnedRuns => {
             workload::stop_owned(context, false)?;
             Ok(SupervisorValue::Empty)

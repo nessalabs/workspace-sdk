@@ -1,0 +1,68 @@
+{
+  "status": "Local focused checks and semantic probes passed; precloud independent reviews pending",
+  "scope": "Additive raw retained stdout/stderr paging; existing text API keeps lossy per-page behavior",
+  "source": {
+    "README.md": "f500037317b9264c845c7af57e4e90496b3254e1ead2b2b14047e331eaee6b3a",
+    "docs/run-output-bytes.md": "faf9ab746d0c192bf57413e75a62431569ea92c5cd6cd826442e8561c4ce58b4",
+    "src/application/run.rs": "49f915b8aa951908a93efafed460fc25d9039fe70cacd2e946902de660d78e47",
+    "src/domain/execution/mod.rs": "c2f5bad1d66f7f0fecae326b47c5a2c8e7f59a09ed8f12080acacdf4ffc46665",
+    "src/domain/execution/output.rs": "18e2c71f0d79c2dc3552b2da4b4a2dbb3802355a872cd0f125bb8c5197dbacb7",
+    "src/ports/i_backend.rs": "71789a95cffa19d3dcae09f8ec4071198c3b45d51ce04ef47e10d1e4abe9d0ce",
+    "src/providers/managed/managed_backend.rs": "731d92e70a2836bef70abbfddf9c721ee3024ec408c9c536f4371b7980c5c039",
+    "src/supervisor/dispatcher.rs": "1d5b4dccec91e37d36a0163c961411526e5d4f8d463f2da9d4a2dc4a15ce1af6",
+    "src/supervisor/protocol.rs": "7c92cfa0039348b207e8a9a4546314baac1a8ba58887a7184c3718f61a71c3ef",
+    "src/supervisor/run_record.rs": "1280e87de9437cf14e8a7db11470972edf656b11da9e1543d62299fb7fbdc95f",
+    "tests/run_output_bytes.rs": "3123516f0f5e20c33e038a077b9c3b831e4ab22eb06e2ba65ee2aaa448a15693"
+  },
+  "local_checks": {
+    "focused": "157 passed:143library,2expectedhead,2rawnative,10SDKworkflow;rawnative1.56s",
+    "restored": "Restored source rebuilt supervisor then2rawnativePASS2.01s",
+    "clippy": "Allfeatures/alltargets -Dwarnings PASS9.39s",
+    "docs": "Allfeatures/no-deps RUSTDOCFLAGS=-Dwarnings PASS3.91s",
+    "fmt": "cargo fmt --all -- --check PASS"
+  },
+  "fault_probes": [
+    {
+      "probe": "lossy-bytes",
+      "test": "binary_pages_preserve_every_byte_and_independent_cursors_across_reconnect",
+      "mutated_supervisor_build_exit": 0,
+      "exit": 101,
+      "assertion_failure": true,
+      "compile_error": false,
+      "source_sha256": "1280e87de9437cf14e8a7db11470972edf656b11da9e1543d62299fb7fbdc95f",
+      "source_restored": true,
+      "binary_restoration": "MUSTrebuildrestoredsupervisorbeforefinalchecks"
+    },
+    {
+      "probe": "missing-gap",
+      "test": "binary_retention_reports_gaps_and_refuses_invalid_limits_cursors_and_targets",
+      "mutated_supervisor_build_exit": 0,
+      "exit": 101,
+      "assertion_failure": true,
+      "compile_error": false,
+      "source_sha256": "1280e87de9437cf14e8a7db11470972edf656b11da9e1543d62299fb7fbdc95f",
+      "source_restored": true,
+      "binary_restoration": "MUSTrebuildrestoredsupervisorbeforefinalchecks"
+    },
+    {
+      "probe": "early-complete",
+      "test": "binary_pages_preserve_every_byte_and_independent_cursors_across_reconnect",
+      "mutated_supervisor_build_exit": 0,
+      "exit": 101,
+      "assertion_failure": true,
+      "compile_error": false,
+      "source_sha256": "1280e87de9437cf14e8a7db11470972edf656b11da9e1543d62299fb7fbdc95f",
+      "source_restored": true,
+      "binary_restoration": "MUSTrebuildrestoredsupervisorbeforefinalchecks"
+    }
+  ],
+  "initial_interruption": "First focused check stopped at600MiB diskfloor withSIGTERM-15, no passing result. After allconsumersended, only inactive regenerable completed test binaries retired; source/evidence preserved. Retrypassed.",
+  "limits": [
+    "Retained bounded output can lose bytes; gap is not an instruction to skip/replay protocol frames",
+    "No live stdin/inputEOF/envclearing/duplexHarnessHost/agentmigration capability",
+    "RawbyteAPIdoesnotbackpressureproducer or reservebuffer; ordinarytextAPI unchangedlossy",
+    "Nativeintegration establishes process/output behavior; no liveprovider/physicalhostfailure qualification",
+    "Protocol/base64 tests do not substitute for real remote transport qualification; providers lacking capability fail without text fallback",
+    "Fullmechanical/performance cloud qualification pending on exactcandidatecommit"
+  ]
+}

@@ -105,3 +105,5 @@ Acceptance additionally requires separate independent code-quality/design and
 adversarial agent reviews under [the coding standards](coding_standards.md).
 
 See [recovery at an expected checkpoint](docs/recovery-expected-head.md) for exact-head admission and retry behavior.
+
+See [retained byte output](docs/run-output-bytes.md) for binary-safe paging and retention limits.

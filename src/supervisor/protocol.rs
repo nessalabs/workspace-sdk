@@ -3,9 +3,9 @@
 //! Request values are serialized only when crossing a process/API boundary.
 //! Credentials are transient fields, never part of persisted run records.
 use crate::{
-    CommandSpec, Error, HostResources, InputOutcome, OutputCursor, OutputPage, Ownership, Result,
-    RunId, RunState, SecretEnvironment, SecretInput, TerminalSize, TreeExportReceipt,
-    TreeImportReceipt, TreeTransfer, WorkspaceId, WorkspacePath,
+    CommandSpec, Error, HostResources, InputOutcome, OutputBytesPage, OutputCursor, OutputPage,
+    Ownership, Result, RunId, RunState, SecretEnvironment, SecretInput, TerminalSize,
+    TreeExportReceipt, TreeImportReceipt, TreeTransfer, WorkspaceId, WorkspacePath,
 };
 use serde::{Deserialize, Serialize};
 use std::io::ErrorKind;
@@ -90,6 +90,11 @@ pub enum SupervisorOperation {
         cursor: OutputCursor,
         limit: u32,
     },
+    OutputBytes {
+        id: RunId,
+        cursor: OutputCursor,
+        limit: u32,
+    },
     StopOwnedRuns,
     DestroyOwnedFiles,
     ExportTree {
@@ -136,6 +141,7 @@ impl SupervisorOperation {
             | Self::Inspect { .. }
             | Self::Cancel { .. }
             | Self::Output { .. }
+            | Self::OutputBytes { .. }
             | Self::StopOwnedRuns
             | Self::DestroyOwnedFiles
             | Self::ExportTree { .. }
@@ -173,6 +179,50 @@ pub struct TransferredFileChunk {
     pub next_offset: u64,
     pub eof: bool,
 }
+/// Binary output is encoded only at the supervisor transport boundary.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct TransferredOutputBytes {
+    #[serde(with = "binary")]
+    pub stdout: Vec<u8>,
+    #[serde(with = "binary")]
+    pub stderr: Vec<u8>,
+    pub next: OutputCursor,
+    pub gap: bool,
+    pub complete: bool,
+}
+impl From<OutputBytesPage> for TransferredOutputBytes {
+    fn from(page: OutputBytesPage) -> Self {
+        Self {
+            stdout: page.stdout,
+            stderr: page.stderr,
+            next: page.next,
+            gap: page.gap,
+            complete: page.complete,
+        }
+    }
+}
+impl From<TransferredOutputBytes> for OutputBytesPage {
+    fn from(page: TransferredOutputBytes) -> Self {
+        Self {
+            stdout: page.stdout,
+            stderr: page.stderr,
+            next: page.next,
+            gap: page.gap,
+            complete: page.complete,
+        }
+    }
+}
+impl std::fmt::Debug for TransferredOutputBytes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TransferredOutputBytes")
+            .field("stdout_bytes", &self.stdout.len())
+            .field("stderr_bytes", &self.stderr.len())
+            .field("next", &self.next)
+            .field("gap", &self.gap)
+            .field("complete", &self.complete)
+            .finish()
+    }
+}
 /// A successful operation result, carrying its concrete domain type.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
@@ -183,6 +233,7 @@ pub enum SupervisorValue {
     /// Definitive rejection established before any input could be dispatched.
     InputRejected(SupervisorFault),
     Output(OutputPage),
+    OutputBytes(TransferredOutputBytes),
     FileChunk(TransferredFileChunk),
     TreeExport(TreeExportReceipt),
     TreeImport(TreeImportReceipt),
@@ -210,6 +261,12 @@ impl SupervisorValue {
     pub fn output(self) -> Result<OutputPage> {
         match self {
             Self::Output(value) => Ok(value),
+            _ => Err(unexpected()),
+        }
+    }
+    pub fn output_bytes(self) -> Result<OutputBytesPage> {
+        match self {
+            Self::OutputBytes(value) => Ok(value.into()),
             _ => Err(unexpected()),
         }
     }
@@ -357,5 +414,88 @@ pub(super) mod secret_input {
                     .map_err(DeserializeError::custom)
             })
             .transpose()
+    }
+}
+
+#[cfg(test)]
+mod output_bytes_wire_tests {
+    use super::*;
+
+    #[test]
+    fn byte_output_wire_preserves_binary_and_rejects_malformed_base64() {
+        let source: Vec<u8> = (0..=255).collect();
+        let wire = TransferredOutputBytes::from(OutputBytesPage {
+            stdout: source.clone(),
+            stderr: source.iter().rev().copied().collect(),
+            next: OutputCursor {
+                stdout: 256,
+                stderr: 512,
+            },
+            gap: true,
+            complete: false,
+        });
+        let mut encoded = serde_json::to_value(&wire).unwrap();
+        assert!(encoded["stdout"].is_string());
+        let decoded: TransferredOutputBytes = serde_json::from_value(encoded.clone()).unwrap();
+        let page = SupervisorValue::OutputBytes(decoded)
+            .output_bytes()
+            .unwrap();
+        assert_eq!(page.stdout, source);
+        assert_eq!(page.stderr, (0..=255).rev().collect::<Vec<u8>>());
+        assert_eq!(page.next.stdout, 256);
+        assert_eq!(page.next.stderr, 512);
+        assert!(page.gap);
+        assert!(!page.complete);
+        for stream in ["stdout", "stderr"] {
+            let original = encoded[stream].clone();
+            encoded[stream] = serde_json::json!("not valid base64!");
+            assert!(serde_json::from_value::<TransferredOutputBytes>(encoded.clone()).is_err());
+            encoded[stream] = original;
+        }
+        let private = TransferredOutputBytes::from(OutputBytesPage {
+            stdout: b"private-output-marker".to_vec(),
+            stderr: b"private-error-marker".to_vec(),
+            next: OutputCursor::default(),
+            gap: false,
+            complete: true,
+        });
+        assert!(!format!("{:?}", SupervisorValue::OutputBytes(private)).contains("private-"));
+    }
+
+    #[test]
+    fn maximum_byte_page_fits_native_transport_and_never_falls_back_to_text() {
+        let page = OutputBytesPage {
+            stdout: vec![255; 131072],
+            stderr: vec![0; 131072],
+            next: OutputCursor {
+                stdout: 131072,
+                stderr: 131072,
+            },
+            gap: false,
+            complete: true,
+        };
+        let response = SupervisorResponse::Success(SupervisorValue::OutputBytes(page.into()));
+        let wire = serde_json::to_vec(&response).unwrap();
+        // Base64 expansion stays below the native runner's 2 MiB stream cap.
+        assert!(wire.len() < 400000);
+        let decoded: SupervisorResponse = serde_json::from_slice(&wire).unwrap();
+        assert_eq!(
+            decoded
+                .into_result()
+                .unwrap()
+                .output_bytes()
+                .unwrap()
+                .stdout
+                .len(),
+            131072
+        );
+        let text = SupervisorValue::Output(OutputPage {
+            stdout: "lossy text".into(),
+            stderr: String::new(),
+            next: OutputCursor::default(),
+            gap: false,
+            complete: true,
+        });
+        assert!(matches!(text.output_bytes(), Err(Error::State(_))));
     }
 }

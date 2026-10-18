@@ -1,5 +1,5 @@
 use crate::{
-    domain::{OutputCursor, OutputPage, RunRef, RunState},
+    domain::{OutputBytesPage, OutputCursor, OutputPage, RunRef, RunState},
     ports::IBackend,
     Error, Result,
 };
@@ -30,6 +30,15 @@ impl Run {
     pub async fn output(&self, cursor: OutputCursor, limit: u32) -> Result<OutputPage> {
         self.backend
             .read_output(&self.reference, cursor, limit)
+            .await
+    }
+    /// Read exact stdout/stderr bytes using independent absolute cursors.
+    /// Built-in backends accept a combined page budget of 2..=262144 bytes.
+    /// Reads do not advance server-side state; repeat or persist the returned
+    /// cursors explicitly. Gaps must not be treated as complete protocol output.
+    pub async fn output_bytes(&self, cursor: OutputCursor, limit: u32) -> Result<OutputBytesPage> {
+        self.backend
+            .read_output_bytes(&self.reference, cursor, limit)
             .await
     }
     /// Cancel this managed process group and observe the resulting state.

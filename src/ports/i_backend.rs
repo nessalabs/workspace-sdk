@@ -93,6 +93,17 @@ pub trait IBackend: Send + Sync {
         cursor: OutputCursor,
         limit: u32,
     ) -> Result<OutputPage>;
+    /// Read byte-preserving retained output at independent absolute cursors.
+    /// No input or process mutation occurs. Unsupported providers must refuse;
+    /// converting lossy text output back into bytes cannot satisfy this contract.
+    async fn read_output_bytes(
+        &self,
+        _run: &RunRef,
+        _cursor: OutputCursor,
+        _limit: u32,
+    ) -> Result<OutputBytesPage> {
+        Err(Error::Unsupported("byte-preserving run output".into()))
+    }
     /// Stop the identified managed process group; never signal an unrelated or guessed PID.
     async fn cancel(&self, run: &RunRef) -> Result<RunState>;
     /// Return service access satisfying the requested policy, or reject unsupported access.
