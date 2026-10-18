@@ -6,7 +6,7 @@ use crate::{Error, Result};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::io::{ErrorKind, Result as IoResult};
+use std::io::ErrorKind;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
@@ -25,9 +25,50 @@ pub(crate) fn scan(
         files: BTreeMap::new(),
         excluded: vec![],
     };
-    scan_dir(root, root, tracked, limits, &[], &[], &mut tree, &mut 0)?;
+    scan_dir(
+        root,
+        root,
+        tracked,
+        limits,
+        &[],
+        &[],
+        &mut tree,
+        &mut ScanBudget::default(),
+    )?;
+    // Recreate sorted-sibling depth-first report order without collecting each
+    // directory's entries. Full-path sorting differs for `a/child` and `a-b`.
+    tree.excluded
+        .sort_by(|a, b| a.path.split('/').cmp(b.path.split('/')));
     check_entries(&tree.entries(), limits)?;
     Ok(tree)
+}
+
+#[derive(Default)]
+struct ScanBudget {
+    visited: usize,
+    total_bytes: u64,
+}
+
+impl ScanBudget {
+    fn visit(&mut self, limits: &CheckpointLimits) -> Result<()> {
+        self.visited = self
+            .visited
+            .checked_add(1)
+            .filter(|visited| *visited <= limits.max_files.saturating_mul(20).max(1000))
+            .ok_or_else(|| {
+                Error::InvalidInput("checkpoint traversal exceeds entry limit".into())
+            })?;
+        Ok(())
+    }
+
+    fn select(&mut self, bytes: u64, limits: &CheckpointLimits) -> Result<()> {
+        self.total_bytes = self
+            .total_bytes
+            .checked_add(bytes)
+            .filter(|total| *total <= limits.max_total_bytes)
+            .ok_or_else(|| Error::InvalidInput("checkpoint content exceeds size limit".into()))?;
+        Ok(())
+    }
 }
 
 fn load_ignore(directory: &Path, name: &str) -> Result<Option<Gitignore>> {
@@ -82,7 +123,7 @@ fn scan_dir(
     git_rules: &[Gitignore],
     workspace_rules: &[Gitignore],
     tree: &mut Tree,
-    visited: &mut usize,
+    budget: &mut ScanBudget,
 ) -> Result<()> {
     let mut git_rules = git_rules.to_vec();
     let mut workspace_rules = workspace_rules.to_vec();
@@ -92,16 +133,9 @@ fn scan_dir(
     if let Some(rules) = load_ignore(directory, ".workspaceignore")? {
         workspace_rules.push(rules);
     }
-    let mut children = fs::read_dir(directory)?.collect::<IoResult<Vec<_>>>()?;
-    children.sort_by_key(|entry| entry.file_name());
-    for child in children {
-        *visited += 1;
-        if *visited > limits.max_files.saturating_mul(20).max(1000) {
-            return Err(Error::InvalidInput(
-                "checkpoint traversal exceeds entry limit".into(),
-            ));
-        }
-        let path = child.path();
+    for child in fs::read_dir(directory)? {
+        budget.visit(limits)?;
+        let path = child?.path();
         let name = path
             .strip_prefix(root)
             .unwrap()
@@ -138,7 +172,7 @@ fn scan_dir(
                 &git_rules,
                 &workspace_rules,
                 tree,
-                visited,
+                budget,
             )?;
             continue;
         }
@@ -171,6 +205,7 @@ fn scan_dir(
                 "unresolved Git LFS pointer: {name}"
             )));
         }
+        budget.select(bytes.len() as u64, limits)?;
         tree.files.insert(
             name.clone(),
             TreeFile {
@@ -184,13 +219,45 @@ fn scan_dir(
                 bytes,
             },
         );
-        if tree.files.len() > limits.max_files
-            || tree.files.values().map(|f| f.entry.size).sum::<u64>() > limits.max_total_bytes
-        {
+        if tree.files.len() > limits.max_files {
             return Err(Error::InvalidInput(
                 "checkpoint content exceeds size limit".into(),
             ));
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn traversal_counter_refuses_overflow_even_with_saturated_entry_allowance() {
+        let limits = CheckpointLimits {
+            max_files: usize::MAX,
+            ..CheckpointLimits::default()
+        };
+        let mut budget = ScanBudget {
+            visited: usize::MAX,
+            total_bytes: 0,
+        };
+        assert!(matches!(budget.visit(&limits), Err(Error::InvalidInput(_))));
+    }
+
+    #[test]
+    fn selected_byte_counter_refuses_overflow_at_maximum_allowance() {
+        let limits = CheckpointLimits {
+            max_total_bytes: u64::MAX,
+            ..CheckpointLimits::default()
+        };
+        let mut budget = ScanBudget {
+            visited: 0,
+            total_bytes: u64::MAX,
+        };
+        assert!(matches!(
+            budget.select(1, &limits),
+            Err(Error::InvalidInput(_))
+        ));
+    }
 }
