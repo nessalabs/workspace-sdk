@@ -28,3 +28,15 @@ Raw evidence SHA256:
 | Strict docs | 84b82d3983ed0683e534a70ca5c29771b153688ad566e5b8c8d2d49057fc6d1e |
 
 The [credited LayerFS study](../research/layerfs-learning.md) identifies the inspiration and distinguishes preexisting local safety behavior from this applied optimization. No upstream code or dependency was imported. This increment neither weakens acknowledged recovery requirements nor qualifies live remote transport, physical failure, automatic failover or application migration. No-artifact inspection is a built-in Git-engine guarantee, not a universal promise about custom engines. Full cloud evidence is still pending.
+
+## Final exact-candidate cloud decision
+
+Decision: **FINAL QUALITY PASS**. No unresolved P1/P2 finding remains for built-in retained fingerprint inspection and documented custom-engine compatibility. The independent adversarial decision remains separately required.
+
+All ten frozen current files and their exact Git blobs at `741474ea91f797221ae26650f16ccad78d62e7b3` independently match the reviewed manifest. Actual [GitHub Actions run39172464481](https://github.com/nessalabs/workspace-sdk/actions/runs/39172464481) metadata identifies that candidate and reports completed successful macOS15 and Ubuntu24.04 jobs. Both actual logs reach the complete mechanical-gate completion with no failed test summary: all-feature/no-default-feature suites, Space contract, strict Clippy, formatting, strict docs, builds and performance checks. All six new test names pass four times each across the two feature modes and operating systems, for twenty-four new-test executions.
+
+I independently extracted all four complete raw performance objects and compared their full parsed values with `docs/evidence/retained-fingerprint-2026-10-18/performance.json`: exact agreement, with three managed-run and fifteen PTY samples per OS. Performance artifact SHA256 `528e1e21ef6fd37891e9ca0ee4dc781f4354e2bb08e84ad424b6b8a426d2b7cb`. These are the existing debug performance suites and are not statistical speedup evidence for this optimization. The same-archive/no-artifact observations described above supply the direct changed-scope evidence.
+
+Raw cloud log SHA256 `47a511c3d0efb9843e5df06ef17bc94e6f73d16b702e07d324041ccfbf65c7a9`; metadata SHA256 `36579d98ff7d6ffd6b10081efa8771ff13ea7a5ee3998d0a8b800c5e8be4c533`. Final qualification draft source, counts, probes, limits and research-credit statements agree with inspected evidence. The historical compile failure, oracle failures and missed-edit retry remain failures; final cloud success does not retroactively change them or turn the split local evidence into one all-green run.
+
+The credited design scope and limits remain unchanged: no upstream implementation reuse/dependency, no new bandwidth/peak-memory/COW/deduplication claim, no weakening of transfer integrity or acknowledged recovery ownership, and no live remote or physical-failure acceptance. I edited only this review and ran no new builds or tests.

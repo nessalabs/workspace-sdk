@@ -1,6 +1,6 @@
 # Retained fingerprint inspection: adversarial review
 
-**PRECLOUD ADVERSARIAL PASS. No unresolved P1/P2 finding; exact-source full cloud qualification remains pending.** Independent reviewer: `workspace_handoff_adversarial_review`. Implementation and tests were authored by other agents. This reviewer changed only this record and ran no checks/probes.
+**FINAL ADVERSARIAL PASS for `741474ea91f797221ae26650f16ccad78d62e7b3`. No unresolved P1/P2 finding within retained fingerprint inspection scope.** Independent reviewer: `workspace_handoff_adversarial_review`. Implementation and tests were authored by other agents. This reviewer changed only this record and ran no checks/probes.
 
 ## Source and contract
 
@@ -31,3 +31,13 @@ Two actual measurement objects are retained: same-archive capture versus inspect
 The credited [LayerFS research record](../research/layerfs-learning.md) distinguishes the learned inspection idea from preexisting SDK behavior. No upstream code/dependency was imported. This increment is not COW storage, delta transfer, off-machine durability, global writer fencing or live-provider qualification.
 
 **Precloud PASS:** no unresolved P1/P2 source/evidence finding. Final acceptance awaits the exact-source full cloud gate. Prior failure logs, compatibility side effects, caller quiescence and cleanup/uncertainty limits remain part of this assessment.
+
+## Final exact-source cloud decision
+
+Independently inspected [run 39172464481](https://github.com/nessalabs/workspace-sdk/actions/runs/39172464481): both macOS 15 and Ubuntu 24.04 jobs and their full `scripts/quality-gate.sh` steps completed successfully at exact commit `741474ea91f797221ae26650f16ccad78d62e7b3`. All ten frozen source hashes match current files and that commit's Git blobs. Raw log SHA-256: `47a511c3d0efb9843e5df06ef17bc94e6f73d16b702e07d324041ccfbf65c7a9`.
+
+Each of the six new test names has four actual successful executions in the raw log: both feature selections on each OS, totaling 24. Full gate formatting, denied-warning Clippy, documentation, builds, retained suites and performance qualification succeeded. Four complete performance JSON objects parsed from the raw log match the saved [performance evidence](../evidence/retained-fingerprint-2026-10-18/performance.json): three managed and 15 PTY samples per OS. These are retained debug-build qualification observations, not fingerprint throughput or statistical comparative benchmarks.
+
+Reviewed the qualification draft against source and actual evidence: its split local coverage, failed attempts, three semantic catches, compatibility side effects and remaining transfer/cleanup limits agree. Its pending status is historical until final integration; this review independently closes the acceptance condition.
+
+**FINAL PASS.** The exact-source full cloud result closes precloud qualification. All initial failed attempts and the split local pass history remain as recorded above; no retroactive all-green local command is claimed. Full transfer/buffering, canonical export work, custom-engine fallback side effects, exclusive-writer requirements and lack of COW/bandwidth/physical-failure claims remain explicit limits.
