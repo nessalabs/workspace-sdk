@@ -156,3 +156,7 @@ pub(super) fn same_run(expected: &RunId, received: &RunId) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "terminal_control_tests.rs"]
+mod tests;
