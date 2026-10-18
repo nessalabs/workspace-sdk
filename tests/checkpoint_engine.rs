@@ -878,3 +878,265 @@ fn linked_worktree_target_export_refuses_broken_git_before_archive_publication()
     );
     fixture.assert_source_unchanged(&retained);
 }
+
+// Exercise the existing native selected-tree receipt, rather than recapturing a
+// plain directory that no longer has Git's tracked-but-ignored selection.
+fn linked_return_remote(
+    sdk: &GitCheckpointEngine,
+    fixture: &LinkedCheckpointFixture,
+    base: &CheckpointRef,
+) -> std::path::PathBuf {
+    let remote = directory(fixture.temporary.path(), "return-remote");
+    let transfer = workspace_sdk::TreeTransfer {
+        id: workspace_sdk::OperationId::new("linked-outbound").unwrap(),
+    };
+    let archive = remote.join(transfer.relative_archive_path().as_str());
+    fs::create_dir_all(archive.parent().unwrap()).unwrap();
+    fs::write(&archive, sdk.export_checkpoint_archive(base).unwrap()).unwrap();
+    import_remote_tree(&remote, &transfer).unwrap();
+    assert!(!remote.join(".git").exists());
+    assert!(!remote.join(".env").exists());
+    assert!(!remote.join("ignored.txt").exists());
+    assert_eq!(
+        fs::read(remote.join("tracked.txt")).unwrap(),
+        b"unstaged working bytes\n"
+    );
+    remote
+}
+
+fn capture_linked_return(sdk: &GitCheckpointEngine, remote: &Path) -> Checkpoint {
+    let transfer = workspace_sdk::TreeTransfer {
+        id: workspace_sdk::OperationId::new("linked-return").unwrap(),
+    };
+    export_remote_tree(remote, &transfer).unwrap();
+    sdk.capture_archive(
+        &fs::read(remote.join(transfer.relative_archive_path().as_str())).unwrap(),
+        CaptureOptions::default(),
+    )
+    .unwrap()
+}
+
+fn prepare_linked_return(fixture: &LinkedCheckpointFixture) {
+    write(&fixture.linked, "tracked.txt", "staged index bytes\n");
+    linked_fixture_git(&fixture.linked, &["add", "--force", "tracked.txt"]);
+    write(&fixture.linked, "tracked.txt", "unstaged working bytes\n");
+    write(
+        &fixture.linked,
+        "selected-untracked.txt",
+        "selected untracked bytes\n",
+    );
+    write(&fixture.linked, ".env", "excluded local data\n");
+}
+
+fn assert_linked_return_metadata(
+    fixture: &LinkedCheckpointFixture,
+    main_before: &std::collections::BTreeMap<std::path::PathBuf, Vec<u8>>,
+) {
+    assert_eq!(
+        fs::read(fixture.linked.join(".git")).unwrap(),
+        fixture.pointer
+    );
+    // Includes the main checkout plus every common-repository file, including
+    // both worktree indexes, refs, logs and objects. No Git command may refresh
+    // these files after the intentional staging baseline.
+    assert_eq!(metadata_bytes(&fixture.main), *main_before);
+    assert_eq!(
+        fs::read(fixture.linked.join(".env")).unwrap(),
+        b"excluded local data\n"
+    );
+    assert_eq!(
+        fs::read(fixture.linked.join("ignored.txt")).unwrap(),
+        b"untracked ignored data\n"
+    );
+}
+
+#[test]
+fn linked_worktree_return_applies_selected_files_and_retries_without_changing_git_metadata() {
+    let fixture = LinkedCheckpointFixture::new();
+    prepare_linked_return(&fixture);
+    let main_before = metadata_bytes(&fixture.main);
+    let sdk = engine(fixture.temporary.path());
+    let base = sdk
+        .capture(&fixture.linked, CaptureOptions::default())
+        .unwrap();
+    assert_linked_return_metadata(&fixture, &main_before);
+    let remote = linked_return_remote(&sdk, &fixture, base.reference());
+    assert_linked_return_metadata(&fixture, &main_before);
+    write(&remote, "tracked.txt", "remote returned working bytes\n");
+    fs::remove_file(remote.join("nested/tracked.txt")).unwrap();
+    write(&remote, "remote-new.txt", "remote created bytes\n");
+    let returned = capture_linked_return(&sdk, &remote);
+    assert!(returned
+        .manifest
+        .entries
+        .iter()
+        .any(|entry| entry.path == "tracked.txt"));
+    assert!(!returned
+        .manifest
+        .entries
+        .iter()
+        .any(|entry| entry.path == "nested/tracked.txt"));
+    assert_linked_return_metadata(&fixture, &main_before);
+    // This separate local addition must survive the three-way return merge.
+    write(&fixture.linked, "local-only.txt", "local disjoint bytes\n");
+    let before_apply = metadata_bytes(&fixture.linked);
+    let review = sdk
+        .reconcile(base.reference(), &fixture.linked, returned.reference())
+        .unwrap();
+    assert_eq!(review.status, ReconciliationStatus::StagedForReview);
+    assert!(review.conflicts.is_empty());
+    assert_eq!(metadata_bytes(&fixture.linked), before_apply);
+    assert_linked_return_metadata(&fixture, &main_before);
+    let options = ApplyOptions {
+        quiescent: true,
+        expected_fingerprint: review.expected_fingerprint.clone(),
+    };
+    let receipt = sdk.apply(&review.reference, options.clone()).unwrap();
+    assert_eq!(
+        fs::read(fixture.linked.join("tracked.txt")).unwrap(),
+        b"remote returned working bytes\n"
+    );
+    assert!(!fixture.linked.join("nested/tracked.txt").exists());
+    assert_eq!(
+        fs::read(fixture.linked.join("remote-new.txt")).unwrap(),
+        b"remote created bytes\n"
+    );
+    assert_eq!(
+        fs::read(fixture.linked.join("local-only.txt")).unwrap(),
+        b"local disjoint bytes\n"
+    );
+    assert_eq!(
+        fs::read(fixture.linked.join("selected-untracked.txt")).unwrap(),
+        b"selected untracked bytes\n"
+    );
+    assert_linked_return_metadata(&fixture, &main_before);
+    write(&fixture.linked, "tracked.txt", "later user edit\n");
+    let after_edit = metadata_bytes(&fixture.linked);
+    let retry = sdk.apply(&review.reference, options).unwrap();
+    assert_eq!(retry.recovery, receipt.recovery);
+    assert_eq!(retry.checkpoint, receipt.checkpoint);
+    assert_eq!(metadata_bytes(&fixture.linked), after_edit);
+    assert_linked_return_metadata(&fixture, &main_before);
+    sdk.rollback(&receipt.recovery, true).unwrap();
+    assert_eq!(metadata_bytes(&fixture.linked), before_apply);
+    assert_linked_return_metadata(&fixture, &main_before);
+    assert!(matches!(
+        sdk.inspect_apply(&review.reference).unwrap(),
+        ApplyState::RolledBack { .. }
+    ));
+}
+
+#[test]
+fn linked_worktree_return_requires_quiescence_and_unchanged_selected_destination() {
+    let fixture = LinkedCheckpointFixture::new();
+    prepare_linked_return(&fixture);
+    let main_before = metadata_bytes(&fixture.main);
+    let sdk = engine(fixture.temporary.path());
+    let base = sdk
+        .capture(&fixture.linked, CaptureOptions::default())
+        .unwrap();
+    let remote = linked_return_remote(&sdk, &fixture, base.reference());
+    write(&remote, "tracked.txt", "remote returned bytes\n");
+    let returned = capture_linked_return(&sdk, &remote);
+    let before_review = metadata_bytes(&fixture.linked);
+    let review = sdk
+        .reconcile(base.reference(), &fixture.linked, returned.reference())
+        .unwrap();
+    assert_eq!(review.status, ReconciliationStatus::StagedForReview);
+    assert_eq!(metadata_bytes(&fixture.linked), before_review);
+    assert_linked_return_metadata(&fixture, &main_before);
+    assert!(sdk
+        .apply(
+            &review.reference,
+            ApplyOptions {
+                quiescent: false,
+                expected_fingerprint: review.expected_fingerprint.clone(),
+            }
+        )
+        .is_err());
+    assert_eq!(metadata_bytes(&fixture.linked), before_review);
+    assert_linked_return_metadata(&fixture, &main_before);
+    assert!(matches!(
+        sdk.inspect_apply(&review.reference).unwrap(),
+        ApplyState::NotStarted
+    ));
+    write(
+        &fixture.linked,
+        "tracked.txt",
+        "new local edit after review\n",
+    );
+    let after_edit = metadata_bytes(&fixture.linked);
+    assert!(sdk
+        .apply(
+            &review.reference,
+            ApplyOptions {
+                quiescent: true,
+                expected_fingerprint: review.expected_fingerprint.clone(),
+            }
+        )
+        .is_err());
+    assert_eq!(metadata_bytes(&fixture.linked), after_edit);
+    assert_linked_return_metadata(&fixture, &main_before);
+    assert!(matches!(
+        sdk.inspect_apply(&review.reference).unwrap(),
+        ApplyState::NotStarted
+    ));
+}
+
+#[test]
+fn linked_worktree_return_conflicts_retain_both_sides_without_source_or_git_writes() {
+    let fixture = LinkedCheckpointFixture::new();
+    prepare_linked_return(&fixture);
+    let main_before = metadata_bytes(&fixture.main);
+    let sdk = engine(fixture.temporary.path());
+    let base = sdk
+        .capture(&fixture.linked, CaptureOptions::default())
+        .unwrap();
+    let remote = linked_return_remote(&sdk, &fixture, base.reference());
+    write(&remote, "tracked.txt", "remote conflicting bytes\n");
+    let returned = capture_linked_return(&sdk, &remote);
+    write(&fixture.linked, "tracked.txt", "local conflicting bytes\n");
+    let before_review = metadata_bytes(&fixture.linked);
+    let review = sdk
+        .reconcile(base.reference(), &fixture.linked, returned.reference())
+        .unwrap();
+    assert_eq!(review.status, ReconciliationStatus::Conflicted);
+    assert!(review.result.is_none());
+    let conflict = review
+        .conflicts
+        .iter()
+        .find(|record| record.path == "tracked.txt")
+        .unwrap();
+    assert_eq!(
+        fs::read(&conflict.base.as_ref().unwrap().preserved_path).unwrap(),
+        b"unstaged working bytes\n"
+    );
+    assert_eq!(
+        fs::read(&conflict.local.as_ref().unwrap().preserved_path).unwrap(),
+        b"local conflicting bytes\n"
+    );
+    assert_eq!(
+        fs::read(&conflict.remote.as_ref().unwrap().preserved_path).unwrap(),
+        b"remote conflicting bytes\n"
+    );
+    assert_eq!(metadata_bytes(&fixture.linked), before_review);
+    assert_linked_return_metadata(&fixture, &main_before);
+    assert!(sdk
+        .apply(
+            &review.reference,
+            ApplyOptions {
+                quiescent: true,
+                expected_fingerprint: review.expected_fingerprint.clone(),
+            }
+        )
+        .is_err());
+    assert_eq!(metadata_bytes(&fixture.linked), before_review);
+    assert_linked_return_metadata(&fixture, &main_before);
+    assert!(sdk.accept_resolution(&review.reference, &[]).is_err());
+    assert_eq!(metadata_bytes(&fixture.linked), before_review);
+    assert_linked_return_metadata(&fixture, &main_before);
+    assert!(matches!(
+        sdk.inspect_apply(&review.reference).unwrap(),
+        ApplyState::NotStarted
+    ));
+}
