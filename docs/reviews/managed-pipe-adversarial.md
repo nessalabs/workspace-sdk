@@ -1,6 +1,6 @@
 # Managed pipe input: adversarial review
 
-**PRECLOUD ADVERSARIAL PASS: V2 source, restored local checks and semantic sensitivity accepted; no unresolved P1/P2 finding. Final acceptance requires the exact-source full cloud gate.** Separate adversarial reviewer: `workspace_handoff_adversarial_review`; other agents authored implementation/tests. Review did not run builds/probes or change production/tests.
+**FINAL ADVERSARIAL PASS for `b816ad393d32fe3576a9ceeec0fd953a33cefb95`. No unresolved P1/P2 finding within the managed pipe input/EOF scope.** Separate adversarial reviewer: `workspace_handoff_adversarial_review`; other agents authored implementation/tests. Review did not run builds/probes or change production/tests.
 
 ## Source contract
 
@@ -40,3 +40,11 @@ Actual local all-feature/all-target Clippy with denied warnings, strict document
 ## Limits
 
 Closed is endpoint closure, not child consumption, process termination or cleanup confirmation. Canceling an awaiting input future cannot revoke dispatched bytes. Bounded retained output can still gap; this API does not backpressure output producers. No child environment isolation, duplex host adapter, application migration, physical failure, live-provider qualification or arbitrary external-effects exactly-once guarantee is established. Existing native uncertainty, caller cleanup and all-writer contracts continue to apply.
+
+## Final exact-source cloud acceptance
+
+Independently inspected completed run [39168687449](https://github.com/nessalabs/workspace-sdk/actions/runs/39168687449): both Ubuntu 24.04 and macOS 15 jobs and their full `scripts/quality-gate.sh` steps succeeded at exact commit `b816ad393d32fe3576a9ceeec0fd953a33cefb95`. All 17 frozen file hashes match both the working source and that commit's Git blobs. The retained raw cloud log SHA-256 is `49a9e6fa1aae57b13259eca6f278f5ef9947e24a853542df8d366615ad88977a`.
+
+The actual log contains four successful executions of each of the four native pipe tests and two observation units: two feature selections on each OS, totaling 24 new test executions. The full gate additionally completed formatting, denied-warning Clippy, documentation, builds and retained integration checks. Four complete performance JSON objects were parsed from the raw log: three managed samples and 15 PTY samples per OS. These are observed debug-build qualification samples, not a baseline comparison, pipe-specific throughput benchmark or speedup claim.
+
+**Final decision: PASS.** The completed exact-source gate closes the earlier precloud condition. Initial failed qualification and disk-guard-interrupted probe remain retained failures/no-results as described above; later success does not retroactively change them. The source corrections, conservative uncertainty contract and scope limits in this record remain part of acceptance.

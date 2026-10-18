@@ -1,0 +1,113 @@
+{
+  "status": "ACCEPTED: exact-source full mechanical/performance gate and both independent final reviews passed",
+  "scope": "Explicit managed pipe input and idempotent EOF; ordinary one-shot and PTY behavior retained",
+  "source": {
+    "README.md": "7cede6eaf6f44a35fe6ef73ed093e109bb03e14dd0cd38b9ffb16b9e0fb8a4ad",
+    "src/application/run.rs": "3de03ff9a82e2aab6d8bbeebd71e9527c2eb556b8dcfbda1c32e5e98ffb4d4d5",
+    "src/application/workspace.rs": "997efc3b64c2ab156ae55f68ad63c5e70d5e298bd76b7d68fb09278878cafe7e",
+    "src/domain/execution/mod.rs": "443063c547b60228c9fccbb2327f84106dee33365d8f0dbce4882410fe23c97f",
+    "src/ports/i_backend.rs": "f33d6c388676e7f1c592d5cd1ad23d411cbaf04409532528fcf5d3472b6bfac3",
+    "src/providers/managed/managed_backend.rs": "d795c5f0be92a061e744e54e801570f80ea46cb8d7a80b6f42b23636e7674e58",
+    "src/supervisor/dispatcher.rs": "518e21f83ac12096964bda563653e5fafdf03a2ed38926cd723c2485d5e63069",
+    "src/supervisor/mod.rs": "d07014c1f99d780535af812714104c4e6171f6fac5aeed931634e6678adc1e07",
+    "src/supervisor/protocol.rs": "04cde155075fd168147291ad26d6466b841d49d06686a5342ac7828605c07c09",
+    "src/supervisor/run_record.rs": "aeaeb04169ea3524a0a0996c702994d4754821b8f9a90c532b8452068200388c",
+    "src/supervisor/terminal_control.rs": "0d56ce91055b8ec084ea1a4bc757428a7c1b080293799028d366a03eb54639ee",
+    "src/supervisor/workload.rs": "dcd6778a5c746c432381b98b5c933926018843a17cfc0d5896c34bdc676f6b83",
+    "docs/managed-pipe-input.md": "ca28a1aedfd0df699645e022bf2f1316df24cc8bf928265048b9aa493f5f52a6",
+    "src/domain/execution/input.rs": "d845e62348a0d8de0147a08d88331e6c6feb289c5017fe8ddffc641a005973f6",
+    "src/supervisor/control_channel.rs": "033aed296eb9926810a26ff4aa30052afff1cabf174e78e13f1276b71368f22f",
+    "src/supervisor/pipe_control.rs": "434dc404133682e8f27edd6d052f877df4a39f1b35c0ae7e9b3987af6312e1b3",
+    "tests/managed_pipe_input.rs": "09c1e867abf7e263757d1d78a20c1685b21731a2b731bc695be24b0dad7379de"
+  },
+  "local_checks": {
+    "focused": "161 passed:145library+4nativepipe+2rawoutput+10SDKworkflow",
+    "restored": "Supervisor rebuilt after mutations;161 tests passed, nativepipe1.87s/raw1.58s/workflow4.70s;outer29.68045s",
+    "clippy": "Allfeatures/alltargets-Dwarnings PASS10.01s",
+    "docs": "Strict allfeatures/no-deps PASS4.02s",
+    "fmt": "cargo fmt --all -- --check PASS",
+    "environment": "macOS arm64, Rust1.99; dedicated target/debug assertions/no incremental/jobs1"
+  },
+  "fault_probes": [
+    {
+      "name": "eof-noop",
+      "path": "src/supervisor/pipe_control.rs",
+      "original_sha256": "434dc404133682e8f27edd6d052f877df4a39f1b35c0ae7e9b3987af6312e1b3",
+      "mutated_sha256": "d1fa0a81f11ae88590b4a720c50a97910a176990016871cd3f8a5c60330bc075",
+      "build_exit": 0,
+      "test_exit": 101,
+      "assertion_failure": true,
+      "exact_source_restored": true
+    },
+    {
+      "name": "legacy-hash",
+      "path": "src/supervisor/workload.rs",
+      "original_sha256": "dcd6778a5c746c432381b98b5c933926018843a17cfc0d5896c34bdc676f6b83",
+      "mutated_sha256": "db84ed957bd47902eeaccb3ea7eca8ff3f51ff360d154cc225998019f1152c24",
+      "build_exit": 0,
+      "test_exit": 101,
+      "assertion_failure": true,
+      "exact_source_restored": true
+    },
+    {
+      "name": "oversized-ack-retry",
+      "path": "src/providers/managed/managed_backend.rs",
+      "original_sha256": "d795c5f0be92a061e744e54e801570f80ea46cb8d7a80b6f42b23636e7674e58",
+      "mutated_sha256": "ef27ef7cc2446d165b038f62b58713368326e4c7a592ce045058e3482030ee28",
+      "test_exit": 101,
+      "assertion_failure": true,
+      "exact_source_restored": true
+    },
+    {
+      "name": "lost-closed-retry",
+      "path": "src/supervisor/pipe_control.rs",
+      "original_sha256": "434dc404133682e8f27edd6d052f877df4a39f1b35c0ae7e9b3987af6312e1b3",
+      "mutated_sha256": "9ba660d4077cf9885dfc0cd5566e14a421e1f9f7f09357682497c9e0a7266ca4",
+      "test_exit": 101,
+      "assertion_failure": true,
+      "exact_source_restored": true
+    }
+  ],
+  "initial_failures": [
+    "Initial native check passed145library and3/4pipe tests; post-EOF expectedConflict assertion failed, actual outcome was unlogged. V2 restores legacy PTY empty-input behavior, closesstdin before terminal publication and gates live-owner refusal independently from teardown.",
+    "First oversized-ACK mutation attempt stopped by600MiB disk guard during compilation; no assertion result. Source restored, inactive regenerable SDK artifacts retired after consumers ended; retry caught expected assertion."
+  ],
+  "limits": [
+    "Accepted prefix means kernel-pipe admission, not child consumption or arbitrary effects. Unknown input cannot be replayed.",
+    "Closed means endpoint closure, not process termination. Lost ownership cannot establish Closed.",
+    "During owner teardown fresh input may return Unknown or unavailable-owner error after prior Closed; endpoint never reopens.",
+    "Retained output may gap and does not backpressure producer.",
+    "No clean child environment boundary, duplex agent adapter, application migration, live remote transport, or physical host-failure qualification."
+  ],
+  "cloud": {
+    "run": "https://github.com/nessalabs/workspace-sdk/actions/runs/39168687449",
+    "source_commit": "b816ad393d32fe3576a9ceeec0fd953a33cefb95",
+    "ubuntu_24_04": "success",
+    "macos_15": "success",
+    "script": "scripts/quality-gate.sh",
+    "new_test_executions": {
+      "piped_binary_prefixes_eof_reconnect_and_mode_identity": 4,
+      "piped_admission_bounds_and_wrong_targets_refuse_before_effects": 4,
+      "pipe_backpressure_and_stalled_control_client_do_not_block_cancellation": 4,
+      "ambiguous_pipe_acknowledgements_never_replay_input_and_eof_retries_are_idempotent": 4,
+      "disappeared_pipe_owner_never_acknowledges_eof": 4,
+      "terminal_nonpipe_claim_cannot_acknowledge_pipe_eof": 4
+    },
+    "total_new_test_executions": 24,
+    "performance": "3managed/15PTYsamplesperOS; actual performance.json; functional samples, not statistical baseline",
+    "raw_log_sha256": "49a9e6fa1aae57b13259eca6f278f5ef9947e24a853542df8d366615ad88977a",
+    "metadata_sha256": "d7c898641e32a0d75e8b0d5333b4202fe606fbe3598b5c3ce3d36fb16c5a0137"
+  },
+  "reviews": [
+    {
+      "path": "docs/reviews/managed-pipe-quality.md",
+      "sha256": "1d9fe055b77525f16298c06e7c1650d5cb1d21ca97f7fca34fc0cf66edfc4122",
+      "decision": "FINAL PASS; no unresolved P1/P2"
+    },
+    {
+      "path": "docs/reviews/managed-pipe-adversarial.md",
+      "sha256": "f378f4bceb6b9a6f71c731e122daa21081e40b05b3e39515c4222c97b88080d0",
+      "decision": "FINAL PASS; no unresolved P1/P2"
+    }
+  ]
+}
