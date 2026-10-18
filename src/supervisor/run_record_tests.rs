@@ -1,5 +1,7 @@
 //! Deterministic status/lock ordering on real disposable files and OS locks.
 //! These force a possible interleaving, not the cause of any particular CI failure.
+//! Explicit fixture unlock releases flock ownership across descriptors inherited
+//! by unrelated concurrent test children. Native production release is unchanged.
 use super::{filesystem, inspect, inspect_after_status};
 use crate::RunState;
 use std::fs;
@@ -25,6 +27,7 @@ fn terminal_publication_between_status_read_and_lock_check_is_not_lost() {
             // then release liveness. No sleep or probabilistic thread race.
             filesystem::write_json(&path.join("status.json"), &terminal).unwrap();
             let published = fs::read(path.join("status.json")).unwrap();
+            fs2::FileExt::unlock(&owner).unwrap();
             drop(owner);
             assert_eq!(inspect_after_status(path, observed).unwrap(), terminal);
             assert_eq!(inspect(path).unwrap(), terminal);
@@ -43,6 +46,7 @@ fn held_native_liveness_lock_keeps_active_observations_active() {
         let observed = filesystem::read_json(&path.join("status.json")).unwrap();
         assert_eq!(inspect_after_status(path, observed).unwrap(), active);
         assert_eq!(inspect(path).unwrap(), active);
+        fs2::FileExt::unlock(&owner).unwrap();
         drop(owner);
     }
 }
@@ -54,13 +58,17 @@ fn released_lock_with_still_active_status_remains_unknown_not_terminal() {
         let path = temporary.path();
         let owner = filesystem::lock(&path.join("active.lock")).unwrap();
         filesystem::write_json(&path.join("status.json"), &active).unwrap();
-        let observed = filesystem::read_json(&path.join("status.json")).unwrap();
+        let observed: RunState = filesystem::read_json(&path.join("status.json")).unwrap();
+        assert_eq!(observed, active);
         let original = fs::read(path.join("status.json")).unwrap();
-        drop(owner); // Simulate disappeared liveness without a stopped receipt.
-        let after = inspect_after_status(path, observed).unwrap();
+        fs2::FileExt::unlock(&owner).unwrap();
+        // Simulate disappeared liveness without a stopped receipt.
+        drop(owner);
+        // Consume one real liveness observation. A second query could observe
+        // a probe descriptor inherited by an unrelated concurrent fork.
+        let after = inspect(path).unwrap();
         assert!(matches!(after, RunState::Lost { .. }));
         assert!(!after.is_terminal());
-        assert!(matches!(inspect(path).unwrap(), RunState::Lost { .. }));
         assert_eq!(fs::read(path.join("status.json")).unwrap(), original);
     }
 }
@@ -100,6 +108,7 @@ fn freshly_published_lost_reason_is_preserved_without_claiming_terminal_completi
         };
         filesystem::write_json(&path.join("status.json"), &lost).unwrap();
         let published = fs::read(path.join("status.json")).unwrap();
+        fs2::FileExt::unlock(&owner).unwrap();
         drop(owner);
         let result = inspect_after_status(path, observed).unwrap();
         assert_eq!(result, lost);
@@ -122,6 +131,7 @@ fn missing_or_malformed_status_after_liveness_release_is_an_error() {
         } else {
             fs::write(path.join("status.json"), b"invalid status JSON").unwrap();
         }
+        fs2::FileExt::unlock(&owner).unwrap();
         drop(owner);
         assert!(inspect_after_status(path, observed).is_err());
         assert!(inspect(path).is_err());
