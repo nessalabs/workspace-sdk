@@ -157,7 +157,9 @@ fn closed_peer_and_partial_eof_remain_incomplete_state_errors() {
         if partial {
             writer.write_all(b"partial without newline").unwrap();
         }
-        drop(writer);
+        // Retain the peer while closing its write half: macOS rejects setting
+        // SO_RCVTIMEO after the peer is fully closed, before read can observe EOF.
+        writer.shutdown(std::net::Shutdown::Write).unwrap();
         let result = read_frame(&mut reader, Duration::from_secs(2));
         assert!(matches!(result, Err(Error::State(_))), "{result:?}");
     }
