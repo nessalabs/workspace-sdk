@@ -6,13 +6,25 @@ use super::scanner::*;
 use crate::checkpoint::domain::*;
 use crate::{Error, Result};
 use std::collections::BTreeSet;
+use std::fs;
+use std::io::ErrorKind;
 use std::path::Path;
 use std::str::from_utf8;
 
 impl GitCheckpointEngine {
     pub(super) fn tracked(&self, root: &Path) -> Result<BTreeSet<String>> {
         let probe = self.git_raw(Some(root), ["rev-parse", "--is-inside-work-tree"], None)?;
-        if !probe.status.success() || probe.stdout != b"true\n" {
+        if probe.status.success() && probe.stdout != b"true\n" && probe.stdout != b"false\n" {
+            return Err(Error::State(
+                "unexpected source Git worktree probe result".into(),
+            ));
+        }
+        if !probe.status.success() || probe.stdout == b"false\n" {
+            if has_git_marker(root)? {
+                return Err(Error::State(
+                    "source Git metadata is unavailable; refusing incomplete file selection".into(),
+                ));
+            }
             return Ok(BTreeSet::new());
         }
         let output = self.git(Some(root), ["ls-files", "--stage", "-z", "--", "."], None)?;
@@ -83,5 +95,48 @@ impl GitCheckpointEngine {
             destination,
             fingerprint: tree.fingerprint()?,
         })
+    }
+}
+
+/// A failed Git probe cannot turn a recognizable worktree into a plain directory.
+/// Include ancestor markers for subdirectory captures and use no-follow metadata
+/// so a dangling marker symlink is still evidence of unavailable Git state.
+fn has_git_marker(root: &Path) -> Result<bool> {
+    for directory in root.ancestors() {
+        match fs::symlink_metadata(directory.join(".git")) {
+            Ok(_) => return Ok(true),
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn marker_detection_includes_ancestors_and_any_existing_entry_kind() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().join("project/nested");
+        std::fs::create_dir_all(&root).unwrap();
+        assert!(!has_git_marker(&root).unwrap());
+        let marker = root.parent().unwrap().join(".git");
+        std::fs::write(&marker, b"invalid pointer").unwrap();
+        assert!(has_git_marker(&root).unwrap());
+        std::fs::remove_file(&marker).unwrap();
+        std::fs::create_dir(&marker).unwrap();
+        assert!(has_git_marker(&root).unwrap());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn dangling_git_marker_symlink_still_prevents_non_git_fallback() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().join("project");
+        std::fs::create_dir(&root).unwrap();
+        std::os::unix::fs::symlink("missing-metadata", root.join(".git")).unwrap();
+        assert!(has_git_marker(&root).unwrap());
     }
 }

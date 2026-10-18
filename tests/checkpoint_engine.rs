@@ -124,6 +124,249 @@ fn tracked_secrets_are_removed_and_git_index_is_untouched() {
     assert_eq!(original, fs::read(source.join(".git/index")).unwrap());
 }
 
+// Only disposable fixture repositories use this configuration isolation. The
+// checkpoint engine still exercises its real source-repository inspection.
+fn linked_fixture_git(root: &Path, args: &[&str]) -> Vec<u8> {
+    let mut command = Command::new("git");
+    for (key, _) in std::env::vars_os() {
+        if key.to_str().is_some_and(|key| key.starts_with("GIT_")) {
+            command.env_remove(key);
+        }
+    }
+    let output = command
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .args([
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "commit.gpgSign=false",
+            "-c",
+            "user.name=fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "-C",
+        ])
+        .arg(root)
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "fixture Git failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output.stdout
+}
+
+struct LinkedCheckpointFixture {
+    temporary: tempfile::TempDir,
+    main: std::path::PathBuf,
+    linked: std::path::PathBuf,
+    pointer: Vec<u8>,
+    metadata: std::collections::BTreeMap<std::path::PathBuf, Vec<u8>>,
+}
+
+fn metadata_bytes(root: &Path) -> std::collections::BTreeMap<std::path::PathBuf, Vec<u8>> {
+    let mut files = std::collections::BTreeMap::new();
+    let mut directories = vec![root.to_owned()];
+    while let Some(directory) = directories.pop() {
+        for entry in fs::read_dir(directory).unwrap() {
+            let path = entry.unwrap().path();
+            let kind = fs::symlink_metadata(&path).unwrap().file_type();
+            if kind.is_dir() {
+                directories.push(path);
+            } else {
+                assert!(kind.is_file(), "fixture metadata must be regular");
+                files.insert(
+                    path.strip_prefix(root).unwrap().to_owned(),
+                    fs::read(path).unwrap(),
+                );
+            }
+        }
+    }
+    files
+}
+
+impl LinkedCheckpointFixture {
+    fn new() -> Self {
+        let temporary = tempfile::tempdir().unwrap();
+        let main = directory(temporary.path(), "main").canonicalize().unwrap();
+        linked_fixture_git(
+            &main,
+            &["init", "--quiet", "--template=", "--initial-branch=main"],
+        );
+        linked_fixture_git(&main, &["config", "--local", "core.hooksPath", "/dev/null"]);
+        linked_fixture_git(&main, &["config", "--local", "commit.gpgSign", "false"]);
+        write(&main, ".gitignore", "tracked.txt\nignored.txt\n");
+        write(
+            &main,
+            "tracked.txt",
+            "tracked bytes must survive selection\n",
+        );
+        write(&main, "nested/tracked.txt", "nested tracked bytes\n");
+        linked_fixture_git(&main, &["add", ".gitignore"]);
+        linked_fixture_git(
+            &main,
+            &["add", "--force", "tracked.txt", "nested/tracked.txt"],
+        );
+        linked_fixture_git(
+            &main,
+            &["commit", "--quiet", "-m", "tracked ignored fixture"],
+        );
+        let linked = temporary.path().canonicalize().unwrap().join("linked");
+        linked_fixture_git(
+            &main,
+            &[
+                "worktree",
+                "add",
+                "--quiet",
+                "--no-track",
+                "-b",
+                "linked",
+                linked.to_str().unwrap(),
+                "HEAD",
+            ],
+        );
+        assert!(
+            linked.join(".git").is_file(),
+            "must exercise a linked .git pointer"
+        );
+        assert_eq!(
+            linked_fixture_git(&linked, &["ls-files", "--error-unmatch", "tracked.txt"]),
+            b"tracked.txt\n"
+        );
+        assert_eq!(
+            linked_fixture_git(&linked, &["check-ignore", "--no-index", "tracked.txt"]),
+            b"tracked.txt\n"
+        );
+        write(&linked, "ignored.txt", "untracked ignored data\n");
+        let pointer = fs::read(linked.join(".git")).unwrap();
+        let metadata = metadata_bytes(&main.join(".git"));
+        Self {
+            temporary,
+            main,
+            linked,
+            pointer,
+            metadata,
+        }
+    }
+
+    fn assert_source_unchanged(&self, metadata_root: &Path) {
+        assert_eq!(fs::read(self.linked.join(".git")).unwrap(), self.pointer);
+        assert_eq!(metadata_bytes(metadata_root), self.metadata);
+        assert_eq!(
+            fs::read(self.linked.join("tracked.txt")).unwrap(),
+            b"tracked bytes must survive selection\n"
+        );
+        assert_eq!(
+            fs::read(self.linked.join("ignored.txt")).unwrap(),
+            b"untracked ignored data\n"
+        );
+        assert_eq!(
+            fs::read(self.linked.join("nested/tracked.txt")).unwrap(),
+            b"nested tracked bytes\n"
+        );
+    }
+
+    fn make_common_metadata_unavailable(&self) -> std::path::PathBuf {
+        // Rename only this fixture's exclusively owned common metadata. The
+        // linked pointer remains unchanged and now names unavailable metadata.
+        let retained = self.temporary.path().join("retained-git-metadata");
+        fs::rename(self.main.join(".git"), &retained).unwrap();
+        assert!(!self.main.join(".git").exists());
+        assert_eq!(metadata_bytes(&retained), self.metadata);
+        retained
+    }
+}
+
+#[test]
+fn linked_worktree_capture_and_tree_export_preserve_tracked_ignore_selection_and_source_metadata() {
+    let fixture = LinkedCheckpointFixture::new();
+    let sdk = engine(fixture.temporary.path());
+    let checkpoint = sdk
+        .capture(&fixture.linked, CaptureOptions::default())
+        .unwrap();
+    let paths: Vec<_> = checkpoint
+        .manifest
+        .entries
+        .iter()
+        .map(|entry| entry.path.as_str())
+        .collect();
+    assert!(paths.contains(&"tracked.txt"));
+    assert!(paths.contains(&"nested/tracked.txt"));
+    assert!(!paths.contains(&"ignored.txt"));
+    assert!(!paths
+        .iter()
+        .any(|path| *path == ".git" || path.starts_with(".git/")));
+    let archive = sdk.export_tree_archive(&fixture.linked).unwrap();
+    let restored = fixture.temporary.path().join("restored");
+    sdk.import_tree_archive(&archive, &restored).unwrap();
+    assert_eq!(
+        fs::read(restored.join("tracked.txt")).unwrap(),
+        b"tracked bytes must survive selection\n"
+    );
+    assert_eq!(
+        fs::read(restored.join("nested/tracked.txt")).unwrap(),
+        b"nested tracked bytes\n"
+    );
+    assert!(!restored.join("ignored.txt").exists());
+    assert!(!restored.join(".git").exists());
+    fixture.assert_source_unchanged(&fixture.main.join(".git"));
+}
+
+#[test]
+fn linked_worktree_capture_refuses_unavailable_common_metadata_instead_of_omitting_tracked_files() {
+    let fixture = LinkedCheckpointFixture::new();
+    let sdk = engine(fixture.temporary.path());
+    let retained = fixture.make_common_metadata_unavailable();
+    assert!(
+        sdk.capture(&fixture.linked, CaptureOptions::default())
+            .is_err(),
+        "a broken Git pointer must not downgrade tracked files to ignored untracked files"
+    );
+    fixture.assert_source_unchanged(&retained);
+}
+
+#[test]
+fn linked_worktree_tree_export_refuses_unavailable_common_metadata_instead_of_omitting_tracked_files(
+) {
+    let fixture = LinkedCheckpointFixture::new();
+    let sdk = engine(fixture.temporary.path());
+    let retained = fixture.make_common_metadata_unavailable();
+    assert!(
+        sdk.export_tree_archive(&fixture.linked).is_err(),
+        "tree export must not acknowledge successful omission after failed Git discovery"
+    );
+    fixture.assert_source_unchanged(&retained);
+}
+
+#[test]
+fn linked_worktree_subdirectory_refuses_a_broken_ancestor_git_pointer_for_capture_and_export() {
+    let fixture = LinkedCheckpointFixture::new();
+    let sdk = engine(fixture.temporary.path());
+    let nested = fixture.linked.join("nested");
+    // Establish that the requested subdirectory belongs to the linked Git index,
+    // while its .git marker is on an ancestor rather than the capture root.
+    assert!(!nested.join(".git").exists());
+    assert_eq!(
+        linked_fixture_git(&nested, &["ls-files", "--error-unmatch", "tracked.txt"]),
+        b"tracked.txt\n"
+    );
+    let retained = fixture.make_common_metadata_unavailable();
+    let capture = sdk.capture(&nested, CaptureOptions::default());
+    let export = sdk.export_tree_archive(&nested);
+    assert!(
+        capture.is_err(),
+        "a broken ancestor .git must not be treated as an ordinary non-Git directory"
+    );
+    assert!(
+        export.is_err(),
+        "export must also refuse failed ancestor Git discovery"
+    );
+    fixture.assert_source_unchanged(&retained);
+}
+
 #[test]
 fn clean_merge_stages_then_explicit_apply_and_rollback_preserve_excluded_files() {
     let temp = tempfile::tempdir().unwrap();
@@ -616,4 +859,22 @@ fn apply_recovers_receipt_interruption_and_retries_without_overwriting_later_edi
     assert!(
         matches!(sdk.inspect_apply(&review.reference).unwrap(), ApplyState::RolledBack { recovery } if recovery == first.recovery)
     );
+}
+
+#[test]
+fn linked_worktree_target_export_refuses_broken_git_before_archive_publication() {
+    let fixture = LinkedCheckpointFixture::new();
+    let transfer = workspace_sdk::TreeTransfer {
+        id: workspace_sdk::OperationId::new("broken-linked-export").unwrap(),
+    };
+    let archive = fixture
+        .linked
+        .join(transfer.relative_archive_path().as_str());
+    let retained = fixture.make_common_metadata_unavailable();
+    assert!(export_remote_tree(&fixture.linked, &transfer).is_err());
+    assert!(
+        !archive.exists(),
+        "failed discovery must not publish an archive"
+    );
+    fixture.assert_source_unchanged(&retained);
 }
