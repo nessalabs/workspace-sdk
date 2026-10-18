@@ -1,6 +1,6 @@
 # Conditional recovery head: independent quality review
 
-Decision: **PRECLOUD QUALITY PASS**. No open P1/P2 findings in the reviewed generic SDK source. Final acceptance still requires the complete exact-commit cloud mechanical/performance gate and a separate adversarial decision.
+Decision: **FINAL QUALITY PASS** for source commit `ed3ac4ef29c26cf20f73a9ad26192288799857f2`. No open P1/P2 findings. The exact-commit full cloud mechanical/performance gate has passed on both supported CI platforms; a separate adversarial decision remains independently required for aggregate acceptance.
 
 Reviewer: `nessa_workload_quality`. Base: `5f1bb35d2191143913ece0c4228a16d490e64135`; uncommitted changed source is pinned below. The reviewer read source, actual logs and probe failures and verified hashes; ran no builds, tests or probes.
 
@@ -31,4 +31,16 @@ Source-manifest SHA-256: `936f03656637380c9a09330b8ff1485b89c63a47ed55f79bf04bd1
 
 ## Residual limits
 
-The head precondition protects recovery authority ordering. It is not a global writer fence, a remote durability guarantee, or an external-effects exactly-once guarantee. Native fixtures qualify process/checkpoint behavior; they do not qualify physical host loss or live remote transport. An unchanged no-default dependency warning remains visible; no all-dependencies zero-warning claim is made. Full cloud mechanical/performance evidence is pending, so this is a precloud code-quality decision.
+The head precondition protects recovery authority ordering. It is not a global writer fence, a remote durability guarantee, or an external-effects exactly-once guarantee. Native fixtures qualify process/checkpoint behavior; they do not qualify physical host loss or live remote transport. An unchanged no-default dependency warning remains visible; no all-dependencies zero-warning claim is made. Final cloud evidence below completes this independent quality decision.
+
+## Final exact-commit cloud evidence
+
+[GitHub Actions run 39157524086](https://github.com/nessalabs/workspace-sdk/actions/runs/39157524086) completed successfully for exact commit `ed3ac4ef29c26cf20f73a9ad26192288799857f2` on Ubuntu 24.04 and macOS 15. Both jobs completed the entire `scripts/quality-gate.sh`, including formatting, all-feature/all-target Clippy, both feature-mode example builds, all-feature tests, SPACE-only contracts, no-default tests, strict documentation, supervisor build and both explicit native performance qualifications. Both raw job logs contain the final mechanical-completion marker.
+
+The expected-head suite passed twice per OS: all-feature and no-default configurations, eight new case executions with zero failures. Suite times were 0.35/0.36 seconds on Ubuntu and 0.94/0.94 seconds on macOS. The reviewer independently extracted all four performance JSON objects from the raw log and compared every field for exact equality with `docs/evidence/recovery-expected-head-2026-10-18/performance.json`: three managed-runtime samples and fifteen PTY samples per OS. These are actual runtime/output-load/reconnect/read/cancel and PTY interaction/resize/cancel samples, not a statistical regression baseline.
+
+All four frozen source hashes above were independently compared with both the current tree and exact candidate Git blobs; every hash matched. The final qualification-only delta correctly binds the same source hashes, run, limits and eight new executions. No production or test source changed during final review, and later evidence/review prose must not be described as a separate cloud-tested commit.
+
+Raw cloud log SHA-256: `fe8e8c8c6857b3bac839675111051610ab2f2f8e177207342e64180fca46621b`. Run metadata SHA-256: `c60fb8d0f7736c679913002fcff36811a6f1b85248c4c3cb9828be7191afa33b`. Both were independently verified against the qualification record. The reviewer did not rerun builds or tests.
+
+Final independent quality decision: **PASS**. No unresolved P1/P2 findings.

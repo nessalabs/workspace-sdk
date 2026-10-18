@@ -1,5 +1,5 @@
 {
-  "status": "Local checks and semantic probes passed; exact-commit cloud qualification and final reviews pending",
+  "status": "ACCEPTED: exact-source full mechanical gate and both independent final reviews passed",
   "scope": "Conditional canonical-head recovery using the existing owned recovery lease and pinned attempt",
   "source": {
     "README.md": "5adfa69050154ef5e04a4db53c8a73384c0751c9507eb70bd518c85ce1aaf943",
@@ -48,7 +48,29 @@
     "The exact-head check is serialized with authority publication; it does not fence global filesystem writes or external effects.",
     "Ordinary recover keeps its behavior; fresh and retained retry guards remain unchanged.",
     "No offsite durability, power-loss, physical host-failure or live provider qualification.",
-    "An existing no-default dependency warning remains visible; no zero-warning claim.",
-    "The full mechanical and performance gate awaits manual cloud execution on the exact source commit."
+    "An existing no-default dependency warning remains visible; no zero-warning claim."
+  ],
+  "cloud": {
+    "run": "https://github.com/nessalabs/workspace-sdk/actions/runs/39157524086",
+    "source_commit": "ed3ac4ef29c26cf20f73a9ad26192288799857f2",
+    "ubuntu_24_04": "success",
+    "macos_15": "success",
+    "script": "scripts/quality-gate.sh",
+    "new_test_executions": 8,
+    "performance": "3 managed and15 PTY samples per OS; actual reports performance.json",
+    "raw_log_sha256": "fe8e8c8c6857b3bac839675111051610ab2f2f8e177207342e64180fca46621b",
+    "metadata_sha256": "c60fb8d0f7736c679913002fcff36811a6f1b85248c4c3cb9828be7191afa33b"
+  },
+  "reviews": [
+    {
+      "path": "docs/reviews/2026-10-18-recovery-head-quality.md",
+      "sha256": "f329e790b9fd09d02bb29328b3865b6e0631220890daf54942d38f3a36a4d621",
+      "decision": "FINAL PASS; no unresolved P1/P2"
+    },
+    {
+      "path": "docs/reviews/2026-10-18-recovery-head-adversarial.md",
+      "sha256": "626b45dd237ec90a83096755073696b1f89af0df478136cc4ed5f8d704fc3e84",
+      "decision": "FINAL PASS; no unresolved P1/P2"
+    }
   ]
 }

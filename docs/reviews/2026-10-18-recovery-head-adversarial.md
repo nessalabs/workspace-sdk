@@ -1,6 +1,6 @@
 # Conditional recovery head: adversarial review
 
-**Precloud source PASS; final acceptance pending exact-commit cloud qualification.** Separate adversarial reviewer: `workspace_handoff_adversarial_review`. No unresolved P1/P2 source finding remains. Other agents authored implementation/tests; this reviewer read actual source and evidence without running builds or probes.
+**FINAL PASS** for exact source `ed3ac4ef29c26cf20f73a9ad26192288799857f2`. Separate adversarial reviewer: `workspace_handoff_adversarial_review`. No unresolved P1/P2 finding remains. Other agents authored implementation/tests; this reviewer read actual source and evidence without running builds or probes.
 
 `recover_at_head` addresses a concrete epoch-only admission gap: another publication can advance the canonical head without advancing the current epoch. A new conditional recovery now compares the complete expected head after acquiring the existing recovery effect lease and loading the session, before preparation or provider effects. Recognized exact retries compare the attempt's original pinned checkpoint instead of the later committed head, preserving accepted-run reconnection after publication. Ordinary `recover` behavior, the existing journal/CAS/phases and retained-kind rejection remain unchanged.
 
@@ -10,4 +10,10 @@ Three actual semantic mutations fail the intended runtime assertions with exit 1
 
 The four-file v2 source manifest independently matches the checkout; raw manifest SHA256 `936f03656637380c9a09330b8ff1485b89c63a47ed55f79bf04bd1304f52d6aa`. Local affected checks passed 169 cases; final restored expected-head cases passed 2/2 in 2.73 seconds. All-feature/all-target Clippy with denied warnings, strict docs and fmt passed. The initial test compile error and shared-fixture dead-code Clippy failure remain retained in the [qualification record](../evidence/recovery-expected-head-2026-10-18/qualification.json). The final narrow allow applies only to the imported broader test fixture module, with explanation; production lint policy and both behavioral oracles are unchanged.
 
-Final acceptance requires full exact-source cloud results and final evidence review. This method binds canonical recovery input under the SDK lease; it is not a global filesystem/process fence, remote durability proof, provider qualification or external-effect transaction. Caller quiescence and existing native uncertainty contracts remain required.
+## Final qualification
+
+[Exact-source cloud run 39157524086](https://github.com/nessalabs/workspace-sdk/actions/runs/39157524086) completed successfully on macOS 15 and Ubuntu 24.04. Independently verified both completed successful job records, matching source SHA, raw log SHA256 `fe8e8c8c6857b3bac839675111051610ab2f2f8e177207342e64180fca46621b` and metadata SHA256 `c60fb8d0f7736c679913002fcff36811a6f1b85248c4c3cb9828be7191afa33b`. Both new test names pass four times: both feature selections on both OS, eight executions. The complete mechanical script passed, including retained tests, all-target/all-feature Clippy, fmt, strict docs and builds/examples. Known no-default dependency warnings remain visible; no zero-warning claim is made.
+
+All four complete saved performance report objects independently match raw-log decoding: three managed and fifteen PTY samples per OS, debug macOS aarch64 and Linux x86_64. They are hosted qualification observations, not a statistical regression baseline or a measured performance claim for this conditional check. Final public evidence source hashes/counts/log and metadata hashes agree with actual files. The reviewed four-file manifest still matches source after probe restoration.
+
+This method binds canonical recovery input under the SDK lease; it is not a global filesystem/process fence, remote durability proof, provider qualification or external-effect transaction. Caller quiescence and existing native uncertainty contracts remain required.
