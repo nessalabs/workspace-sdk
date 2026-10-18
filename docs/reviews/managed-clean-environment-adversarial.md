@@ -1,6 +1,6 @@
 # Managed clean environment: adversarial review
 
-**PRECLOUD ADVERSARIAL PASS. No unresolved P1/P2 finding; final acceptance requires the exact-source full cloud gate.** Independent reviewer: `workspace_handoff_adversarial_review`. Other agents authored production/tests; this reviewer ran no builds or probes and changed only this record.
+**FINAL ADVERSARIAL PASS for `7ff5c9b0d33af85545f6cb11b5c19c3e959c0700`. No unresolved P1/P2 finding within the explicit managed-pipe child environment scope.** Independent reviewer: `workspace_handoff_adversarial_review`. Other agents authored production/tests; this reviewer ran no builds or probes and changed only this record.
 
 ## Source and boundary assessment
 
@@ -31,3 +31,19 @@ A rebuilt restored supervisor passed before rerunning all three new native cases
 **Precloud PASS:** source, local qualification, mutation sensitivity and exact restoration are consistent. No unresolved P1/P2 finding remains. Full remote qualification is pending.
 
 This is environment construction, not an executable/filesystem sandbox or secret-output sanitizer. Absolute launchers, interpreters and the operating system can introduce variables themselves. No PATH/HOME/locale/loader defaults are reconstructed. Supervisor/transport environments and credentials are unaffected. No agent host adapter, application migration, physical failure, arbitrary external-effects exactly-once guarantee or live-provider qualification is established. Existing input ambiguity, retained-output gaps and cleanup responsibilities remain unchanged. Local timings are observations, not a baseline or speedup claim.
+
+## Final exact-source qualification
+
+Independently inspected [full cloud run 39170044183](https://github.com/nessalabs/workspace-sdk/actions/runs/39170044183): Ubuntu 24.04 and macOS 15 jobs and both full `scripts/quality-gate.sh` steps completed successfully at exact commit `7ff5c9b0d33af85545f6cb11b5c19c3e959c0700`. All nine frozen source hashes match both working files and the candidate's Git blobs. Raw cloud log SHA-256: `f11f91f42a1d618b55ab91826e47215793b416c1f05bd3ef7b569af9faa57820`.
+
+The raw log contains four successful executions of each of the three new native cases: two feature selections on each OS, totaling 12 new executions. Full qualification also completed formatting, denied-warning Clippy, strict documentation, builds and retained suites. Four complete performance objects parsed from that log match the saved [performance evidence](../evidence/managed-clean-environment-2026-10-18/performance.json): three managed and 15 PTY samples per OS. These debug-build observations are retained qualification data, not a clean-environment performance baseline or speedup claim.
+
+**FINAL PASS.** The exact-source remote result closes the earlier precloud condition. All source contract limits above remain part of acceptance; no broader environment sandbox, adapter or live-provider claim follows from this gate.
+
+## Subsequent documentation-only scope
+
+Reviewed the added AGENTS external-learning rule and [credited LayerFS study](../research/layerfs-learning.md). Independently opened the pinned upstream LICENSE at `16e622e27278396c2cb822b0b0cc75ad03a7102c`: MIT, copyright 2026 Ephemeral-AI, with notice preservation required for copies or substantial portions. The study credits upstream, distinguishes preexisting SDK behavior from the new unimplemented inspection proposal and states that no upstream implementation was imported. It does not turn an MIT finding into a universal legality or unrelated-material license claim. The rule appropriately requires revision-specific license review and credit without claiming every non-MIT license prohibits learning or reuse.
+
+Pinned upstream preview storage documentation explicitly excludes crash/power-loss durability; the replacement core guide separately identifies its disposable profile and incomplete integrated qualification. Actual Commit/Close sources support the study's separate publication/teardown and retained-failure-ownership observations. These are credited design lessons, not SDK qualification evidence.
+
+**Documentation scope PASS.** All nine frozen feature hashes still match. This prose-only extension adds no dependency or Rust behavior; the earlier exact-source cloud gate remains the Rust qualification, with no new test execution claimed for these documentation additions.
