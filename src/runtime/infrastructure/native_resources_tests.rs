@@ -3,6 +3,7 @@
 //! sole workload; no PATH mutation, detached grandchildren or numeric PID signals.
 use super::collect_gpus;
 use std::{
+    io::{Seek, SeekFrom},
     os::{
         fd::{AsRawFd, OwnedFd},
         unix::net::UnixStream,
@@ -154,19 +155,69 @@ fn complete_gpu_csv_requires_successful_exit_and_valid_utf8() {
     .is_empty());
 }
 
+/// The byte-limit oracle uses real child output in a private, finite file.
+/// This isolates byte acceptance from unrelated concurrent pre-exec children
+/// temporarily inheriting pipe writers; live-stream/EOF timing has separate tests.
+fn finite_output_fixture(script: &str, expected_bytes: u64) -> Child {
+    assert!(expected_bytes <= 65_537);
+    let mut output = tempfile::tempfile().unwrap();
+    let mut child = Command::new("/bin/sh")
+        .args(["-c", script])
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(output.try_clone().unwrap()))
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let status = loop {
+        let length = match output.metadata() {
+            Ok(metadata) => metadata.len(),
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("cannot inspect finite GPU fixture output: {error}");
+            }
+        };
+        if length > 65_537 || Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("finite GPU fixture exceeded its byte or execution bound");
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => thread::sleep(Duration::from_millis(5)),
+            Err(error) => {
+                // ECHILD means this handle no longer establishes ownership;
+                // never signal a possibly reused numeric process identity.
+                if error.raw_os_error() != Some(libc::ECHILD) {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+                panic!("cannot establish finite GPU fixture ownership: {error}");
+            }
+        }
+    };
+    assert!(status.success(), "finite GPU fixture producer failed");
+    assert_eq!(output.metadata().unwrap().len(), expected_bytes);
+    output.seek(SeekFrom::Start(0)).unwrap();
+    let reader: OwnedFd = output.into();
+    child.stdout = Some(ChildStdout::from(reader));
+    child
+}
+
 #[test]
 fn gpu_output_byte_limit_accepts_exact_boundary_and_rejects_one_extra_byte() {
     // Seven CSV bytes followed by padding: without the byte guard, the first
     // device remains parseable even when the final row is merely whitespace.
     let exact = collect_gpus(
-        fixture("printf 'GPU, 1\\n'; printf '%65529s' ''"),
+        finite_output_fixture("printf 'GPU, 1\\n'; printf '%65529s' ''", 65_536),
         Duration::from_secs(2),
     );
     assert_eq!(exact.len(), 1);
     assert_eq!(exact[0].model, "GPU");
     assert_eq!(exact[0].memory_mib, 1);
     let over = collect_gpus(
-        fixture("printf 'GPU, 1\\n'; printf '%65530s' ''"),
+        finite_output_fixture("printf 'GPU, 1\\n'; printf '%65530s' ''", 65_537),
         Duration::from_secs(2),
     );
     assert!(
