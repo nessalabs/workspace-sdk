@@ -20,3 +20,29 @@ jobs:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
       - run: scripts/quality-gate.sh
+
+  live-artifacts:
+    timeout-minutes: 30
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+      - run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - uses: Swatinem/rust-cache@v2
+      - name: Build static native live-test artifacts
+        run: |
+          cargo build --locked --release --no-default-features --target x86_64-unknown-linux-musl --bin workspace-supervisor
+          rustc --edition=2021 --target x86_64-unknown-linux-musl -C opt-level=2 tests/support/workload.rs -o target/x86_64-unknown-linux-musl/release/boat-live-workload
+          sha256sum target/x86_64-unknown-linux-musl/release/workspace-supervisor target/x86_64-unknown-linux-musl/release/boat-live-workload > target/boat-live-sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boat-live-linux-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 3
+          path: |
+            target/x86_64-unknown-linux-musl/release/workspace-supervisor
+            target/x86_64-unknown-linux-musl/release/boat-live-workload
+            target/boat-live-sha256.txt
