@@ -311,6 +311,55 @@ impl IBackend for ManagedBackend {
             .await?
             .empty()
     }
+    async fn list_directory(&self, request: ListDirectory) -> Result<DirectoryPage> {
+        request.validate()?;
+        let expected_request = request.clone();
+        match self
+            .target
+            .invoke(self.protocol_request(SupervisorOperation::ListDirectory(request)))
+            .await?
+        {
+            SupervisorValue::DirectoryPage(page) => {
+                page.validate_for(&expected_request)?;
+                Ok(page)
+            }
+            _ => Err(Error::State("invalid directory response".into())),
+        }
+    }
+    async fn read_versioned_file(&self, request: ReadVersionedFile) -> Result<VersionedFileChunk> {
+        request.validate()?;
+        let offset = request.offset;
+        let limit = request.limit;
+        let expected = request.expected.clone();
+        match self
+            .target
+            .invoke(self.protocol_request(SupervisorOperation::ReadVersionedFile(request)))
+            .await?
+        {
+            SupervisorValue::VersionedFileChunk(chunk)
+                if crate::domain::workspace::file_browser::valid_revision(&chunk.revision)
+                    && chunk.bytes.len() <= limit as usize
+                    && offset.checked_add(chunk.bytes.len() as u64) == Some(chunk.next_offset)
+                    && (!chunk.bytes.is_empty() || chunk.eof)
+                    && expected.is_none_or(|revision| revision == chunk.revision) =>
+            {
+                Ok(chunk)
+            }
+            _ => Err(Error::State("invalid versioned file response".into())),
+        }
+    }
+    async fn publish_file(&self, request: PublishFile) -> Result<PublishOutcome> {
+        request.validate()?;
+        match self
+            .target
+            .invoke(self.protocol_request(SupervisorOperation::PublishFile(request)))
+            .await
+        {
+            Ok(SupervisorValue::PublishOutcome(outcome)) => Ok(outcome),
+            Ok(SupervisorValue::PublishRejected(fault)) => Err(fault.into_error()),
+            Ok(_) | Err(_) => Ok(PublishOutcome::Unknown),
+        }
+    }
     async fn inspect_run(&self, run: &RunRef) -> Result<RunState> {
         self.validate_run(run)?;
         self.target

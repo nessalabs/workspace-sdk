@@ -319,7 +319,7 @@ pub fn working_directory(
     directory(&full, false)?;
     Ok(full)
 }
-fn project_file(root: &Path, path: &WorkspacePath, write: bool) -> Result<File> {
+pub(super) fn project_file(root: &Path, path: &WorkspacePath, write: bool) -> Result<File> {
     let file_path = Path::new(path.as_str());
     let name = file_path
         .file_name()

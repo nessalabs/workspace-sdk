@@ -22,6 +22,18 @@ pub trait IBackend: Send + Sync {
     async fn read_file(&self, request: ReadFile) -> Result<FileChunk>;
     /// Write a bounded binary chunk, preserving the requested executable mode.
     async fn write_file(&self, request: WriteFile) -> Result<()>;
+    /// List one directory without recursively loading content. Unsupported providers refuse.
+    async fn list_directory(&self, _request: ListDirectory) -> Result<DirectoryPage> {
+        Err(Error::Unsupported("directory listing".into()))
+    }
+    /// Read with target-side revision checks; never silently fall back to chunk reads.
+    async fn read_versioned_file(&self, _request: ReadVersionedFile) -> Result<VersionedFileChunk> {
+        Err(Error::Unsupported("revision-bound file reads".into()))
+    }
+    /// Publish according to an enforced precondition. Never retry an unknown outcome.
+    async fn publish_file(&self, _request: PublishFile) -> Result<PublishOutcome> {
+        Err(Error::Unsupported("conditional file publication".into()))
+    }
     /// Export a filtered tree to this transfer’s scoped staging file.
     async fn export_tree(&self, _transfer: &TreeTransfer) -> Result<TreeExportReceipt> {
         Err(Error::Unsupported("file-tree export".into()))

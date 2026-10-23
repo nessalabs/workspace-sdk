@@ -90,6 +90,30 @@ impl Workspace {
     pub async fn write_file(&self, request: WriteFile) -> Result<()> {
         self.backend.write_file(request).await
     }
+    /// Observe one expanded directory through caller-driven complete reconciliation.
+    /// No watcher is installed. Poll on your timer, back off on failure, and reset
+    /// the UI when the first result says reset. Drop to release retained metadata.
+    pub fn observe_directory(&self, path: crate::WorkspacePath) -> super::DirectoryObserver {
+        super::DirectoryObserver::new(self.clone(), path)
+    }
+    /// List a bounded directory page; stale continuations must restart from the beginning.
+    pub async fn list_directory(
+        &self,
+        request: crate::ListDirectory,
+    ) -> Result<crate::DirectoryPage> {
+        self.backend.list_directory(request).await
+    }
+    /// Read bytes tied to a revision. Keep its token across chunks and reject stale buffers.
+    pub async fn read_versioned_file(
+        &self,
+        request: crate::ReadVersionedFile,
+    ) -> Result<crate::VersionedFileChunk> {
+        self.backend.read_versioned_file(request).await
+    }
+    /// Publish only where the target enforces the requested precondition.
+    pub async fn publish_file(&self, request: crate::PublishFile) -> Result<crate::PublishOutcome> {
+        self.backend.publish_file(request).await
+    }
     /// Request access to an already-listening service with the specified access policy.
     pub async fn port(&self, request: PortRequest) -> Result<PortAccess> {
         self.backend.port(request).await

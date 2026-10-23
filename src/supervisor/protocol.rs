@@ -59,6 +59,9 @@ pub enum SupervisorOperation {
         truncate: bool,
         executable: bool,
     },
+    ListDirectory(crate::ListDirectory),
+    ReadVersionedFile(crate::ReadVersionedFile),
+    PublishFile(crate::PublishFile),
     Start {
         id: RunId,
         execution: Box<SupervisorExecution>,
@@ -127,10 +130,13 @@ impl SupervisorOperation {
             Self::Start { .. }
             | Self::StartTerminal { .. }
             | Self::TerminalInput { .. }
+            | Self::PublishFile(..)
             | Self::WriteFile { .. }
             | Self::WritePrivateFile { .. } => true,
             Self::Initialize { .. }
             | Self::Ready
+            | Self::ListDirectory(..)
+            | Self::ReadVersionedFile(..)
             | Self::ReadFile { .. }
             | Self::TerminalResize { .. }
             | Self::Inspect { .. }
@@ -178,6 +184,11 @@ pub struct TransferredFileChunk {
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum SupervisorValue {
     Empty,
+    DirectoryPage(crate::DirectoryPage),
+    VersionedFileChunk(crate::VersionedFileChunk),
+    PublishOutcome(crate::PublishOutcome),
+    /// Target rejection before publication; transport failures remain Unknown.
+    PublishRejected(SupervisorFault),
     Run(RunState),
     Input(InputOutcome),
     /// Definitive rejection established before any input could be dispatched.
