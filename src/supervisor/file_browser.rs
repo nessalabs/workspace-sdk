@@ -1,23 +1,27 @@
-//! Linux descriptor-anchored observations and exclusive publication.
+//! POSIX descriptor-anchored observations; exclusive publication remains Linux-only.
 use super::{filesystem, protocol::SupervisorContext};
 use crate::{
-    DirectoryCursor, DirectoryEntry, DirectoryPage, Error, FileKind, FilePrecondition,
-    FileRevision, ListDirectory, PublishFile, PublishOutcome, ReadVersionedFile, Result,
-    VersionedFileChunk, WorkspacePath,
+    DirectoryCursor, DirectoryEntry, DirectoryPage, Error, FileKind, FileRevision, ListDirectory,
+    ReadVersionedFile, Result, VersionedFileChunk, WorkspacePath,
 };
 use sha2::{Digest, Sha256};
 use std::{
-    ffi::CString,
     fs,
-    io::{Read, Seek, SeekFrom, Write},
+    io::{Read, Seek, SeekFrom},
+    os::unix::fs::MetadataExt,
+    path::Path,
+};
+
+#[cfg(target_os = "linux")]
+use crate::{FilePrecondition, PublishFile, PublishOutcome};
+#[cfg(target_os = "linux")]
+use std::{
+    ffi::CString,
+    io::Write,
     os::{
         fd::{AsRawFd, FromRawFd},
-        unix::{
-            ffi::OsStrExt,
-            fs::{MetadataExt, PermissionsExt},
-        },
+        unix::{ffi::OsStrExt, fs::PermissionsExt},
     },
-    path::{Path, PathBuf},
 };
 
 const MAX_ENTRIES: usize = 4096;
@@ -29,13 +33,30 @@ fn checked_path(path: &WorkspacePath) -> Result<()> {
     }
     Ok(())
 }
-fn anchor(file: &fs::File) -> PathBuf {
-    PathBuf::from(format!("/proc/self/fd/{}", file.as_raw_fd()))
-}
 fn revision(
     context: &SupervisorContext,
     path: &WorkspacePath,
     metadata: &fs::Metadata,
+) -> FileRevision {
+    revision_values(
+        context,
+        path,
+        &[
+            metadata.dev(),
+            metadata.ino(),
+            metadata.len(),
+            metadata.mode() as u64,
+            metadata.mtime() as u64,
+            metadata.mtime_nsec() as u64,
+            metadata.ctime() as u64,
+            metadata.ctime_nsec() as u64,
+        ],
+    )
+}
+fn revision_values(
+    context: &SupervisorContext,
+    path: &WorkspacePath,
+    values: &[u64],
 ) -> FileRevision {
     let mut hash = Sha256::new();
     hash.update(context.workspace_id.as_str());
@@ -43,16 +64,7 @@ fn revision(
     hash.update(&context.root);
     hash.update([0]);
     hash.update(path.as_str());
-    for value in [
-        metadata.dev(),
-        metadata.ino(),
-        metadata.len(),
-        metadata.mode() as u64,
-        metadata.mtime() as u64,
-        metadata.mtime_nsec() as u64,
-        metadata.ctime() as u64,
-        metadata.ctime_nsec() as u64,
-    ] {
+    for value in values {
         hash.update(value.to_le_bytes());
     }
     FileRevision(format!("{:x}", hash.finalize()))
@@ -65,34 +77,38 @@ pub(super) fn list(context: &SupervisorContext, request: ListDirectory) -> Resul
         filesystem::directory(&Path::new(&context.root).join(request.path.as_str()), false)?;
     let before = revision(context, &request.path, &directory.metadata()?);
     let mut entries = Vec::new();
-    for entry in fs::read_dir(anchor(&directory))? {
-        let entry = entry?;
-        if entries.len() == MAX_ENTRIES {
-            return Err(Error::Unsupported(
-                "directory exceeds native 4096-entry scan bound".into(),
-            ));
-        }
-        let name = entry
-            .file_name()
-            .into_string()
-            .map_err(|_| Error::Unsupported("non-UTF-8 directory entry".into()))?;
+    for (name, metadata) in super::directory_entries::entries(&directory, MAX_ENTRIES)? {
         let path = WorkspacePath::new(format!("{}/{}", request.path.as_str(), name))?;
         checked_path(&path)?;
-        let metadata = fs::symlink_metadata(entry.path())?;
-        let kind = if metadata.is_file() {
-            FileKind::File
-        } else if metadata.is_dir() {
-            FileKind::Directory
-        } else if metadata.is_symlink() {
-            FileKind::Symlink
-        } else {
-            FileKind::Other
+        let kind = match metadata.st_mode & libc::S_IFMT {
+            libc::S_IFREG => FileKind::File,
+            libc::S_IFDIR => FileKind::Directory,
+            libc::S_IFLNK => FileKind::Symlink,
+            _ => FileKind::Other,
         };
+        #[cfg(target_os = "linux")]
+        let device = metadata.st_dev;
+        #[cfg(target_os = "macos")]
+        let device = metadata.st_dev as u64;
+        let revision = revision_values(
+            context,
+            &path,
+            &[
+                device,
+                metadata.st_ino,
+                metadata.st_size as u64,
+                metadata.st_mode as u64,
+                metadata.st_mtime as u64,
+                metadata.st_mtime_nsec as u64,
+                metadata.st_ctime as u64,
+                metadata.st_ctime_nsec as u64,
+            ],
+        );
         entries.push(DirectoryEntry {
-            revision: revision(context, &path, &metadata),
+            revision,
             path,
             kind,
-            size: metadata.len(),
+            size: metadata.st_size as u64,
         });
     }
     if revision(context, &request.path, &directory.metadata()?) != before {
@@ -177,6 +193,7 @@ pub(super) fn read(
         revision: observed,
     })
 }
+#[cfg(target_os = "linux")]
 pub(super) fn publish(context: &SupervisorContext, request: PublishFile) -> Result<PublishOutcome> {
     request.validate()?;
     if !matches!(request.expected, FilePrecondition::Missing) {
@@ -236,6 +253,7 @@ pub(super) fn publish(context: &SupervisorContext, request: PublishFile) -> Resu
     }
 }
 
+#[cfg(target_os = "linux")]
 fn anonymous_file(parent: &fs::File) -> Result<fs::File> {
     let dot = CString::new(".").expect("literal");
     let fd = unsafe {
@@ -254,7 +272,7 @@ fn anonymous_file(parent: &fs::File) -> Result<fs::File> {
     Ok(unsafe { fs::File::from_raw_fd(fd) })
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
     use std::{

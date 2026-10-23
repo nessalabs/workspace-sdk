@@ -446,7 +446,7 @@ fn snapshots_export_and_capture_archives_without_losing_tracked_ignore_selection
 }
 
 #[test]
-fn apply_file_directory_transition_and_failed_apply_rollback_are_recoverable() {
+fn apply_file_directory_transition_and_excluded_collision_are_safe() {
     let temp = tempfile::tempdir().unwrap();
     let local = directory(temp.path(), "local");
     let remote = directory(temp.path(), "remote");
@@ -495,7 +495,7 @@ fn apply_file_directory_transition_and_failed_apply_rollback_are_recoverable() {
         )
         .unwrap_err()
         .to_string();
-    assert!(failure.contains("rolled back"), "{failure}");
+    assert!(failure.contains("unselected data"), "{failure}");
     assert_eq!(
         fs::read_to_string(local.join("directory/.env")).unwrap(),
         "secret"

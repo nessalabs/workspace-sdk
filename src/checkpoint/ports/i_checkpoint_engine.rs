@@ -4,6 +4,11 @@ use std::path::Path;
 
 /// Inject this port into application workflows; transports move the bundle bytes.
 pub trait ICheckpointEngine: Send + Sync {
+    /// Effective bounds enforced across capture, archive admission, reconciliation
+    /// results, resolution and apply. Keep this configuration stable while a
+    /// dependent workflow is using the engine. Implementations must enforce the
+    /// advertised bounds before retaining oversized snapshots or publishing them.
+    fn limits(&self) -> CheckpointLimits;
     /// Capture selected files at a caller-established quiescent boundary.
     ///
     /// Mandatory exclusions always apply; untracked files also obey Git ignore
