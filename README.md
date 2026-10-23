@@ -101,4 +101,4 @@ Run `scripts/quality-gate.sh` for the mechanical and local performance checks.
 Acceptance additionally requires separate independent code-quality/design and
 adversarial agent reviews under [the coding standards](coding_standards.md).
 
-The [file browser contract](docs/state/files.md) covers the qualified first slice: bounded directory pages, revision-bound binary reads, caller-driven reconciliation and exclusive creation on Linux. Live replacement/delete/rename and automatic collaborative text merging remain outside this slice.
+The [file browser contract](docs/state/files.md) covers the qualified first slice: bounded directory pages, revision-bound binary reads, caller-driven reconciliation and exclusive creation on Linux. Portable observations also target macOS; [managed local editing](docs/state/managed-editing.md) stages create/replace/delete/rename through existing checkpoint review and caller-quiescent publication. Unattended live replacement and automatic collaborative text merging remain outside this scope.

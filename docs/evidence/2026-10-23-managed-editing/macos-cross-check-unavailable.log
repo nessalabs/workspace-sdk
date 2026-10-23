@@ -1,0 +1,100 @@
+   Compiling libc v0.2.189
+    Checking cfg-if v1.0.4
+   Compiling version_check v0.9.5
+    Checking typenum v1.20.1
+   Compiling proc-macro2 v1.0.107
+   Compiling generic-array v0.14.7
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.47
+    Checking memchr v2.8.3
+    Checking getrandom v0.2.16
+    Checking rand_core v0.6.4
+    Checking zeroize v1.9.0
+   Compiling syn v3.0.4
+   Compiling crossbeam-utils v0.8.22
+    Checking subtle v2.6.1
+    Checking crypto-common v0.1.7
+    Checking inout v0.1.4
+   Compiling serde_core v1.0.229
+    Checking cipher v0.4.4
+    Checking universal-hash v0.5.1
+    Checking errno v0.3.14
+    Checking opaque-debug v0.3.1
+   Compiling crossbeam-epoch v0.9.20
+   Compiling getrandom v0.4.3
+    Checking poly1305 v0.8.0
+    Checking chacha20 v0.9.1
+    Checking aead v0.5.2
+    Checking aho-corasick v1.1.5
+   Compiling zmij v1.0.23
+   Compiling rustix v1.1.4
+   Compiling crc32fast v1.5.1
+    Checking pty-runtime-domain v0.1.0 (https://github.com/nessalabs/pty-runtime?rev=c68837e2b7bf1c9009e1a4587a1a58107ec0425c#c68837e2)
+   Compiling pty-runtime-infrastructure v0.1.0 (https://github.com/nessalabs/pty-runtime?rev=c68837e2b7bf1c9009e1a4587a1a58107ec0425c#c68837e2)
+    Checking regex-syntax v0.8.11
+   Compiling crossbeam-deque v0.8.7
+    Checking futures-core v0.3.34
+    Checking futures-channel v0.3.34
+    Checking pty-runtime-application v0.1.0 (https://github.com/nessalabs/pty-runtime?rev=c68837e2b7bf1c9009e1a4587a1a58107ec0425c#c68837e2)
+    Checking regex-automata v0.4.18
+    Checking chacha20poly1305 v0.10.1
+    Checking block-buffer v0.10.4
+    Checking bstr v1.13.1
+    Checking log v0.4.34
+    Checking adler2 v2.0.1
+   Compiling serde v1.0.229
+    Checking simd-adler32 v0.3.10
+    Checking bitflags v2.13.1
+   Compiling serde_json v1.0.151
+   Compiling thiserror v2.0.20
+    Checking same-file v1.0.6
+    Checking globset v0.4.20
+    Checking walkdir v2.5.0
+    Checking miniz_oxide v0.9.1
+    Checking digest v0.10.7
+   Compiling thiserror-impl v2.0.20
+   Compiling serde_derive v1.0.229
+   Compiling tokio-macros v2.7.2
+    Checking signal-hook-registry v1.4.8
+    Checking mio v1.2.3
+    Checking cpufeatures v0.2.17
+    Checking pin-project-lite v0.2.17
+    Checking fastrand v2.5.0
+    Checking itoa v1.0.18
+    Checking once_cell v1.21.4
+    Checking bytes v1.12.1
+    Checking tempfile v3.27.0
+    Checking tokio v1.53.1
+    Checking sha2 v0.10.9
+error: failed to run custom build command for `pty-runtime-infrastructure v0.1.0 (https://github.com/nessalabs/pty-runtime?rev=c68837e2b7bf1c9009e1a4587a1a58107ec0425c#c68837e2)`
+
+Caused by:
+  process didn't exit successfully: `/workspace/workspace-sdk/target/debug/build/pty-runtime-infrastructure-ded2ead7b64591d3/build-script-build` (exit status: 1)
+  --- stdout
+  cargo:rerun-if-env-changed=PTY_RUNTIME_GUARDIAN_IMAGE
+  cargo:rerun-if-changed=/workspace/.cargo/git/checkouts/pty-runtime-a4a1da6c944a242c/c68837e/crates/infrastructure/../../helpers/guardian/Cargo.toml
+  cargo:rerun-if-changed=/workspace/.cargo/git/checkouts/pty-runtime-a4a1da6c944a242c/c68837e/crates/infrastructure/../../helpers/guardian/Cargo.lock
+  cargo:rerun-if-changed=/workspace/.cargo/git/checkouts/pty-runtime-a4a1da6c944a242c/c68837e/crates/infrastructure/../../helpers/guardian/src
+  cargo:rerun-if-changed=/workspace/.cargo/git/checkouts/pty-runtime-a4a1da6c944a242c/c68837e/crates/infrastructure/../../scripts/guardian/protocol.rs
+  cargo:rerun-if-changed=/workspace/.cargo/git/checkouts/pty-runtime-a4a1da6c944a242c/c68837e/crates/infrastructure/../../scripts/guardian/build.rs
+
+  --- stderr
+     Compiling libc v0.2.189
+     Compiling pty-runtime-guardian v0.1.0 (/workspace/.cargo/git/checkouts/pty-runtime-a4a1da6c944a242c/c68837e/helpers/guardian)
+  warning: invoking `"xcrun" "--sdk" "macosx" "--show-sdk-path"` to find MacOSX.sdk failed: No such file or directory (os error 2)
+    |
+    = note: the SDK is needed by the linker to know where to find symbols in system libraries and for embedding the SDK version in the final object file
+    = help: pass the path of an Xcode installation via the DEVELOPER_DIR environment variable, or an SDK with the SDKROOT environment variable
+
+  error: linking with `cc` failed: exit status: 1
+    |
+    = note:  "cc" "<1 object files omitted>" "<sysroot>/lib/rustlib/aarch64-apple-darwin/lib/libcompiler_builtins-*.rlib" "-liconv" "-lSystem" "-lc" "-lm" "-arch" "arm64" "-mmacosx-version-min=11.0.0" "-o" "/workspace/workspace-sdk/target/aarch64-apple-darwin/debug/build/pty-runtime-infrastructure-0e6197031164d11c/out/guardian-target/aarch64-apple-darwin/release/deps/pty_runtime_guardian-b47055b26b040d2e" "-Wl,-dead_strip" "-nodefaultlibs"
+    = note: some arguments are omitted. use `--verbose` to show all linker arguments
+    = note: cc: error: unrecognized command-line option '-arch'
+            cc: error: unrecognized command-line option '-mmacosx-version-min=11.0.0'
+            
+
+  warning: `pty-runtime-guardian` (bin "pty-runtime-guardian") generated 1 warning
+  error: could not compile `pty-runtime-guardian` (bin "pty-runtime-guardian") due to 1 previous error; 1 warning emitted
+  guardian image build failed: target guardian build failed
+warning: build failed, waiting for other jobs to finish...

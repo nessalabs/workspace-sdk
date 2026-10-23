@@ -124,9 +124,32 @@ replacement is Unsupported; delete/rename mutations are not introduced. Use
 checkpoint review and quiescent apply for deliberate edits. Low-level `write_file`
 remains a non-atomic transfer primitive.
 
-The current browser target is Linux with `/proc/self/fd`; exclusive publication
-also requires anonymous-file support. Local Linux is qualified; remote adapters
+Browser observations use descriptor-relative POSIX operations on Linux and macOS; exclusive publication
+requires Linux anonymous-file support. Local Linux is qualified; macOS portable tests run in CI. Remote adapters
 only carry the protocol and are not live-qualified by these tests. Directories
 above 4096 children are Unsupported. See the [full contract and state map](state/files.md)
 for metadata-token limitations, reconciliation, uncertain outcomes and remaining
 collaborative editing requirements.
+
+## Managed local edit sessions
+
+Use `ManagedEditSession` to stage a selected local tree for deliberate save. The
+engine must be constructed with `ManagedEditSession::checkpoint_limits()` or
+stricter effective bounds. Inject a `LocalEditCoordinator` with the canonical
+project directory and the shared `IWorkflowRepository`. Keep private state
+outside the project. See [the synthetic runnable example](../examples/managed_edit.rs).
+
+`begin(..., true)` captures a baseline. Carry `session.revision()` with each read,
+stage, review and apply. `stage` supports candidate create/replace/delete/rename
+without changing live files. `review(..., true)` reuses the three-way checkpoint
+engine. Resolve and acknowledge conflicts through `accept_resolution`; then use
+`apply(..., true)` for the current review. A failed/uncertain apply must be
+inspected. Completed retries preserve later edits.
+
+The `true` argument asserts actual caller-established quiescence for each live
+boundary. SDK workflow leases coordinate participants sharing the same repository
+and canonical root; they do not pause arbitrary editors. Async hosts must keep
+blocking work and lease ownership together. This is a bounded local batch-edit
+workflow, not a claim of unattended live CAS, durable session resume, remote
+managed editing or CRDT text collaboration. Read the [state and coordination
+contract](state/managed-editing.md) before integrating editor saves.

@@ -1,0 +1,5 @@
+   Compiling workspace_sdk v0.2.0 (/workspace/workspace-sdk)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.45s
+     Running `target/debug/examples/managed_edit`
+Review retained 1 conflicts without changing the project.
+Published the resolved synthetic file; recovery 06f09b18-be5d-4854-b544-86289095cb05 retained by the engine.
