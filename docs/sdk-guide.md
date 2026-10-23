@@ -108,3 +108,25 @@ This is portable file state plus an explicit continuation command. It does not m
 `destroy` is restricted to owned resources. Save its `DeleteOperation` and inspect asynchronous provider cleanup until completed. Boat may report blocked cleanup even after a delete request is accepted; a missing Boat lookup does not prove deletion finished. Local deletion receipts persist outside the deleted workspace. SSH target deletion is currently unsupported; stopping its managed runs is supported.
 
 To add another cloud, implement `IProvider` and `IBackend`, including truthful capability and ownership descriptors. You may use native HTTP APIs, SSH or your own process transport. No common remote server is required. Register the adapter through the builder and run the conformance scenarios used by the supplied providers.
+
+## File browser primitives
+
+Use `Workspace::list_directory` for bounded immediate-child pages and
+`read_versioned_file` for binary chunks. Carry the first revision token across
+chunks and discard buffered content on Conflict. `observe_directory(path)` owns
+a metadata baseline: call `poll().await` on your application's timer, apply reset
+first, then reconcile upserts/removals. It owns no background task or OS watcher.
+Poll visible directories only and back off on failure.
+
+`publish_file` with `FilePrecondition::Missing` creates a complete file without
+clobbering an existing entry. Never automatically replay Unknown. Native revision
+replacement is Unsupported; delete/rename mutations are not introduced. Use
+checkpoint review and quiescent apply for deliberate edits. Low-level `write_file`
+remains a non-atomic transfer primitive.
+
+The current browser target is Linux with `/proc/self/fd`; exclusive publication
+also requires anonymous-file support. Local Linux is qualified; remote adapters
+only carry the protocol and are not live-qualified by these tests. Directories
+above 4096 children are Unsupported. See the [full contract and state map](state/files.md)
+for metadata-token limitations, reconciliation, uncertain outcomes and remaining
+collaborative editing requirements.

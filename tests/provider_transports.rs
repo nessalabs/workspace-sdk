@@ -260,3 +260,158 @@ async fn container_creation_refuses_to_reuse_an_unowned_volume() {
     ));
     assert_eq!(runner.requests.lock().unwrap().len(), 3);
 }
+
+async fn browser_backend(runner: Arc<RecordingRunner>) -> Arc<dyn workspace_sdk::ports::IBackend> {
+    let provider =
+        SshProvider::with_runner(SshConfig::trusted_host("worker", "/srv/workspaces"), runner)
+            .unwrap();
+    provider.open(request("browser-contract")).await.unwrap()
+}
+fn browser_publish(bytes: Vec<u8>) -> PublishFile {
+    PublishFile {
+        path: WorkspacePath::new("file").unwrap(),
+        bytes,
+        expected: FilePrecondition::Missing,
+        executable: false,
+    }
+}
+#[tokio::test]
+async fn browser_invalid_requests_are_rejected_before_transport() {
+    let runner = Arc::new(RecordingRunner::default());
+    let backend = browser_backend(runner.clone()).await;
+    let count = runner.requests.lock().unwrap().len();
+    assert!(backend
+        .publish_file(browser_publish(vec![0; 262145]))
+        .await
+        .is_err());
+    assert!(backend
+        .read_versioned_file(ReadVersionedFile {
+            path: WorkspacePath::new("file").unwrap(),
+            offset: 0,
+            limit: 262145,
+            expected: None
+        })
+        .await
+        .is_err());
+    assert!(backend
+        .list_directory(ListDirectory {
+            path: WorkspacePath::root(),
+            limit: 257,
+            cursor: None
+        })
+        .await
+        .is_err());
+    assert_eq!(runner.requests.lock().unwrap().len(), count);
+}
+#[tokio::test]
+async fn browser_lost_malformed_and_failed_acknowledgements_are_unknown_without_replay() {
+    let runner = Arc::new(RecordingRunner::default());
+    let backend = browser_backend(runner.clone()).await;
+    for output in [
+        result(0, "not-json"),
+        result(1, "failed"),
+        result(
+            0,
+            "{\"status\":\"success\",\"result\":{\"kind\":\"empty\"}} ",
+        ),
+    ] {
+        runner.responses.lock().unwrap().push_back(output);
+        let before = runner.requests.lock().unwrap().len();
+        assert!(matches!(
+            backend
+                .publish_file(browser_publish(b"value".to_vec()))
+                .await
+                .unwrap(),
+            PublishOutcome::Unknown
+        ));
+        assert_eq!(runner.requests.lock().unwrap().len(), before + 1);
+    }
+    runner.responses.lock().unwrap().push_back(result(
+        0,
+        &serde_json::to_string(&SupervisorResponse::Success(
+            SupervisorValue::PublishOutcome(PublishOutcome::Created {
+                revision: FileRevision("malformed".into()),
+            }),
+        ))
+        .unwrap(),
+    ));
+    assert!(matches!(
+        backend.publish_file(browser_publish(vec![])).await.unwrap(),
+        PublishOutcome::Unknown
+    ));
+    let rejection = SupervisorValue::PublishRejected(
+        workspace_sdk::supervisor::protocol::SupervisorFault::from_error(Error::Unsupported(
+            "fencing".into(),
+        )),
+    );
+    runner.responses.lock().unwrap().push_back(result(
+        0,
+        &serde_json::to_string(&SupervisorResponse::Success(rejection)).unwrap(),
+    ));
+    assert!(matches!(
+        backend.publish_file(browser_publish(vec![])).await,
+        Err(Error::Unsupported(_))
+    ));
+}
+#[tokio::test]
+async fn browser_malformed_directory_pages_are_rejected() {
+    let runner = Arc::new(RecordingRunner::default());
+    let backend = browser_backend(runner.clone()).await;
+    let revision = FileRevision("a".repeat(64));
+    let entry = DirectoryEntry {
+        path: WorkspacePath::new("file").unwrap(),
+        kind: FileKind::File,
+        size: 0,
+        revision: revision.clone(),
+    };
+    let bad_pages = [
+        DirectoryPage {
+            entries: vec![],
+            revision: revision.clone(),
+            next: Some(DirectoryCursor {
+                revision: revision.clone(),
+                offset: 1,
+            }),
+        },
+        DirectoryPage {
+            entries: vec![DirectoryEntry {
+                path: WorkspacePath::new("nested/file").unwrap(),
+                ..entry.clone()
+            }],
+            revision: revision.clone(),
+            next: None,
+        },
+        DirectoryPage {
+            entries: vec![entry.clone(), entry.clone()],
+            revision: revision.clone(),
+            next: None,
+        },
+        DirectoryPage {
+            entries: vec![entry],
+            revision: revision.clone(),
+            next: Some(DirectoryCursor {
+                revision: FileRevision("b".repeat(64)),
+                offset: 1,
+            }),
+        },
+    ];
+    for page in bad_pages {
+        runner.responses.lock().unwrap().push_back(result(
+            0,
+            &serde_json::to_string(&SupervisorResponse::Success(
+                SupervisorValue::DirectoryPage(page),
+            ))
+            .unwrap(),
+        ));
+        assert!(matches!(
+            backend
+                .list_directory(ListDirectory {
+                    path: WorkspacePath::root(),
+                    limit: 256,
+                    cursor: None
+                })
+                .await,
+            Err(Error::State(_))
+        ));
+    }
+}

@@ -1,0 +1,34 @@
+   Compiling workspace_sdk v0.2.0 (/workspace/workspace-sdk)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.87s
+     Running tests/provider_transports.rs (target/debug/deps/provider_transports-f62c54e33442c3e3)
+
+running 9 tests
+test browser_invalid_requests_are_rejected_before_transport ... ok
+test attached_container_lifecycle_is_not_mutated ... ok
+test browser_lost_malformed_and_failed_acknowledgements_are_unknown_without_replay ... ok
+test browser_malformed_directory_pages_are_rejected ... ok
+test container_creation_refuses_to_reuse_an_unowned_volume ... ok
+test container_rejects_collision_with_unowned_existing_container ... ok
+test container_preflight_does_not_create_when_engine_is_missing ... ok
+test container_deletion_receipt_reconnects_and_finishes_a_remaining_volume ... ok
+test ssh_verifies_known_hosts_and_puts_secrets_on_stdin ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/workspace_files.rs (target/debug/deps/workspace_files-3f62d7df5ffc5d10)
+
+running 11 tests
+test file_browser_performance_samples ... ignored, manual local performance qualification, synthetic data only
+test changed_directory_pages_must_restart_including_in_place_edits ... ok
+test failed_observation_does_not_erase_baseline_and_drop_leaves_no_resources ... ok
+test no_clobber_create_is_atomic_under_simultaneous_sdk_participants ... ok
+test observer_reconciles_external_create_edit_rename_delete_and_restart ... ok
+test paginated_listing_includes_empty_directories_and_binary_files ... ok
+test stale_chunk_and_atomic_external_replacement_are_conflicts ... ok
+test unmanaged_human_creation_is_preserved_and_replace_is_explicitly_unsupported ... ok
+test symlinks_special_files_wrong_revision_and_control_state_are_isolated ... ok
+test bounds_are_enforced_for_reads_pages_publication_and_large_directories ... ok
+test large_file_is_read_in_bounded_chunks_without_mixing_revisions ... ok
+
+test result: ok. 10 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.40s
+

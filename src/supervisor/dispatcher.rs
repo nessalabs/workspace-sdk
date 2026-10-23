@@ -27,6 +27,10 @@ pub(super) fn handle(request: SupervisorRequest) -> Result<SupervisorValue> {
             Ok(SupervisorValue::InputRejected(SupervisorFault::from_error(
                 error,
             )))
+        } else if matches!(&request.operation, SupervisorOperation::PublishFile(..)) {
+            Ok(SupervisorValue::PublishRejected(
+                SupervisorFault::from_error(error),
+            ))
         } else {
             Err(error)
         };
@@ -53,6 +57,33 @@ pub(super) fn handle(request: SupervisorRequest) -> Result<SupervisorValue> {
             filesystem::write_file(root, &path, offset, &bytes, truncate, executable)?;
             Ok(SupervisorValue::Empty)
         }
+        #[cfg(target_os = "linux")]
+        SupervisorOperation::ListDirectory(request) => Ok(SupervisorValue::DirectoryPage(
+            super::file_browser::list(context, request)?,
+        )),
+        #[cfg(target_os = "linux")]
+        SupervisorOperation::ReadVersionedFile(request) => Ok(SupervisorValue::VersionedFileChunk(
+            super::file_browser::read(context, request)?,
+        )),
+        SupervisorOperation::PublishFile(request) => {
+            #[cfg(target_os = "linux")]
+            let outcome = super::file_browser::publish(context, request);
+            #[cfg(not(target_os = "linux"))]
+            let outcome: Result<crate::PublishOutcome> = {
+                let _ = request;
+                Err(Error::Unsupported(
+                    "file browser currently requires Linux descriptor paths".into(),
+                ))
+            };
+            Ok(match outcome {
+                Ok(value) => SupervisorValue::PublishOutcome(value),
+                Err(error) => SupervisorValue::PublishRejected(SupervisorFault::from_error(error)),
+            })
+        }
+        #[cfg(not(target_os = "linux"))]
+        SupervisorOperation::ListDirectory(_) | SupervisorOperation::ReadVersionedFile(_) => Err(
+            Error::Unsupported("file browser currently requires Linux descriptor paths".into()),
+        ),
         SupervisorOperation::Start {
             id,
             execution,

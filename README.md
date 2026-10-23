@@ -100,3 +100,5 @@ Related domain concepts share focused files inside context modules. Module entry
 Run `scripts/quality-gate.sh` for the mechanical and local performance checks.
 Acceptance additionally requires separate independent code-quality/design and
 adversarial agent reviews under [the coding standards](coding_standards.md).
+
+The [file browser contract](docs/state/files.md) covers the qualified first slice: bounded directory pages, revision-bound binary reads, caller-driven reconciliation and exclusive creation on Linux. Live replacement/delete/rename and automatic collaborative text merging remain outside this slice.

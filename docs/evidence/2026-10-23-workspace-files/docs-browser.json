@@ -1,0 +1,43 @@
+{
+  "checks": [
+    {
+      "name": "root diagram has Files drill-down",
+      "pass": true
+    },
+    {
+      "name": "both file charts render",
+      "pass": true
+    },
+    {
+      "name": "sourceRevision exact code head",
+      "pass": true
+    },
+    {
+      "name": "Unknown has authored detail",
+      "pass": true
+    },
+    {
+      "name": "uncertain publication detail opens",
+      "pass": true
+    },
+    {
+      "name": "Review explains existing checkpoint owner",
+      "pass": true
+    },
+    {
+      "name": "Review links to existing conflict workflow",
+      "pass": true
+    },
+    {
+      "name": "mobile has no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "no browser page errors",
+      "pass": true
+    }
+  ],
+  "errors": [],
+  "engine": "system chromium",
+  "renderedProject": "/workspace/workspace-sdk/"
+}
