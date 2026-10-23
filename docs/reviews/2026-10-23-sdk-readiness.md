@@ -34,7 +34,7 @@ were already merged; this task does not redo them.
   regressions, retaining the observed leaks. Additional cases cover rejected
   uploads/imports, malformed chunks and archive metadata, exact file bytes,
   canceled admission waiters, held workflow leases, and one continuation launch.
-- Full unchanged `RUSTC_WRAPPER= scripts/quality-gate.sh` is running against
+- Full unchanged `RUSTC_WRAPPER= scripts/quality-gate.sh` passed against
   `bf60930a41a6ef3eed425f57635e9ff6bbd9d624`. The wrapper override avoids a
   sandbox-incompatible compiler cache; it does not change Rust code or test gates.
 - Nessa Docs built catalog CLI accepted six pages with zero issues. The installed
@@ -43,7 +43,22 @@ were already merged; this task does not redo them.
   reported six accepted documents and no errors or warnings.
 - Relative Markdown links and `git diff --check` passed.
 
-Final full-gate results and independent verdicts remain pending in this checkpoint.
+The full gate completed with exit zero: 302 successful test executions across
+both feature configurations, doctests and explicit performance qualifications.
+Five ignored occurrences include the opt-in Boat live test and performance tests
+before their explicit runs; live Boat was not run. Managed performance recorded
+three samples; PTY performance recorded fifteen samples at populations one/four.
+The [durable evidence index](../evidence/2026-10-23-sdk-readiness/index.json)
+records original and normalized hashes and exact reproduction commands.
+
+The local workflow example also completed with exit zero:
+`RUSTC_WRAPPER= cargo run --locked --no-default-features --example local_workflow -- target/debug/workspace-supervisor`.
+It executed a real local process, staged/applied file sync and destroyed its owned
+workspace. An existing no-default-feature dead-code warning remains; the required
+all-feature Clippy and warning-free Rustdoc gates passed.
+
+Original gate log SHA-256: `0231858ef4948d4666549304f12b37be4280ad848e4165b170625c5a89ad280c`.
+Original example log SHA-256: `4ec5634f731fd2d076c5be380b2b94bc8189f0f890a15932399a20a3d0c58a12`.
 
 ## Independent review
 
@@ -52,7 +67,16 @@ Neither authored the implementation. Design review requested explicit direct-tra
 cancellation guidance; it is now in the API Rustdoc and SDK guide. Adversarial review
 identified unbounded detached direct transfers; shared admission now retains
 backpressure and the queued-transfer regression prevents unseen work.
-Both reviewers require the frozen final revision and full gate before acceptance.
+Both independent reviewers explicitly PASS the final implementation at
+`bf60930a41a6ef3eed425f57635e9ff6bbd9d624` and documentation checkpoint
+`c39e2d20389c6da86df69c5acd67b5abcc2d6e46`, after inspecting the passing gate
+and example logs. No unresolved change-scoped P1/P2 findings remain. Subsequent
+evidence-record changes do not alter implementation or assertions.
+
+Draft [PR #3](https://github.com/nessalabs/workspace-sdk/pull/3) is published.
+Hosted Linux/macOS CI is pending. CodeRabbit's success status means draft review
+was skipped, not an additional code-review pass. Parent owns final exact-head
+merge after required CI and independent review. This task does not merge.
 
 ## Remaining boundaries
 

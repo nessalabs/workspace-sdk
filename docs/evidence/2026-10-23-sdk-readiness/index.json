@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "base_revision": "0b7bbc0a9be0cce0713df05be56f2a63d6c14c30",
+  "implementation_revision": "bf60930a41a6ef3eed425f57635e9ff6bbd9d624",
+  "docs_checkpoint": "c39e2d20389c6da86df69c5acd67b5abcc2d6e46",
+  "environment": "macOS aarch64; Rust stable 1.98; debug builds",
+  "normalization": "Only isolated checkout, Cargo-home and Rustup-home path prefixes use aliases. Numeric measurements and assertions unchanged. Original and published byte hashes listed separately.",
+  "commands": [
+    "RUSTC_WRAPPER= scripts/quality-gate.sh",
+    "RUSTC_WRAPPER= cargo run --locked --no-default-features --example local_workflow -- target/debug/workspace-supervisor",
+    "node /path/to/nessa-docs/dist/server/server/project-opening/validate-cli.js --project /path/to/workspace-sdk"
+  ],
+  "outcome": "Mechanical gate and local-workflow example exit 0. Catalog six pages zero issues. baseline-gate.log contains intentionally failing pre-fix cancellation regressions, not a successful clean-baseline gate. readiness-clippy-red.log contains initial new test fixture lint failures fixed by implementation_revision.",
+  "test_executions": 302,
+  "managed_performance_samples": 3,
+  "pty_performance_samples": 15,
+  "files": [
+    {
+      "path": "readiness-gate.log",
+      "original_sha256": "0231858ef4948d4666549304f12b37be4280ad848e4165b170625c5a89ad280c",
+      "published_sha256": "83eb36036d4780455bc51c0f908454f165264a4a612eb2393a1e883b9832a6a7"
+    },
+    {
+      "path": "readiness-e2e.log",
+      "original_sha256": "4ec5634f731fd2d076c5be380b2b94bc8189f0f890a15932399a20a3d0c58a12",
+      "published_sha256": "4ec5634f731fd2d076c5be380b2b94bc8189f0f890a15932399a20a3d0c58a12"
+    },
+    {
+      "path": "baseline-gate.log",
+      "original_sha256": "61b991fcaa979488c27937ab2a806519a2a3d956a4cc93194acfaf891c5fcc3c",
+      "published_sha256": "57eb6452a8912455fad6ab50642465309f86ba885011e4cc317fd26211705e94"
+    },
+    {
+      "path": "readiness-clippy-red.log",
+      "original_sha256": "f23ce16a281f0969d16520fb7f31f9f5c8e00e566e0bb9532529a63c1380b735",
+      "published_sha256": "cb32f75593483d8c638e93d66d0f83b85b321dfffec9876f0e6b1ace031434d2"
+    },
+    {
+      "path": "docs-catalog.json",
+      "original_sha256": "ba57037bb184ea1ef402f1819a4c2c4accd5b3e818043e91a22bbc3488aae448",
+      "published_sha256": "ba57037bb184ea1ef402f1819a4c2c4accd5b3e818043e91a22bbc3488aae448"
+    },
+    {
+      "path": "runtime-performance.json",
+      "original_sha256": "bd36524f8c50f5b7146a7dc06a5710d15490f7b63eef516e97b5dde25143c014",
+      "published_sha256": "bd36524f8c50f5b7146a7dc06a5710d15490f7b63eef516e97b5dde25143c014"
+    },
+    {
+      "path": "runtime-pty-performance.json",
+      "original_sha256": "d97b089c37925a323d3292df7df7594a1440d03f6ea4cc8ca8c21fa0792bf4b7",
+      "published_sha256": "d97b089c37925a323d3292df7df7594a1440d03f6ea4cc8ca8c21fa0792bf4b7"
+    }
+  ]
+}

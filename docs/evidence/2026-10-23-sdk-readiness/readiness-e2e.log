@@ -1,0 +1,16 @@
+warning: method `requires_private_transport` is never used
+   --> src/supervisor/protocol.rs:125:19
+    |
+122 | impl SupervisorOperation {
+    | ------------------------ method in this implementation
+...
+125 |     pub(crate) fn requires_private_transport(&self) -> bool {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `workspace_sdk` (lib) generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.38s
+     Running `target/debug/examples/local_workflow target/debug/workspace-supervisor`
+finished
+Hello from the workspace.

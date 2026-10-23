@@ -1,0 +1,30 @@
+    Checking workspace_sdk v0.2.0 (<isolated-sdk-checkout>)
+error: field assignment outside of initializer for an instance created with Default::default()
+   --> src/infrastructure/file_state_repository.rs:239:9
+    |
+239 |         unsupported.version = 999;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+note: consider initializing the variable with `infrastructure::repository_state::RepositoryState { version: 999, ..Default::default() }` and removing relevant reassignments
+   --> src/infrastructure/file_state_repository.rs:238:9
+    |
+238 |         let mut unsupported = RepositoryState::default();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#field_reassign_with_default
+    = note: `-D clippy::field-reassign-with-default` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::field_reassign_with_default)]`
+
+error: field assignment outside of initializer for an instance created with Default::default()
+   --> src/infrastructure/file_state_repository.rs:290:9
+    |
+290 |         legacy.version = 1;
+    |         ^^^^^^^^^^^^^^^^^^^
+    |
+note: consider initializing the variable with `infrastructure::repository_state::RepositoryState { version: 1, ..Default::default() }` and removing relevant reassignments
+   --> src/infrastructure/file_state_repository.rs:289:9
+    |
+289 |         let mut legacy = RepositoryState::default();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#field_reassign_with_default
+
+error: could not compile `workspace_sdk` (lib test) due to 2 previous errors
