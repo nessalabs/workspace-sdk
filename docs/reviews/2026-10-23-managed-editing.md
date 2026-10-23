@@ -2,10 +2,11 @@
 
 ## Scope and source
 
-Exact source reviewed: `e0ed9670326bb4fd24a2043dd0a1110b8c26f793`, based on
+Exact source reviewed: `ec32735865d41e6b5d320ffaed6a9c8f91bedf46`, based on
 merged PR5 `db98741b2166e2f9f829eeac1bd64da65e033ef1`. PR5 is unchanged.
 Implementation source `68ef014` is followed by a test-only portable fixture
-refinement `e0ed967`. This follow-up adds:
+refinement `e0ed967` and APFS fixture correction `ec32735`. Runtime code
+remains the reviewed implementation; the latter changes tests only. This follow-up adds:
 
 - A local ManagedEditSession with immutable candidate revisions, staged binary
   create/replace/delete/rename and the existing checkpoint review/resolution/apply.
@@ -55,7 +56,8 @@ synthetic TempDir workspaces were used. No live user data, migration, destructiv
 resync, remote provider mutation or secrets upload occurred.
 
 - Targeted real-engine integration: 15 managed-session tests, 13 checkpoint-engine
-  tests and 3 portable subprocess tests passed.
+  tests and initially 3 portable subprocess tests passed. The APFS fixture
+  correction adds a dedicated Linux non-UTF-8 case; all 4 local portable tests pass.
   [Log](../evidence/2026-10-23-managed-editing/targeted-tests.log).
 - 3 native preflight unit tests passed, including regular/symlink/empty-directory
   collision refusal, excluded-child directory transitions and portable traversal
@@ -70,7 +72,9 @@ resync, remote provider mutation or secrets upload occurred.
   unchanged 1088/1108/1081 ms. [Log](../evidence/2026-10-23-managed-editing/browser-performance.log).
   These few samples are not statistical regression baselines or macOS/remote
   latency qualification. Hosts must use a blocking executor and batch edits.
-- Full `scripts/quality-gate.sh` passed on exact source `e0ed967`.
+- Full `scripts/quality-gate.sh` passed initially on `e0ed967` and was rerun
+  after the test-only APFS correction; the retained log records final source
+  `ec32735`.
   [Gate log](../evidence/2026-10-23-managed-editing/quality-gate.log) covers
   rustfmt, all-feature all-target Clippy, all/no-default tests, rustdoc, example
   and supervisor builds plus existing runtime/PTY performance qualification.
@@ -83,7 +87,23 @@ resync, remote provider mutation or secrets upload occurred.
   [desktop](../evidence/2026-10-23-managed-editing/managed-edit-desktop.png),
   [mobile](../evidence/2026-10-23-managed-editing/managed-edit-mobile.png).
   The repository-linked nessa-docs skill was used to trace source and author
-  only affected owning pages; their sourceRevision names `e0ed967`.
+  only affected owning pages; their sourceRevision names `ec32735`.
+
+## macOS fixture correction
+
+The first PR CI run `39923121147` at head `d5b3ae0` compiled the actual macOS
+implementation and passed the 15 managed-edit tests, 13 checkpoint tests, and
+portable listing/read/observation/symlink/FIFO tests. The repeated-stream test then
+failed while creating its raw invalid-UTF-8 fixture: APFS returned EILSEQ before
+the SDK was called. [Red excerpt](../evidence/2026-10-23-managed-editing/macos-initial-fixture-failure.log).
+
+Test-only commit `ec32735` uses an ordinary POSIX/APFS filename containing a
+backslash, which the portable WorkspacePath grammar must reject. Raw non-UTF-8
+coverage remains in a dedicated Linux test. This corrects fixture admission
+without skipping actual macOS observations or weakening mutation safety. Both
+reviewers explicitly passed exact source `ec32735` after re-reviewing the delta. The full local gate and browser/catalog checks
+passed after the fixture correction. Initial-head Linux CI also passed; terminal
+repeated Linux/macOS CI on the corrected final head remains required for merge.
 
 ## macOS qualification and final merge
 

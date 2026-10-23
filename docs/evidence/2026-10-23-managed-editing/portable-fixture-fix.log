@@ -1,0 +1,12 @@
+   Compiling workspace_sdk v0.2.0 (/workspace/workspace-sdk)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.18s
+     Running tests/workspace_files_portable.rs (target/debug/deps/workspace_files_portable-4e4a5cde9968ea8b)
+
+running 4 tests
+test linux_non_utf8_directory_entries_are_explicitly_unsupported ... ok
+test portable_descriptor_listing_never_follows_symlinks_or_special_files ... ok
+test portable_pages_read_tokens_and_external_reconciliation ... ok
+test portable_repeated_streams_close_and_nonportable_names_reject ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+

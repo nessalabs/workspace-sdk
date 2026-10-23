@@ -5,7 +5,7 @@ kind: flow
 status: implemented
 summary: Stage revision-checked candidates privately, preserve human changes in checkpoint review, and publish only at an explicit quiescent boundary.
 parent: workspace-sdk
-sourceRevision: "e0ed9670326bb4fd24a2043dd0a1110b8c26f793"
+sourceRevision: "ec32735865d41e6b5d320ffaed6a9c8f91bedf46"
 sources:
   - src/application/edit/session.rs
   - src/application/edit/candidate.rs

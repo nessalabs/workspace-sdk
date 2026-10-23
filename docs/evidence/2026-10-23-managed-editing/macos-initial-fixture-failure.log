@@ -1,0 +1,25 @@
+tests/workspace_files_portable.rs (target/debug/deps/workspace_files_portable-fe16b87b12ab7f48)
+2026-10-23T08:16:57.7351950Z 
+2026-10-23T08:16:57.7352620Z running 4 tests
+2026-10-23T08:16:57.8298210Z test macos_publication_remains_explicitly_unsupported ... ok
+2026-10-23T08:16:57.8559720Z test portable_descriptor_listing_never_follows_symlinks_or_special_files ... ok
+2026-10-23T08:16:57.8618550Z test portable_pages_read_tokens_and_external_reconciliation ... ok
+2026-10-23T08:16:58.1107190Z test portable_repeated_streams_close_and_nonportable_names_reject ... FAILED
+2026-10-23T08:16:58.1108390Z 
+2026-10-23T08:16:58.1109510Z failures:
+2026-10-23T08:16:58.1112780Z 
+2026-10-23T08:16:58.1113400Z ---- portable_repeated_streams_close_and_nonportable_names_reject stdout ----
+2026-10-23T08:16:58.1114260Z 
+2026-10-23T08:16:58.1115620Z thread 'portable_repeated_streams_close_and_nonportable_names_reject' (28155) panicked at tests/workspace_files_portable.rs:152:6:
+2026-10-23T08:16:58.1118260Z called `Result::unwrap()` on an `Err` value: Os { code: 92, kind: Uncategorized, message: "Illegal byte sequence" }
+2026-10-23T08:16:58.1118980Z note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-10-23T08:16:58.1119380Z 
+2026-10-23T08:16:58.1119390Z 
+2026-10-23T08:16:58.1119530Z failures:
+2026-10-23T08:16:58.1119970Z     portable_repeated_streams_close_and_nonportable_names_reject
+2026-10-23T08:16:58.1120340Z 
+2026-10-23T08:16:58.1120580Z test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+2026-10-23T08:16:58.1120990Z 
+2026-10-23T08:16:58.1121740Z [1m[91merror[0m: test failed, to rerun pass `--test workspace_files_portable`
+2026-10-23T08:16:58.1195020Z ##[error]Process completed with exit code 101.
+2026-10-23T08:16:58.1552050Z 

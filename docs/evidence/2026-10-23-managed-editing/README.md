@@ -1,6 +1,6 @@
 # Managed editing evidence
 
-Source checkpoint: `e0ed9670326bb4fd24a2043dd0a1110b8c26f793`.
+Source checkpoint: `ec32735865d41e6b5d320ffaed6a9c8f91bedf46`.
 See the [review](../../reviews/2026-10-23-managed-editing.md) for findings,
 commands, outcomes, coordination limits and platform qualification.
 
