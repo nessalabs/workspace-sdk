@@ -1,0 +1,14 @@
+   Compiling workspace_sdk v0.2.0 (/workspace/workspace-sdk)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.14s
+     Running unittests src/lib.rs (target/debug/deps/workspace_sdk-c825a7c20c979c20)
+
+running 4 tests
+test supervisor::file_browser::tests::anonymous_stage_child ... ok
+test domain::workspace::file_browser::tests::rejects_non_advancing_and_wrong_target_directory_cursors ... ok
+test domain::workspace::file_browser::tests::rejects_unbounded_revisions_and_root_publication ... ok
+
+running 1 test
+test supervisor::file_browser::tests::anonymous_staging_is_reclaimed_when_supervisor_process_is_killed ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 82 filtered out; finished in 0.01s
+

@@ -1,0 +1,46 @@
+import {fileURLToPath} from 'node:url';
+const renderer=process.env.NESSA_DOCS_ROOT || '/workspace/nessa-docs';
+const project=fileURLToPath(new URL('../../../',import.meta.url));
+const {chromium}=await import(renderer+'/node_modules/playwright/index.mjs');
+const {startVerificationServer}=await import(renderer+'/verification/server.mjs');
+const {waitForDocument,waitForDiagrams}=await import(renderer+'/verification/lib.mjs');
+import {writeFile} from 'node:fs/promises';
+const out=fileURLToPath(new URL('.',import.meta.url));
+const server=await startVerificationServer(project);
+let browser;
+const checks=[];const errors=[];
+function check(name,value){checks.push({name,pass:!!value});if(!value)throw new Error(name);}
+try {
+ browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH || '/usr/bin/chromium',args:['--no-sandbox']});
+ const page=await browser.newPage({viewport:{width:1440,height:1000}});page.on('pageerror',e=>errors.push(String(e)));
+ await page.goto(server.url+'/docs/workspace-sdk');await waitForDocument(page,'workspace-sdk');await waitForDiagrams(page);
+ const nav=page.getByRole('link',{name:'Open Browse and observe workspace files'});
+ check('root diagram has Files drill-down',await nav.count()===1);
+ await nav.click();await waitForDocument(page,'workspace-files');await waitForDiagrams(page);
+ check('both file charts render',await page.locator('figure.diagram[data-state="rendered"]').count()===2);
+ await page.getByTestId('source-revision').click();
+ check('sourceRevision exact code head', (await page.getByTestId('source-revision-full').innerText()).includes('962272b3424e266f557fda159231b42c075ed968'));
+ await page.keyboard.press('Escape');
+ console.log('buttons',await page.locator('svg [role="button"]').evaluateAll(xs=>xs.map(x=>x.getAttribute('aria-label'))));
+ const detail=page.locator('svg [role="button"]').filter({hasText:'Unknown'});
+ const selectors=await page.locator('svg [role="button"]').evaluateAll(xs=>xs.map(x=>x.getAttribute('aria-label')));
+ const unknown=selectors.find(x=>x?.includes('Unknown'));
+ check('Unknown has authored detail',!!unknown);
+ await page.getByRole('button',{name:unknown,exact:true}).click();
+ check('uncertain publication detail opens',await page.locator('dialog[open]').innerText().then(x=>x.includes('Unknown means creation may have happened')));
+ await page.keyboard.press('Escape');
+ await page.screenshot({path:out+'/files-desktop.png',fullPage:true});
+ const review=selectors.find(x=>x?.includes('Review'));
+ await page.getByRole('button',{name:review,exact:true}).click();
+ check('Review explains existing checkpoint owner',await page.locator('dialog[open]').innerText().then(x=>x.includes('checkpoint')));
+ console.log('links',await page.locator('dialog[open] a').evaluateAll(xs=>xs.map(x=>({text:x.textContent,href:x.getAttribute('href')}))));
+ const link=page.locator('dialog[open] a[href^="/docs/file-sync"]');
+ check('Review links to existing conflict workflow',await link.count()>0);await link.first().click();await waitForDocument(page,'file-sync');
+ await page.goto(server.url+'/docs/workspace-files');await waitForDocument(page,'workspace-files');await page.setViewportSize({width:390,height:844});await waitForDiagrams(page);
+ if(await page.getByRole('button',{name:'Hide sidebar',exact:true}).isVisible()) await page.getByRole('button',{name:'Hide sidebar',exact:true}).click();
+ for(const button of await page.locator('[data-action="fit"]').all()) await button.click();
+ await page.waitForTimeout(250);
+ check('mobile has no horizontal overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await page.screenshot({path:out+'/files-mobile.png',fullPage:true});
+ check('no browser page errors',errors.length===0);
+} catch(error){errors.push(String(error));process.exitCode=1;} finally{await browser?.close();server.stop();await writeFile(out+'/docs-browser.json',JSON.stringify({checks,errors,engine:'system chromium',renderedProject:project},null,2));}
