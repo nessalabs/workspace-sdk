@@ -3,7 +3,7 @@ use super::{HandoffPhase, HandoffReceipt, SyncSession};
 use crate::application::{Run, Workspace};
 use crate::{checkpoint::*, domain::*, ports::IWorkflowRepository, Error, Result};
 use sha2::{Digest, Sha256};
-use std::fs;
+use std::{fs, future::Future};
 use std::{path::Path, sync::Arc};
 use tokio::{sync::Mutex, task::spawn_blocking};
 
@@ -15,10 +15,19 @@ const MAX_ARCHIVE: usize = 380 * 1024 * 1024;
 /// Keep the engine and receipts outside every synchronized project.
 /// One controller owns each session/handoff. Quiescence assertions require the
 /// caller to stop *all* writers, including editors and unmanaged processes.
+/// Once an operation has acquired its workflow lease, an owned Tokio task keeps
+/// it running through staging cleanup and receipt publication if its observer is
+/// canceled. Keep asserted writers quiescent through completion. Initialize, sync-back,
+/// and handoff retain workflow receipts; direct capture/restore have no pollable
+/// workflow handle, so retain and await an application-owned task rather than
+/// canceling its observer. Runtime shutdown or process death can still interrupt
+/// work; cleanup transport failures remain best effort. Dropping a waiting observer
+/// before admission does not start an operation.
+#[derive(Clone)]
 pub struct SyncService {
     checkpoints: Arc<dyn ICheckpointEngine>,
     receipts: Arc<dyn IWorkflowRepository>,
-    operations: Mutex<()>,
+    operations: Arc<Mutex<()>>,
 }
 impl SyncService {
     pub fn new(
@@ -28,7 +37,7 @@ impl SyncService {
         Self {
             checkpoints,
             receipts,
-            operations: Mutex::new(()),
+            operations: Arc::new(Mutex::new(())),
         }
     }
     pub fn checkpoints(&self) -> Arc<dyn ICheckpointEngine> {
@@ -49,8 +58,26 @@ impl SyncService {
         destination: &Workspace,
         quiescent: bool,
     ) -> Result<SyncSession> {
-        let _guard = self.operations.lock().await;
-        let _lease = self.receipts.acquire(&id)?;
+        let root = local_root.as_ref().to_path_buf();
+        let guard = self.operations.clone().lock_owned().await;
+        let lease = self.receipts.acquire(&id)?;
+        let service = self.clone();
+        let destination = destination.clone();
+        owned(async move {
+            let (_guard, _lease) = (guard, lease);
+            service
+                .initialize_inner(id, &root, &destination, quiescent)
+                .await
+        })
+        .await
+    }
+    async fn initialize_inner(
+        &self,
+        id: OperationId,
+        local_root: &Path,
+        destination: &Workspace,
+        quiescent: bool,
+    ) -> Result<SyncSession> {
         require_quiescent(quiescent)?;
         let local_root = fs::canonicalize(local_root)?;
         if let Some(value) = self.receipts.load(&id)? {
@@ -64,7 +91,7 @@ impl SyncService {
             }
             // Restore is idempotent and checks that the target still matches.
             if !session.initialized {
-                self.restore_checkpoint(&session.baseline, destination, quiescent)
+                self.restore_checkpoint_inner(&session.baseline, destination, quiescent)
                     .await?;
                 session.initialized = true;
                 self.receipts
@@ -88,7 +115,7 @@ impl SyncService {
         // Persist before upload so retries retain the same baseline.
         self.receipts
             .save(&session.id, &WorkflowRecord::Sync(session.clone()))?;
-        self.restore_checkpoint(&session.baseline, destination, quiescent)
+        self.restore_checkpoint_inner(&session.baseline, destination, quiescent)
             .await?;
         session.initialized = true;
         self.receipts
@@ -103,8 +130,25 @@ impl SyncService {
         source: &Workspace,
         source_quiescent: bool,
     ) -> Result<Reconciliation> {
-        let _guard = self.operations.lock().await;
-        let _lease = self.receipts.acquire(id)?;
+        let guard = self.operations.clone().lock_owned().await;
+        let lease = self.receipts.acquire(id)?;
+        let service = self.clone();
+        let id = id.clone();
+        let source = source.clone();
+        owned(async move {
+            let (_guard, _lease) = (guard, lease);
+            service
+                .sync_back_inner(&id, &source, source_quiescent)
+                .await
+        })
+        .await
+    }
+    async fn sync_back_inner(
+        &self,
+        id: &OperationId,
+        source: &Workspace,
+        source_quiescent: bool,
+    ) -> Result<Reconciliation> {
         let mut session = self.session(id)?;
         if !session.initialized {
             return Err(Error::Conflict(
@@ -139,7 +183,9 @@ impl SyncService {
                 ApplyState::NotStarted | ApplyState::RolledBack { .. } => {}
             }
         }
-        let remote = self.capture_workspace(source, source_quiescent).await?;
+        let remote = self
+            .capture_workspace_inner(source, source_quiescent)
+            .await?;
         let engine = self.checkpoints.clone();
         let base = session.baseline.clone();
         let root = session.local_root.clone();
@@ -200,7 +246,22 @@ impl SyncService {
         })
         .await
     }
+    /// Observer cancellation leaves the accepted transfer running through cleanup.
     pub async fn capture_workspace(
+        &self,
+        source: &Workspace,
+        quiescent: bool,
+    ) -> Result<Checkpoint> {
+        let guard = self.operations.clone().lock_owned().await;
+        let service = self.clone();
+        let source = source.clone();
+        owned(async move {
+            let _guard = guard;
+            service.capture_workspace_inner(&source, quiescent).await
+        })
+        .await
+    }
+    async fn capture_workspace_inner(
         &self,
         source: &Workspace,
         quiescent: bool,
@@ -225,18 +286,15 @@ impl SyncService {
                         limit: CHUNK as u32,
                     })
                     .await?;
-                if chunk.next_offset != offset + chunk.bytes.len() as u64
+                if chunk.bytes.len() > CHUNK
+                    || offset.checked_add(chunk.bytes.len() as u64) != Some(chunk.next_offset)
+                    || chunk.next_offset > expected
                     || (chunk.bytes.is_empty() && !chunk.eof)
                 {
                     return Err(Error::State("invalid file-transfer cursor".into()));
                 }
                 bytes.extend_from_slice(&chunk.bytes);
                 offset = chunk.next_offset;
-                if bytes.len() > MAX_ARCHIVE || offset > expected {
-                    return Err(Error::InvalidInput(
-                        "snapshot length exceeds declared limit".into(),
-                    ));
-                }
                 if chunk.eof {
                     break;
                 }
@@ -254,7 +312,26 @@ impl SyncService {
     }
     /// Populate an empty destination, or retry an identical restoration. This
     /// never overwrites a populated target with a different snapshot.
+    /// Observer cancellation leaves the accepted restoration running through cleanup.
     pub async fn restore_checkpoint(
+        &self,
+        checkpoint: &CheckpointRef,
+        destination: &Workspace,
+        quiescent: bool,
+    ) -> Result<()> {
+        let guard = self.operations.clone().lock_owned().await;
+        let service = self.clone();
+        let checkpoint = checkpoint.clone();
+        let destination = destination.clone();
+        owned(async move {
+            let _guard = guard;
+            service
+                .restore_checkpoint_inner(&checkpoint, &destination, quiescent)
+                .await
+        })
+        .await
+    }
+    async fn restore_checkpoint_inner(
         &self,
         checkpoint: &CheckpointRef,
         destination: &Workspace,
@@ -303,8 +380,36 @@ impl SyncService {
         continuation: ExecutionRequest,
         quiescent: bool,
     ) -> Result<HandoffReceipt> {
-        let _guard = self.operations.lock().await;
-        let _lease = self.receipts.acquire(&id)?;
+        let guard = self.operations.clone().lock_owned().await;
+        let lease = self.receipts.acquire(&id)?;
+        let service = self.clone();
+        let source = source.clone();
+        let source_run = source_run.clone();
+        let destination = destination.clone();
+        owned(async move {
+            let (_guard, _lease) = (guard, lease);
+            service
+                .handoff_inner(
+                    id,
+                    &source,
+                    &source_run,
+                    &destination,
+                    continuation,
+                    quiescent,
+                )
+                .await
+        })
+        .await
+    }
+    async fn handoff_inner(
+        &self,
+        id: OperationId,
+        source: &Workspace,
+        source_run: &Run,
+        destination: &Workspace,
+        continuation: ExecutionRequest,
+        quiescent: bool,
+    ) -> Result<HandoffReceipt> {
         require_quiescent(quiescent)?;
         if same_ref(&source.reference(), &destination.reference())? {
             return Err(Error::InvalidInput(
@@ -337,7 +442,7 @@ impl SyncService {
             receipt
         } else {
             ensure_source_stopped(source_run).await?;
-            let checkpoint = self.capture_workspace(source, quiescent).await?;
+            let checkpoint = self.capture_workspace_inner(source, quiescent).await?;
             let receipt = HandoffReceipt {
                 id: id.clone(),
                 identity,
@@ -356,7 +461,7 @@ impl SyncService {
         }
         ensure_source_stopped(source_run).await?;
         if matches!(receipt.phase, HandoffPhase::Captured) {
-            self.restore_checkpoint(&receipt.checkpoint, destination, quiescent)
+            self.restore_checkpoint_inner(&receipt.checkpoint, destination, quiescent)
                 .await?;
             receipt.phase = HandoffPhase::Restored;
             self.receipts
@@ -407,6 +512,13 @@ async fn ensure_source_stopped(run: &Run) -> Result<()> {
 fn same_ref(a: &WorkspaceRef, b: &WorkspaceRef) -> Result<bool> {
     Ok(a == b)
 }
+async fn owned<T: Send + 'static>(
+    operation: impl Future<Output = Result<T>> + Send + 'static,
+) -> Result<T> {
+    tokio::spawn(operation)
+        .await
+        .map_err(|error| Error::State(format!("sync worker failed: {error}")))?
+}
 async fn blocking<T: Send + 'static>(
     operation: impl FnOnce() -> Result<T> + Send + 'static,
 ) -> Result<T> {
@@ -414,3 +526,7 @@ async fn blocking<T: Send + 'static>(
         .await
         .map_err(|e| Error::State(format!("checkpoint task failed: {e}")))?
 }
+
+#[cfg(test)]
+#[path = "sync_service_tests.rs"]
+mod tests;

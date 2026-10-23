@@ -76,6 +76,14 @@ Mandatory exclusions include Git metadata, credentials, agent auth state, `.env*
 
 `export`/`import` move immutable Git checkpoint bundles between controllers. `export_checkpoint_archive`/`capture_archive` preserve an already-selected file tree over provider transfers, including tracked files that match `.gitignore`.
 
+## Sync cancellation and ownership
+
+Once admitted, initialization, sync-back, handoff, and direct checkpoint transfers run in an owned Tokio worker. Dropping or timing out the awaiting caller does not stop that operation. The worker retains coordination, completes its transfer, removes scoped staging, and publishes the workflow receipt where that API has one. A waiter canceled before admission starts no work. Keep all asserted writers quiescent until the accepted operation completes, and keep the Tokio runtime alive.
+
+Initialization, sync-back, and handoff can be reconciled through their saved workflow IDs. Direct `capture_workspace` and `restore_checkpoint` have no pollable workflow handle. If a UI needs to stop waiting, retain the application's spawned task and await it before resuming writers or shutting down; do not abort that task and assume cleanup completed. The service and its clones serialize these accepted operations. Separate service instances coordinate workflow IDs through the shared repository; direct transfers require application coordination.
+
+This survives observer cancellation, not process death or runtime shutdown. Cleanup transport errors remain best effort. Reconcile target evidence before retrying an uncertain remote operation. Checkpoint Git subprocess output is collected before manifest-size validation, so archive bounds do not provide a global subprocess-memory bound.
+
 ## Handoff
 
 Ask the source workload to flush portable state and exit. Confirm its managed run is terminal. Open an empty destination, then call:
