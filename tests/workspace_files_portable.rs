@@ -127,7 +127,6 @@ async fn portable_descriptor_listing_never_follows_symlinks_or_special_files() {
 }
 #[tokio::test]
 async fn portable_repeated_streams_close_and_nonportable_names_reject() {
-    use std::os::unix::ffi::OsStringExt;
     let temp = TempDir::new().unwrap();
     let workspace = setup(&temp).await;
     let root = workspace.descriptor().root;
@@ -145,14 +144,12 @@ async fn portable_repeated_streams_close_and_nonportable_names_reject() {
             20
         );
     }
-    fs::write(
-        Path::new(&root).join(std::ffi::OsString::from_vec(vec![0xff])),
-        [],
-    )
-    .unwrap();
+    // Valid POSIX/APFS bytes, deliberately outside WorkspacePath's portable grammar.
+    // APFS rejects raw invalid UTF-8 before the SDK can inspect such a fixture.
+    fs::write(Path::new(&root).join(r"not\portable"), []).unwrap();
     assert!(matches!(
         workspace.list_directory(list(256)).await,
-        Err(Error::Unsupported(_))
+        Err(Error::InvalidInput(_))
     ));
 }
 #[cfg(target_os = "macos")]
@@ -172,4 +169,21 @@ async fn macos_publication_remains_explicitly_unsupported() {
         Err(Error::Unsupported(_))
     ));
     assert!(!Path::new(&workspace.descriptor().root).join("new").exists());
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn linux_non_utf8_directory_entries_are_explicitly_unsupported() {
+    use std::os::unix::ffi::OsStringExt;
+    let temp = TempDir::new().unwrap();
+    let workspace = setup(&temp).await;
+    fs::write(
+        Path::new(&workspace.descriptor().root).join(std::ffi::OsString::from_vec(vec![0xff])),
+        [],
+    )
+    .unwrap();
+    assert!(matches!(
+        workspace.list_directory(list(256)).await,
+        Err(Error::Unsupported(_))
+    ));
 }
