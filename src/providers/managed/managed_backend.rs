@@ -355,6 +355,11 @@ impl IBackend for ManagedBackend {
             .invoke(self.protocol_request(SupervisorOperation::PublishFile(request)))
             .await
         {
+            Ok(SupervisorValue::PublishOutcome(PublishOutcome::Created { revision }))
+                if !crate::domain::workspace::file_browser::valid_revision(&revision) =>
+            {
+                Ok(PublishOutcome::Unknown)
+            }
             Ok(SupervisorValue::PublishOutcome(outcome)) => Ok(outcome),
             Ok(SupervisorValue::PublishRejected(fault)) => Err(fault.into_error()),
             Ok(_) | Err(_) => Ok(PublishOutcome::Unknown),

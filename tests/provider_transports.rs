@@ -326,6 +326,19 @@ async fn browser_lost_malformed_and_failed_acknowledgements_are_unknown_without_
         ));
         assert_eq!(runner.requests.lock().unwrap().len(), before + 1);
     }
+    runner.responses.lock().unwrap().push_back(result(
+        0,
+        &serde_json::to_string(&SupervisorResponse::Success(
+            SupervisorValue::PublishOutcome(PublishOutcome::Created {
+                revision: FileRevision("malformed".into()),
+            }),
+        ))
+        .unwrap(),
+    ));
+    assert!(matches!(
+        backend.publish_file(browser_publish(vec![])).await.unwrap(),
+        PublishOutcome::Unknown
+    ));
     let rejection = SupervisorValue::PublishRejected(
         workspace_sdk::supervisor::protocol::SupervisorFault::from_error(Error::Unsupported(
             "fencing".into(),

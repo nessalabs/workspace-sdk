@@ -63,27 +63,10 @@ impl DirectoryObserver {
                     "directory changed during observation".into(),
                 ));
             }
-            if page.entries.len() > 256 {
-                return Err(Error::State("oversized directory page".into()));
-            }
             let prior_offset = current.len();
             revision = Some(page.revision);
 
             for entry in page.entries {
-                let parent = std::path::Path::new(entry.path.as_str())
-                    .parent()
-                    .and_then(|value| value.to_str())
-                    .unwrap_or("");
-                let expected_parent = if self.path == WorkspacePath::root() {
-                    ""
-                } else {
-                    self.path.as_str()
-                };
-                if parent != expected_parent || entry.path == WorkspacePath::root() {
-                    return Err(Error::State(
-                        "directory page contains a non-child path".into(),
-                    ));
-                }
                 if current.len() >= 4096
                     || current
                         .insert(entry.path.as_str().to_owned(), entry)
