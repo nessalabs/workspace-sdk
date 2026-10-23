@@ -235,8 +235,10 @@ mod tests {
         let repository = FileStateRepository::new(temporary.path()).unwrap();
         let state = temporary.path().join("state.json");
         let id = WorkspaceId::new("must-not-reserve").unwrap();
-        let mut unsupported = RepositoryState::default();
-        unsupported.version = 999;
+        let unsupported = RepositoryState {
+            version: 999,
+            ..RepositoryState::default()
+        };
         for bytes in [
             b"{ corrupt state".to_vec(),
             b"{}".to_vec(),
@@ -286,8 +288,10 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let repository = FileStateRepository::new(temporary.path()).unwrap();
         let id = WorkspaceId::new("reserved-before-upgrade").unwrap();
-        let mut legacy = RepositoryState::default();
-        legacy.version = 1;
+        let mut legacy = RepositoryState {
+            version: 1,
+            ..RepositoryState::default()
+        };
         legacy.reserve(&id, "original-request").unwrap();
         let bytes = serde_json::to_vec(&legacy).unwrap();
         let path = temporary.path().join("state.json");
