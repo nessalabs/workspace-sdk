@@ -154,19 +154,28 @@ mod tests {
         assert!(root.join("dir/.env").exists());
     }
     #[test]
-    fn deep_component_checks_are_bounded_before_any_mutation() {
+    fn repeated_component_checks_are_bounded_before_any_mutation() {
         let temp = tempfile::TempDir::new().unwrap();
-        let path = format!("{}/leaf", vec!["d"; 1001].join("/"));
-        fs::create_dir_all(temp.path().join(Path::new(&path).parent().unwrap())).unwrap();
-        fs::write(temp.path().join(&path), b"preserved").unwrap();
+        // Stay below macOS PATH_MAX while exceeding the shared 1000-visit floor.
+        let parent = vec!["d"; 64].join("/");
+        fs::create_dir_all(temp.path().join(&parent)).unwrap();
+        let paths = (0..16)
+            .map(|index| format!("{parent}/leaf-{index}"))
+            .collect::<Vec<_>>();
+        for path in &paths {
+            fs::write(temp.path().join(path), b"preserved").unwrap();
+        }
+        let borrowed = paths.iter().map(String::as_str).collect::<Vec<_>>();
         let limits = CheckpointLimits {
-            max_files: 1,
+            max_files: 16,
             ..Default::default()
         };
         assert!(matches!(
-            preflight(temp.path(), &tree(&[&path]), &tree(&[&path]), &limits),
+            preflight(temp.path(), &tree(&borrowed), &tree(&borrowed), &limits),
             Err(Error::InvalidInput(_))
         ));
-        assert_eq!(fs::read(temp.path().join(path)).unwrap(), b"preserved");
+        for path in &paths {
+            assert_eq!(fs::read(temp.path().join(path)).unwrap(), b"preserved");
+        }
     }
 }
