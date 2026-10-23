@@ -5,7 +5,7 @@ kind: feature
 status: implemented
 summary: Read bounded directory pages and binary chunks, reconcile external changes, and create files without replacing another writer's content.
 parent: workspace-sdk
-sourceRevision: "962272b3424e266f557fda159231b42c075ed968"
+sourceRevision: "ec32735865d41e6b5d320ffaed6a9c8f91bedf46"
 sources:
   - src/domain/workspace/file_browser.rs
   - src/application/directory_observer.rs
@@ -13,6 +13,8 @@ sources:
   - src/ports/i_backend.rs
   - src/providers/managed/managed_backend.rs
   - src/supervisor/file_browser.rs
+  - src/supervisor/directory_entries.rs
+  - tests/workspace_files_portable.rs
   - src/supervisor/filesystem.rs
   - src/supervisor/dispatcher.rs
   - src/supervisor/protocol.rs
@@ -97,18 +99,18 @@ Unknown means creation may have happened. Read/list and reconcile the destinatio
 
 ## Existing file editing
 
-Native revision replacement is Unsupported. This slice adds no delete/rename mutation API; it observes those external changes. The existing low-level chunk write remains non-atomic transfer and must not be used as an editor save operation.
+Native live revision replacement is Unsupported. Provider delete/rename mutations are not added; those external changes are observed. The separate [managed local edit session](managed-editing.md) stages create/replace/delete/rename candidates and publishes through checkpoint review at an explicit quiescent boundary. The existing low-level chunk write remains non-atomic transfer and must not be used as an editor save operation.
 
 The existing [checkpoint workflow](sync.md) owns three-way detection, preserved base/local/remote conflict sides, explicit resolution acknowledgement, expected local fingerprints and apply recovery. Review does not mutate the destination. Apply requires every writer to stop and an explicit caller quiescence assertion. SDK leases coordinate SDK callers, not arbitrary editors. This is deliberate conflict resolution, not automatic collaborative text or CRDT merging.
 
-The next bounded editing slice should use that owner for managed sessions: capture baseline, stage candidate outside the project, reconcile current contents, acknowledge resolutions and publish while the application fences all participants. The present target abstraction cannot establish that fence. Hash-then-replace is insufficient against unmanaged editors. A provider-native conditional publication primitive or enforceable writer authority is still needed for unattended saves into a live externally editable tree. No duplicate merge subsystem or speculative session API is introduced here.
+The implemented [managed local editing workflow](managed-editing.md) captures a baseline, stages revision-checked candidates, reconciles current contents and accepts explicit resolutions. It reuses checkpoint publication, a root-qualified cooperative SDK lease and a caller quiescence assertion. The lease cannot fence arbitrary editors. Hash-then-replace remains insufficient for unattended live saves; an enforceable writer authority or provider-native conditional publication is still needed for that broader capability.
 
 ## Boundaries and provider qualification
 
-Linux operations reuse no-follow descriptor traversal and anchor listing/publication to directory descriptors. Symlinks are visible but never followed. Reads reject nonregular entries such as FIFOs and sockets. The private control root stays separate and ownership-checked. This retains the existing trusted-host permission model; it is not an isolation boundary against arbitrary programs with the same OS user.
+Linux and macOS observations reuse no-follow descriptor traversal. Listing enumerates an owned POSIX directory stream and obtains metadata relative to its descriptor without following symlinks. Linux no-clobber publication remains descriptor-anchored. Symlinks are visible but never followed. Reads reject nonregular entries such as FIFOs and sockets. The private control root stays separate and ownership-checked. This retains the existing trusted-host permission model; it is not an isolation boundary against arbitrary programs with the same OS user.
 
-The optional IBackend contract and wire operations are provider-neutral. Only Local Linux was exercised end to end. SSH seam regressions use synthetic responses. Boat and container have no new live qualification. They can carry these operations only with a matching deployed supervisor and supported target filesystem. Non-Linux supervisors explicitly return Unsupported. Custom backends default to Unsupported. Existing chunk-transfer capability flags do not advertise conditional publication.
+The optional IBackend contract and wire operations are provider-neutral. Local Linux observations were exercised end to end. The same portable tests execute on macOS CI; local Linux execution alone is not macOS qualification. SSH seam regressions use synthetic responses. Boat and container have no new live qualification. They can carry these operations only with a matching deployed supervisor and supported target filesystem. Observation is implemented for Linux and macOS. Native publication remains Linux-only; other targets explicitly return Unsupported. Custom backends default to Unsupported. Existing chunk-transfer capability flags do not advertise conditional publication.
 
 ## Evidence and reviewed scope
 
-The sourceRevision names the exact reviewed source commit, based on readiness merge `fa942f883c2888f70bd46a32b53546497ea85133`. [E2E tests](../../tests/workspace_files.rs), [transport regressions](../../tests/provider_transports.rs), [native crash cleanup](../../src/supervisor/file_browser.rs) and [existing checkpoint conflict tests](../../tests/checkpoint_engine.rs) cover different boundaries. Executed gates, review closure and rendered/drill-down validation are recorded in the [review](../reviews/2026-10-23-workspace-files.md). Tests used synthetic workspaces only. No user migration, destructive resync or secrets upload occurred.
+The sourceRevision names the exact reviewed source commit, based on merged PR5 `db98741b2166e2f9f829eeac1bd64da65e033ef1`. [E2E tests](../../tests/workspace_files.rs), [transport regressions](../../tests/provider_transports.rs), [native crash cleanup](../../src/supervisor/file_browser.rs) and [existing checkpoint conflict tests](../../tests/checkpoint_engine.rs) cover different boundaries. Executed gates, review closure and rendered/drill-down validation are recorded in the [follow-up review](../reviews/2026-10-23-managed-editing.md). Initial Linux-only foundation evidence remains in the [earlier review](../reviews/2026-10-23-workspace-files.md). Tests used synthetic workspaces only. No user migration, destructive resync or secrets upload occurred.

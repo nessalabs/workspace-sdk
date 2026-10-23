@@ -1,0 +1,944 @@
+    Checking workspace_sdk v0.2.0 (/workspace/workspace-sdk)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.19s
+   Compiling workspace_sdk v0.2.0 (/workspace/workspace-sdk)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.52s
+   Compiling workspace_sdk v0.2.0 (/workspace/workspace-sdk)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.09s
+     Running unittests src/lib.rs (target/debug/deps/workspace_sdk-c825a7c20c979c20)
+
+running 89 tests
+test application::sync::sync_service::tests::canceled_download_finishes_before_scoped_cleanup ... ok
+test application::sync::sync_service::tests::canceled_handoff_retains_lease_and_records_only_one_continuation ... ok
+test application::sync::sync_service::tests::canceled_initialization_holds_lease_through_upload_and_import ... ok
+test application::sync::sync_service::tests::canceled_restore_finishes_upload_and_import_before_cleanup ... ok
+test application::sync::sync_service::tests::canceled_queued_direct_transfers_do_not_accept_background_work ... ok
+test application::sync::sync_service::tests::canceling_a_queued_workflow_does_not_start_it_later ... ok
+test application::sync::sync_service::tests::valid_download_keeps_exact_file_bytes_and_cleans_staging ... ok
+test checkpoint::domain::apply::tests::interrupted_progress_retains_its_recovery_identity_in_saved_state ... ok
+test checkpoint::domain::apply::tests::saved_apply_requests_must_state_quiescence_and_expected_contents ... ok
+test checkpoint::domain::checkpoint::tests::reference_wire_format_remains_an_opaque_string_for_saved_bindings ... ok
+test checkpoint::domain::tree_archive::tests::portable_archive_envelope_uses_flattened_entry_metadata ... ok
+test checkpoint::infrastructure::apply_preflight::tests::never_admits_unselected_file_symlink_or_empty_directory_collisions ... ok
+test checkpoint::infrastructure::apply_preflight::tests::repeated_component_checks_are_bounded_before_any_mutation ... ok
+test checkpoint::infrastructure::apply_preflight::tests::selected_directory_transition_rejects_excluded_children_without_mutation ... ok
+test checkpoint::infrastructure::pack::tests::declared_decompression_bomb_is_rejected_before_git_is_invoked ... ok
+test checkpoint::infrastructure::path_policy::tests::portable_paths_never_address_parents_windows_drives_or_control_state ... ok
+test checkpoint::infrastructure::path_policy::tests::symlinks_can_reference_a_sibling_but_not_secrets_or_parent_of_root ... ok
+test domain::execution::command::command_spec_tests::debug_never_prints_argument_environment_or_stdin_content ... ok
+test domain::execution::command::command_spec_tests::refuses_invalid_program_and_environment_names ... ok
+test domain::execution::command::secret_environment_tests::debug_excludes_secret_values ... ok
+test domain::execution::run::run_id_tests::validates_direct_and_deserialized_ids ... ok
+test domain::execution::run::run_state_tests::unknown_outcome_is_not_safe_to_handoff ... ok
+test domain::workspace::deletion::operation_id_tests::validates_direct_and_deserialized_ids ... ok
+test domain::workspace::file_browser::tests::rejects_non_advancing_and_wrong_target_directory_cursors ... ok
+test domain::workspace::file_browser::tests::rejects_unbounded_revisions_and_root_publication ... ok
+test domain::workspace::identity::provider_id_tests::validates_direct_and_deserialized_ids ... ok
+test domain::workspace::identity::workspace_id_tests::validates_direct_and_deserialized_ids ... ok
+test domain::workspace::path::tests::accepts_regular_names_that_only_contain_dots ... ok
+test domain::workspace::path::tests::explains_which_boundary_was_violated ... ok
+test domain::workspace::path::tests::normalizes_relative_current_directory ... ok
+test domain::workspace::path::tests::rejects_escaping_and_deserialized_paths ... ok
+test domain::workspace::ports::port_access_tests::debug_redacts_signed_url ... ok
+test infrastructure::file_state_repository::tests::absent_state_reads_are_empty_and_do_not_create_a_state_file ... ok
+test infrastructure::file_state_repository::tests::corrupt_or_unsupported_state_is_never_reset_by_read_or_write ... ok
+test infrastructure::file_state_repository::tests::corrupted_state_is_not_silently_discarded ... ok
+test infrastructure::file_state_repository::tests::dangling_state_symlink_is_rejected_without_replacing_it ... ok
+test infrastructure::file_state_repository::tests::lease_excludes_another_repository_instance_until_dropped ... ok
+test infrastructure::file_state_repository::tests::legacy_state_upgrades_only_after_a_successful_write_and_keeps_reservations ... ok
+test infrastructure::file_state_repository::tests::live_state_symlink_is_rejected_without_touching_its_target ... ok
+test infrastructure::file_state_repository::tests::oversized_state_is_rejected_without_truncating_it ... ok
+test infrastructure::file_state_repository::tests::reservation_survives_store_reopen_and_rejects_different_request ... ok
+test infrastructure::file_state_repository::tests::state_directory_is_rejected_without_replacing_its_contents ... ok
+test infrastructure::memory_state_repository::tests::same_id_cannot_change_request_identity ... ok
+test infrastructure::repository_state::tests::known_legacy_workflows_decode_without_losing_progress ... ok
+test infrastructure::repository_state::tests::legacy_receipt_with_wrong_identity_is_rejected ... ok
+test infrastructure::repository_state::tests::workflow_key_and_kind_cannot_be_rebound ... ok
+test providers::container::configuration::tests::image_cannot_inject_engine_flags ... ok
+test providers::local::configuration::tests::local_isolation_requires_explicit_host_trust ... ok
+test providers::sandbox::target::tests::hosting_explicitly_requests_private_access ... ok
+test providers::sandbox::target::tests::launches_use_private_put_and_cleanup_after_consumption ... ok
+test providers::sandbox::target::tests::rejected_native_launch_still_cleans_the_private_request ... ok
+test application::sync::sync_service::tests::upload_and_import_failures_preserve_original_error_and_cleanup_staging ... ok
+test providers::sandbox::target::tests::rejected_terminal_input_cleans_private_request_without_replay ... ok
+test providers::sandbox::target::tests::rejected_upload_still_cleans_its_reserved_request ... ok
+test providers::sandbox::target::tests::terminal_input_keeps_exact_bytes_in_private_utf8_transport ... ok
+test providers::ssh::configuration::tests::ssh_rejects_options_and_untrusted_isolation_claims ... ok
+test runtime::domain::secret_value::tests::diagnostic_format_is_redacted_while_adapter_access_is_explicit ... ok
+test runtime::infrastructure::native_resources::tests::gpu_capacity_is_per_device_and_malformed_rows_are_not_guessed ... ok
+test runtime::infrastructure::private_files::tests::private_files_are_atomic_and_reject_link_traversal ... ok
+test runtime::preparation_service::tests::claude_in_opencode_and_agent_sdk_reject_subscription_tokens ... ok
+test runtime::preparation_service::tests::codex_cache_requires_explicit_action_and_is_not_continuously_mirrored ... ok
+test runtime::preparation_service::tests::compatible_existing_tool_is_reused_without_replacement ... ok
+test providers::sandbox::target::tests::terminal_launch_keeps_environment_in_private_utf8_transport ... ok
+test runtime::preparation_service::tests::coordination_tests::file_leases_exclude_separate_store_instances_and_release_on_drop ... ok
+test application::sync::sync_service::tests::malformed_downloads_fail_and_cleanup_without_accepting_checkpoint ... ok
+test runtime::preparation_service::tests::coordination_tests::same_request_cannot_rebind_a_receipt_to_another_host_scope ... ok
+test runtime::preparation_service::tests::coordination_tests::failed_launch_receipt_acknowledgement_reconnects_to_one_native_process ... ok
+test runtime::preparation_service::tests::generic_training_secrets_are_scoped_and_setup_receipts_are_nonsecret ... ok
+test runtime::preparation_service::tests::coordination_tests::service_instances_share_operation_ownership_without_blocking_other_preparations ... ok
+test runtime::preparation_service::tests::failed_install_resumes_and_setup_steps_verify_before_reuse ... ok
+test runtime::preparation_service::tests::interaction_tests::cancellation_with_lost_acknowledgement_retains_the_original_receipt ... ok
+test runtime::preparation_service::tests::installs_pinned_tool_once_and_rechecks_reality_on_resume ... ok
+test runtime::preparation_service::tests::interaction_tests::input_output_and_size_bounds_are_enforced_before_delivery ... ok
+test runtime::preparation_service::tests::interaction_tests::controls_preserve_attempt_identity_and_do_not_persist_echoed_input ... ok
+test runtime::preparation_service::tests::interaction_tests::lost_state_never_allows_input_or_replacement_without_terminal_evidence ... ok
+test runtime::preparation_service::tests::interaction_tests::partial_and_unknown_input_are_returned_without_automatic_replay ... ok
+test runtime::preparation_service::tests::missing_and_expired_keys_request_input_without_install_or_launch ... ok
+test runtime::preparation_service::tests::interaction_tests::wrong_target_foreign_scope_and_forged_process_fail_before_host_calls ... ok
+test runtime::preparation_service::tests::opencode_has_own_headless_flow_and_server_requires_password ... ok
+test runtime::preparation_service::tests::native_login_reconnects_and_does_not_fall_back_to_api_billing ... ok
+test runtime::preparation_service::tests::setup_probe_transport_failure_never_applies_setup ... ok
+test runtime::preparation_service::tests::preparation_id_conflicts_and_file_store_survives_restart ... ok
+test runtime::preparation_service::tests::subscription_and_api_billing_use_separate_native_auth_directories ... ok
+test runtime::preparation_service::tests::version_resource_and_private_directory_constraints_fail_before_commands ... ok
+test supervisor::file_browser::tests::anonymous_stage_child ... ok
+test runtime::preparation_service::tests::unmodified_claude_uses_native_terminal_action_and_auth_json_status ... ok
+
+running 1 test
+test supervisor::file_browser::tests::anonymous_staging_is_reclaimed_when_supervisor_process_is_killed ... ok
+test application::sync::sync_service::tests::canceled_sync_back_holds_lease_until_review_receipt_is_saved ... ok
+test runtime::preparation_service::tests::interaction_tests::timed_out_input_acknowledgement_does_not_clear_or_repeat_the_attempt ... ok
+
+test result: ok. 89 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.23s
+
+     Running unittests src/bin/workspace-supervisor.rs (target/debug/deps/workspace_supervisor-c6cb58eb991664ef)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/boat_live.rs (target/debug/deps/boat_live-cd5919d023764969)
+
+running 1 test
+test native_rust_box_workflow ... ignored, creates two billable Boates; requires explicitly supplied native Linux artifacts and target paths
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/boat_provider_contract.rs (target/debug/deps/boat_provider_contract-6038fc7f107d1317)
+
+running 5 tests
+test duplicate_current_option_fields_are_rejected_in_both_value_orders ... ok
+test current_option_names_round_trip_to_the_canonical_schema ... ok
+test obsolete_box_option_fields_are_rejected_alone_and_with_current_fields ... ok
+test boat_and_neutral_public_names_share_the_client_and_boat_provider_id ... ok
+test explicit_provider_ids_keep_registration_and_reconnection_isolated ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/checkpoint_engine.rs (target/debug/deps/checkpoint_engine-5063a5a0db771871)
+
+running 13 tests
+test chained_symlinks_cannot_escape_through_parent_segments ... ok
+test bundle_tampering_and_reference_traversal_are_rejected ... ok
+test conflicting_edits_preserve_all_originals_and_require_explicit_resolution ... ok
+test apply_recovers_receipt_interruption_and_retries_without_overwriting_later_edits ... ok
+test external_symlinks_and_unresolved_lfs_fail_explicitly ... ok
+test clean_merge_stages_then_explicit_apply_and_rollback_preserve_excluded_files ... ok
+test snapshots_export_and_capture_archives_without_losing_tracked_ignore_selection ... ok
+test portable_non_git_snapshot_preserves_binary_modes_symlinks_and_filters ... ok
+test source_history_and_attributes_do_not_enter_snapshot ... ok
+test tree_archive_validates_paths_symlinks_hashes_and_limits_before_writing ... ok
+test tracked_secrets_are_removed_and_git_index_is_untouched ... ok
+test apply_file_directory_transition_and_excluded_collision_are_safe ... ok
+test stale_destination_and_changed_review_cannot_be_applied ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+
+     Running tests/checkpoint_remote.rs (target/debug/deps/checkpoint_remote-a8f03a977881a908)
+
+running 7 tests
+test native_import_rejects_malicious_paths_and_symlink_transfer_ancestors ... ok
+test native_export_reports_special_files_that_git_does_not_list ... ok
+test native_import_validates_all_archive_entries_before_publishing_any_file ... ok
+test native_import_resumes_matching_pending_files_and_rejects_modified_partial_files ... ok
+test transfer_cleanup_is_scoped_idempotent_and_preserves_project_and_import_receipt ... ok
+test native_export_and_checkpoint_capture_preserve_tracked_ignored_binary_modes_and_symlinks ... ok
+test native_archive_import_and_reexport_keep_selection_with_safe_retries ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/managed_edit_sessions.rs (target/debug/deps/managed_edit_sessions-0553bb20f4e1f27c)
+
+running 16 tests
+test candidate_revision_rejects_stale_and_cross_session_inputs_without_touching_live_files ... ok
+test caller_quiescence_and_shared_nonblocking_lease_are_executable_preconditions ... ok
+test completed_retry_preserves_later_edits_and_engine_receipt_survives_restart ... ok
+test changed_candidate_invalidates_review_and_external_change_after_review_is_preserved ... ok
+test create_replace_delete_rename_and_binary_apply_use_existing_checkpoint_publication ... ok
+test engine_limits_reject_oversized_live_capture_and_resolution_before_retaining_snapshots ... ok
+test managed_edit_performance_samples ... ignored, manual synthetic local performance qualification
+test human_agent_conflicts_keep_original_sides_and_require_explicit_resolution ... ok
+test oversized_mutation_paths_reject_before_candidate_allocation_or_snapshot_work ... ok
+test ignored_preexisting_human_destination_is_rejected_before_apply_or_rollback ... ok
+test interrupted_engine_receipt_blocks_new_work_and_uses_existing_recovery ... ok
+test root_replacement_rejects_the_old_session_and_releases_its_lease ... ok
+test policy_boundaries_and_failed_stage_keep_candidate_and_review_unchanged ... ok
+test nonoverlapping_sessions_reconcile_current_human_and_agent_changes ... ok
+test simultaneous_publications_have_one_winner_and_preserve_stale_writer_conflict ... ok
+test session_resource_and_attempt_limits_are_explicit ... ok
+
+test result: ok. 15 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.06s
+
+     Running tests/provider_local.rs (target/debug/deps/provider_local-5ea7f3beb3cc640e)
+
+running 7 tests
+test file_chunks_preserve_binary_mode_and_reject_symlink_escapes ... ok
+test credentials_are_transient_and_missing_state_is_not_reinitialized ... ok
+test ownership_blocks_attached_deletion_and_owned_delete_has_receipt ... ok
+test output_is_bounded_and_cursors_report_retention_gaps ... ok
+test killed_supervisor_is_lost_and_same_id_never_relaunches ... ok
+test reconnect_survives_client_drop_and_prevents_duplicate_execution ... ok
+test deadline_and_cancellation_stop_owned_process_groups ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.38s
+
+     Running tests/provider_transports.rs (target/debug/deps/provider_transports-f62c54e33442c3e3)
+
+running 9 tests
+test browser_invalid_requests_are_rejected_before_transport ... ok
+test attached_container_lifecycle_is_not_mutated ... ok
+test browser_lost_malformed_and_failed_acknowledgements_are_unknown_without_replay ... ok
+test browser_malformed_directory_pages_are_rejected ... ok
+test container_creation_refuses_to_reuse_an_unowned_volume ... ok
+test container_rejects_collision_with_unowned_existing_container ... ok
+test container_deletion_receipt_reconnects_and_finishes_a_remaining_volume ... ok
+test container_preflight_does_not_create_when_engine_is_missing ... ok
+test ssh_verifies_known_hosts_and_puts_secrets_on_stdin ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pty_live_probe.rs (target/debug/deps/pty_live_probe-6dc693722f59a446)
+
+running 1 test
+test initial_state_write_failure_destroys_the_opened_workspace ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/runtime_backend_host.rs (target/debug/deps/runtime_backend_host-b0f6fe91853c0572)
+
+running 5 tests
+test local_adapter_checks_installed_runtime_launches_and_retains_no_input_secrets ... ok
+test private_credentials_are_mode_restricted_and_cannot_cross_symlinks ... ok
+test native_process_references_cannot_control_another_workspace ... ok
+test native_device_interaction_is_a_reconnectable_managed_run ... ok
+test authentication_output_advances_across_split_unicode_bytes ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running tests/runtime_performance.rs (target/debug/deps/runtime_performance-a4f809d6d9183f1f)
+
+running 1 test
+test managed_runs_remain_reconnectable_and_cancelable_under_output_load ... ignored, local performance qualification: run explicitly with --ignored --nocapture
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/runtime_pty.rs (target/debug/deps/runtime_pty-1dedede8aee997e8)
+
+running 4 tests
+test retained_terminal_output_is_an_exact_merged_tail_with_absolute_cursors_and_eof ... ok
+test terminal_controls_reject_another_workspace_and_cancel_the_owned_process ... ok
+test terminal_input_resize_and_reconnect_preserve_scope_and_transient_credentials ... ok
+test leader_exit_settles_a_descendant_that_ignores_hup_and_holds_the_terminal ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+
+     Running tests/runtime_pty_adversarial.rs (target/debug/deps/runtime_pty_adversarial-f39429d90b2c2c3c)
+
+running 16 tests
+test delivered_input_with_a_not_found_transport_error_is_unknown_and_never_replayed ... ok
+test absent_terminal_socket_does_not_replace_confirmed_exit_with_lost ... ok
+test delivered_input_with_a_lost_transport_reply_is_unknown_and_never_replayed ... ok
+test delivered_input_with_a_wrong_success_variant_is_unknown_and_never_replayed ... ok
+test missing_terminal_program_exits_127_with_retained_diagnostic_and_safe_lifecycle ... ok
+test delivered_input_with_an_unsupported_transport_error_is_unknown_and_never_replayed ... ok
+test delivered_input_with_an_impossible_accepted_count_is_unknown_and_never_replayed ... ok
+test pipe_runs_do_not_gain_terminal_controls_or_change_modes_under_the_same_identity ... ok
+test nonexistent_terminal_run_returns_not_found_without_delivering_input ... ok
+test killed_terminal_owner_becomes_lost_releases_its_lock_and_never_relaunches_the_claim ... ok
+test persisted_incomplete_drain_is_visible_after_reconnect_without_inventing_output ... ok
+test terminal_path_search_skips_a_non_executable_shadow_before_a_valid_program ... ok
+test terminal_socket_unlink_failure_does_not_replace_confirmed_exit_with_lost ... ok
+test socket_cannot_claim_not_found_before_dispatch_after_consuming_input ... ok
+test socket_cannot_claim_unsupported_before_dispatch_after_consuming_input ... ok
+test trickled_socket_frames_have_a_total_deadline_and_cannot_starve_cancellation ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.95s
+
+     Running tests/runtime_pty_performance.rs (target/debug/deps/runtime_pty_performance-97ad44b3f6d7512b)
+
+running 1 test
+test qualify_loaded_pty_controls_and_concurrent_sessions ... ignored, real local PTY performance qualification
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/sdk_workflow.rs (target/debug/deps/sdk_workflow-e5ae843185a5f223)
+
+running 7 tests
+test launch_retry_does_not_repeat_side_effect_and_rejects_rebound_intent ... ok
+test next_sync_recovers_previous_apply_before_processing_a_remote_revert ... ok
+test handoff_refuses_active_source_and_resumes_once_across_controller_replacement ... ok
+test sync_recovers_receipt_failure_after_apply_without_overwriting_later_edits ... ok
+test sync_stages_merge_preserves_secrets_and_applies_only_with_fingerprint ... ok
+test caller_wait_timeout_does_not_cancel_the_detached_run ... ok
+test persistent_reconnect_and_creation_identity_survive_controller_replacement ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+
+     Running tests/workspace_files.rs (target/debug/deps/workspace_files-3f62d7df5ffc5d10)
+
+running 11 tests
+test file_browser_performance_samples ... ignored, manual local performance qualification, synthetic data only
+test failed_observation_does_not_erase_baseline_and_drop_leaves_no_resources ... ok
+test changed_directory_pages_must_restart_including_in_place_edits ... ok
+test no_clobber_create_is_atomic_under_simultaneous_sdk_participants ... ok
+test paginated_listing_includes_empty_directories_and_binary_files ... ok
+test bounds_are_enforced_for_reads_pages_publication_and_large_directories ... ok
+test observer_reconciles_external_create_edit_rename_delete_and_restart ... ok
+test unmanaged_human_creation_is_preserved_and_replace_is_explicitly_unsupported ... ok
+test stale_chunk_and_atomic_external_replacement_are_conflicts ... ok
+test symlinks_special_files_wrong_revision_and_control_state_are_isolated ... ok
+test large_file_is_read_in_bounded_chunks_without_mixing_revisions ... ok
+
+test result: ok. 10 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+     Running tests/workspace_files_portable.rs (target/debug/deps/workspace_files_portable-4e4a5cde9968ea8b)
+
+running 4 tests
+test linux_non_utf8_directory_entries_are_explicitly_unsupported ... ok
+test portable_descriptor_listing_never_follows_symlinks_or_special_files ... ok
+test portable_pages_read_tokens_and_external_reconciliation ... ok
+test portable_repeated_streams_close_and_nonportable_names_reject ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+   Doc-tests workspace_sdk
+
+running 3 tests
+test src/lib.rs - (line 25) - compile ... ok
+test src/runtime/domain/secret_value.rs - runtime::domain::secret_value::SecretValue (line 15) - compile fail ... ok
+test src/domain/workspace/path.rs - domain::workspace::path::WorkspacePath (line 17) ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+   Compiling workspace_sdk v0.2.0 (/workspace/workspace-sdk)
+warning: method `requires_private_transport` is never used
+   --> src/supervisor/protocol.rs:128:19
+    |
+125 | impl SupervisorOperation {
+    | ------------------------ method in this implementation
+...
+128 |     pub(crate) fn requires_private_transport(&self) -> bool {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `workspace_sdk` (lib) generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.72s
+warning: method `requires_private_transport` is never used
+   --> src/supervisor/protocol.rs:128:19
+    |
+125 | impl SupervisorOperation {
+    | ------------------------ method in this implementation
+...
+128 |     pub(crate) fn requires_private_transport(&self) -> bool {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling workspace_sdk v0.2.0 (/workspace/workspace-sdk)
+warning: `workspace_sdk` (lib) generated 1 warning
+warning: `workspace_sdk` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.89s
+     Running unittests src/lib.rs (target/debug/deps/workspace_sdk-2889ded5ae99ef52)
+
+running 82 tests
+test application::sync::sync_service::tests::canceled_download_finishes_before_scoped_cleanup ... ok
+test application::sync::sync_service::tests::canceled_handoff_retains_lease_and_records_only_one_continuation ... ok
+test application::sync::sync_service::tests::canceled_initialization_holds_lease_through_upload_and_import ... ok
+test application::sync::sync_service::tests::canceled_queued_direct_transfers_do_not_accept_background_work ... ok
+test application::sync::sync_service::tests::canceled_restore_finishes_upload_and_import_before_cleanup ... ok
+test application::sync::sync_service::tests::canceling_a_queued_workflow_does_not_start_it_later ... ok
+test application::sync::sync_service::tests::upload_and_import_failures_preserve_original_error_and_cleanup_staging ... ok
+test checkpoint::domain::apply::tests::interrupted_progress_retains_its_recovery_identity_in_saved_state ... ok
+test checkpoint::domain::apply::tests::saved_apply_requests_must_state_quiescence_and_expected_contents ... ok
+test checkpoint::domain::checkpoint::tests::reference_wire_format_remains_an_opaque_string_for_saved_bindings ... ok
+test checkpoint::domain::tree_archive::tests::portable_archive_envelope_uses_flattened_entry_metadata ... ok
+test checkpoint::infrastructure::apply_preflight::tests::never_admits_unselected_file_symlink_or_empty_directory_collisions ... ok
+test application::sync::sync_service::tests::valid_download_keeps_exact_file_bytes_and_cleans_staging ... ok
+test checkpoint::infrastructure::apply_preflight::tests::selected_directory_transition_rejects_excluded_children_without_mutation ... ok
+test checkpoint::infrastructure::pack::tests::declared_decompression_bomb_is_rejected_before_git_is_invoked ... ok
+test checkpoint::infrastructure::path_policy::tests::portable_paths_never_address_parents_windows_drives_or_control_state ... ok
+test checkpoint::infrastructure::path_policy::tests::symlinks_can_reference_a_sibling_but_not_secrets_or_parent_of_root ... ok
+test domain::execution::command::command_spec_tests::debug_never_prints_argument_environment_or_stdin_content ... ok
+test domain::execution::command::command_spec_tests::refuses_invalid_program_and_environment_names ... ok
+test domain::execution::command::secret_environment_tests::debug_excludes_secret_values ... ok
+test domain::execution::run::run_id_tests::validates_direct_and_deserialized_ids ... ok
+test domain::execution::run::run_state_tests::unknown_outcome_is_not_safe_to_handoff ... ok
+test domain::workspace::deletion::operation_id_tests::validates_direct_and_deserialized_ids ... ok
+test domain::workspace::file_browser::tests::rejects_non_advancing_and_wrong_target_directory_cursors ... ok
+test domain::workspace::file_browser::tests::rejects_unbounded_revisions_and_root_publication ... ok
+test domain::workspace::identity::provider_id_tests::validates_direct_and_deserialized_ids ... ok
+test domain::workspace::identity::workspace_id_tests::validates_direct_and_deserialized_ids ... ok
+test domain::workspace::path::tests::accepts_regular_names_that_only_contain_dots ... ok
+test domain::workspace::path::tests::explains_which_boundary_was_violated ... ok
+test domain::workspace::path::tests::normalizes_relative_current_directory ... ok
+test domain::workspace::path::tests::rejects_escaping_and_deserialized_paths ... ok
+test domain::workspace::ports::port_access_tests::debug_redacts_signed_url ... ok
+test infrastructure::file_state_repository::tests::absent_state_reads_are_empty_and_do_not_create_a_state_file ... ok
+test checkpoint::infrastructure::apply_preflight::tests::repeated_component_checks_are_bounded_before_any_mutation ... ok
+test infrastructure::file_state_repository::tests::corrupt_or_unsupported_state_is_never_reset_by_read_or_write ... ok
+test infrastructure::file_state_repository::tests::corrupted_state_is_not_silently_discarded ... ok
+test infrastructure::file_state_repository::tests::dangling_state_symlink_is_rejected_without_replacing_it ... ok
+test infrastructure::file_state_repository::tests::lease_excludes_another_repository_instance_until_dropped ... ok
+test infrastructure::file_state_repository::tests::legacy_state_upgrades_only_after_a_successful_write_and_keeps_reservations ... ok
+test infrastructure::file_state_repository::tests::live_state_symlink_is_rejected_without_touching_its_target ... ok
+test infrastructure::file_state_repository::tests::oversized_state_is_rejected_without_truncating_it ... ok
+test infrastructure::file_state_repository::tests::state_directory_is_rejected_without_replacing_its_contents ... ok
+test infrastructure::memory_state_repository::tests::same_id_cannot_change_request_identity ... ok
+test infrastructure::file_state_repository::tests::reservation_survives_store_reopen_and_rejects_different_request ... ok
+test infrastructure::repository_state::tests::known_legacy_workflows_decode_without_losing_progress ... ok
+test infrastructure::repository_state::tests::workflow_key_and_kind_cannot_be_rebound ... ok
+test infrastructure::repository_state::tests::legacy_receipt_with_wrong_identity_is_rejected ... ok
+test application::sync::sync_service::tests::malformed_downloads_fail_and_cleanup_without_accepting_checkpoint ... ok
+test providers::container::configuration::tests::image_cannot_inject_engine_flags ... ok
+test providers::local::configuration::tests::local_isolation_requires_explicit_host_trust ... ok
+test providers::ssh::configuration::tests::ssh_rejects_options_and_untrusted_isolation_claims ... ok
+test runtime::domain::secret_value::tests::diagnostic_format_is_redacted_while_adapter_access_is_explicit ... ok
+test runtime::infrastructure::native_resources::tests::gpu_capacity_is_per_device_and_malformed_rows_are_not_guessed ... ok
+test runtime::infrastructure::private_files::tests::private_files_are_atomic_and_reject_link_traversal ... ok
+test runtime::preparation_service::tests::claude_in_opencode_and_agent_sdk_reject_subscription_tokens ... ok
+test runtime::preparation_service::tests::codex_cache_requires_explicit_action_and_is_not_continuously_mirrored ... ok
+test runtime::preparation_service::tests::coordination_tests::file_leases_exclude_separate_store_instances_and_release_on_drop ... ok
+test runtime::preparation_service::tests::compatible_existing_tool_is_reused_without_replacement ... ok
+test runtime::preparation_service::tests::coordination_tests::same_request_cannot_rebind_a_receipt_to_another_host_scope ... ok
+test runtime::preparation_service::tests::coordination_tests::failed_launch_receipt_acknowledgement_reconnects_to_one_native_process ... ok
+test runtime::preparation_service::tests::coordination_tests::service_instances_share_operation_ownership_without_blocking_other_preparations ... ok
+test runtime::preparation_service::tests::generic_training_secrets_are_scoped_and_setup_receipts_are_nonsecret ... ok
+test runtime::preparation_service::tests::failed_install_resumes_and_setup_steps_verify_before_reuse ... ok
+test runtime::preparation_service::tests::interaction_tests::cancellation_with_lost_acknowledgement_retains_the_original_receipt ... ok
+test runtime::preparation_service::tests::installs_pinned_tool_once_and_rechecks_reality_on_resume ... ok
+test runtime::preparation_service::tests::interaction_tests::input_output_and_size_bounds_are_enforced_before_delivery ... ok
+test runtime::preparation_service::tests::interaction_tests::controls_preserve_attempt_identity_and_do_not_persist_echoed_input ... ok
+test runtime::preparation_service::tests::interaction_tests::lost_state_never_allows_input_or_replacement_without_terminal_evidence ... ok
+test runtime::preparation_service::tests::interaction_tests::partial_and_unknown_input_are_returned_without_automatic_replay ... ok
+test runtime::preparation_service::tests::interaction_tests::wrong_target_foreign_scope_and_forged_process_fail_before_host_calls ... ok
+test runtime::preparation_service::tests::missing_and_expired_keys_request_input_without_install_or_launch ... ok
+test runtime::preparation_service::tests::native_login_reconnects_and_does_not_fall_back_to_api_billing ... ok
+test runtime::preparation_service::tests::opencode_has_own_headless_flow_and_server_requires_password ... ok
+test runtime::preparation_service::tests::setup_probe_transport_failure_never_applies_setup ... ok
+test runtime::preparation_service::tests::preparation_id_conflicts_and_file_store_survives_restart ... ok
+test runtime::preparation_service::tests::subscription_and_api_billing_use_separate_native_auth_directories ... ok
+test runtime::preparation_service::tests::unmodified_claude_uses_native_terminal_action_and_auth_json_status ... ok
+test supervisor::file_browser::tests::anonymous_stage_child ... ok
+test runtime::preparation_service::tests::version_resource_and_private_directory_constraints_fail_before_commands ... ok
+
+running 1 test
+test supervisor::file_browser::tests::anonymous_staging_is_reclaimed_when_supervisor_process_is_killed ... ok
+test application::sync::sync_service::tests::canceled_sync_back_holds_lease_until_review_receipt_is_saved ... ok
+test runtime::preparation_service::tests::interaction_tests::timed_out_input_acknowledgement_does_not_clear_or_repeat_the_attempt ... ok
+
+test result: ok. 82 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.16s
+
+     Running unittests src/bin/workspace-supervisor.rs (target/debug/deps/workspace_supervisor-21f4dc0929d18eac)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/boat_live.rs (target/debug/deps/boat_live-10704eeb8d42b769)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/boat_provider_contract.rs (target/debug/deps/boat_provider_contract-c271108ed9d46d15)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/checkpoint_engine.rs (target/debug/deps/checkpoint_engine-d10e5c9eb70a8aab)
+
+running 13 tests
+test chained_symlinks_cannot_escape_through_parent_segments ... ok
+test bundle_tampering_and_reference_traversal_are_rejected ... ok
+test conflicting_edits_preserve_all_originals_and_require_explicit_resolution ... ok
+test external_symlinks_and_unresolved_lfs_fail_explicitly ... ok
+test apply_recovers_receipt_interruption_and_retries_without_overwriting_later_edits ... ok
+test clean_merge_stages_then_explicit_apply_and_rollback_preserve_excluded_files ... ok
+test snapshots_export_and_capture_archives_without_losing_tracked_ignore_selection ... ok
+test portable_non_git_snapshot_preserves_binary_modes_symlinks_and_filters ... ok
+test source_history_and_attributes_do_not_enter_snapshot ... ok
+test tree_archive_validates_paths_symlinks_hashes_and_limits_before_writing ... ok
+test tracked_secrets_are_removed_and_git_index_is_untouched ... ok
+test apply_file_directory_transition_and_excluded_collision_are_safe ... ok
+test stale_destination_and_changed_review_cannot_be_applied ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+
+     Running tests/checkpoint_remote.rs (target/debug/deps/checkpoint_remote-22c357b85aa5b300)
+
+running 7 tests
+test native_export_reports_special_files_that_git_does_not_list ... ok
+test native_import_rejects_malicious_paths_and_symlink_transfer_ancestors ... ok
+test native_import_validates_all_archive_entries_before_publishing_any_file ... ok
+test native_import_resumes_matching_pending_files_and_rejects_modified_partial_files ... ok
+test transfer_cleanup_is_scoped_idempotent_and_preserves_project_and_import_receipt ... ok
+test native_export_and_checkpoint_capture_preserve_tracked_ignored_binary_modes_and_symlinks ... ok
+test native_archive_import_and_reexport_keep_selection_with_safe_retries ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/managed_edit_sessions.rs (target/debug/deps/managed_edit_sessions-748655d0969c4aa5)
+
+running 16 tests
+test candidate_revision_rejects_stale_and_cross_session_inputs_without_touching_live_files ... ok
+test caller_quiescence_and_shared_nonblocking_lease_are_executable_preconditions ... ok
+test completed_retry_preserves_later_edits_and_engine_receipt_survives_restart ... ok
+test changed_candidate_invalidates_review_and_external_change_after_review_is_preserved ... ok
+test create_replace_delete_rename_and_binary_apply_use_existing_checkpoint_publication ... ok
+test human_agent_conflicts_keep_original_sides_and_require_explicit_resolution ... ok
+test managed_edit_performance_samples ... ignored, manual synthetic local performance qualification
+test engine_limits_reject_oversized_live_capture_and_resolution_before_retaining_snapshots ... ok
+test oversized_mutation_paths_reject_before_candidate_allocation_or_snapshot_work ... ok
+test interrupted_engine_receipt_blocks_new_work_and_uses_existing_recovery ... ok
+test ignored_preexisting_human_destination_is_rejected_before_apply_or_rollback ... ok
+test root_replacement_rejects_the_old_session_and_releases_its_lease ... ok
+test policy_boundaries_and_failed_stage_keep_candidate_and_review_unchanged ... ok
+test nonoverlapping_sessions_reconcile_current_human_and_agent_changes ... ok
+test simultaneous_publications_have_one_winner_and_preserve_stale_writer_conflict ... ok
+test session_resource_and_attempt_limits_are_explicit ... ok
+
+test result: ok. 15 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.05s
+
+     Running tests/provider_local.rs (target/debug/deps/provider_local-d87802fcb1f29696)
+
+running 7 tests
+test file_chunks_preserve_binary_mode_and_reject_symlink_escapes ... ok
+test credentials_are_transient_and_missing_state_is_not_reinitialized ... ok
+test ownership_blocks_attached_deletion_and_owned_delete_has_receipt ... ok
+test output_is_bounded_and_cursors_report_retention_gaps ... ok
+test killed_supervisor_is_lost_and_same_id_never_relaunches ... ok
+test reconnect_survives_client_drop_and_prevents_duplicate_execution ... ok
+test deadline_and_cancellation_stop_owned_process_groups ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.40s
+
+     Running tests/provider_transports.rs (target/debug/deps/provider_transports-d09156683a1f9b86)
+
+running 9 tests
+test browser_invalid_requests_are_rejected_before_transport ... ok
+test attached_container_lifecycle_is_not_mutated ... ok
+test browser_lost_malformed_and_failed_acknowledgements_are_unknown_without_replay ... ok
+test browser_malformed_directory_pages_are_rejected ... ok
+test container_creation_refuses_to_reuse_an_unowned_volume ... ok
+test container_deletion_receipt_reconnects_and_finishes_a_remaining_volume ... ok
+test container_rejects_collision_with_unowned_existing_container ... ok
+test ssh_verifies_known_hosts_and_puts_secrets_on_stdin ... ok
+test container_preflight_does_not_create_when_engine_is_missing ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pty_live_probe.rs (target/debug/deps/pty_live_probe-f9c03ebacd1a5c8e)
+
+running 1 test
+test initial_state_write_failure_destroys_the_opened_workspace ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/runtime_backend_host.rs (target/debug/deps/runtime_backend_host-a55e66b0ec9fa056)
+
+running 5 tests
+test authentication_output_advances_across_split_unicode_bytes ... ok
+test private_credentials_are_mode_restricted_and_cannot_cross_symlinks ... ok
+test native_process_references_cannot_control_another_workspace ... ok
+test native_device_interaction_is_a_reconnectable_managed_run ... ok
+test local_adapter_checks_installed_runtime_launches_and_retains_no_input_secrets ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+     Running tests/runtime_performance.rs (target/debug/deps/runtime_performance-d85a85cd616cc948)
+
+running 1 test
+test managed_runs_remain_reconnectable_and_cancelable_under_output_load ... ignored, local performance qualification: run explicitly with --ignored --nocapture
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/runtime_pty.rs (target/debug/deps/runtime_pty-b37cdf3e06b6f46d)
+
+running 4 tests
+test retained_terminal_output_is_an_exact_merged_tail_with_absolute_cursors_and_eof ... ok
+test terminal_controls_reject_another_workspace_and_cancel_the_owned_process ... ok
+test terminal_input_resize_and_reconnect_preserve_scope_and_transient_credentials ... ok
+test leader_exit_settles_a_descendant_that_ignores_hup_and_holds_the_terminal ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+
+     Running tests/runtime_pty_adversarial.rs (target/debug/deps/runtime_pty_adversarial-f5b7a1eeca8507d3)
+
+running 16 tests
+test delivered_input_with_a_not_found_transport_error_is_unknown_and_never_replayed ... ok
+test delivered_input_with_a_wrong_success_variant_is_unknown_and_never_replayed ... ok
+test absent_terminal_socket_does_not_replace_confirmed_exit_with_lost ... ok
+test delivered_input_with_a_lost_transport_reply_is_unknown_and_never_replayed ... ok
+test missing_terminal_program_exits_127_with_retained_diagnostic_and_safe_lifecycle ... ok
+test delivered_input_with_an_impossible_accepted_count_is_unknown_and_never_replayed ... ok
+test delivered_input_with_an_unsupported_transport_error_is_unknown_and_never_replayed ... ok
+test killed_terminal_owner_becomes_lost_releases_its_lock_and_never_relaunches_the_claim ... ok
+test nonexistent_terminal_run_returns_not_found_without_delivering_input ... ok
+test pipe_runs_do_not_gain_terminal_controls_or_change_modes_under_the_same_identity ... ok
+test persisted_incomplete_drain_is_visible_after_reconnect_without_inventing_output ... ok
+test terminal_path_search_skips_a_non_executable_shadow_before_a_valid_program ... ok
+test terminal_socket_unlink_failure_does_not_replace_confirmed_exit_with_lost ... ok
+test socket_cannot_claim_not_found_before_dispatch_after_consuming_input ... ok
+test socket_cannot_claim_unsupported_before_dispatch_after_consuming_input ... ok
+test trickled_socket_frames_have_a_total_deadline_and_cannot_starve_cancellation ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.97s
+
+     Running tests/runtime_pty_performance.rs (target/debug/deps/runtime_pty_performance-a5f7cc95113a23e9)
+
+running 1 test
+test qualify_loaded_pty_controls_and_concurrent_sessions ... ignored, real local PTY performance qualification
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/sdk_workflow.rs (target/debug/deps/sdk_workflow-ddde3d834f8154da)
+
+running 7 tests
+test launch_retry_does_not_repeat_side_effect_and_rejects_rebound_intent ... ok
+test next_sync_recovers_previous_apply_before_processing_a_remote_revert ... ok
+test handoff_refuses_active_source_and_resumes_once_across_controller_replacement ... ok
+test sync_recovers_receipt_failure_after_apply_without_overwriting_later_edits ... ok
+test persistent_reconnect_and_creation_identity_survive_controller_replacement ... ok
+test sync_stages_merge_preserves_secrets_and_applies_only_with_fingerprint ... ok
+test caller_wait_timeout_does_not_cancel_the_detached_run ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+
+     Running tests/workspace_files.rs (target/debug/deps/workspace_files-6c485be682d4aad4)
+
+running 11 tests
+test file_browser_performance_samples ... ignored, manual local performance qualification, synthetic data only
+test changed_directory_pages_must_restart_including_in_place_edits ... ok
+test failed_observation_does_not_erase_baseline_and_drop_leaves_no_resources ... ok
+test no_clobber_create_is_atomic_under_simultaneous_sdk_participants ... ok
+test paginated_listing_includes_empty_directories_and_binary_files ... ok
+test bounds_are_enforced_for_reads_pages_publication_and_large_directories ... ok
+test observer_reconciles_external_create_edit_rename_delete_and_restart ... ok
+test stale_chunk_and_atomic_external_replacement_are_conflicts ... ok
+test unmanaged_human_creation_is_preserved_and_replace_is_explicitly_unsupported ... ok
+test symlinks_special_files_wrong_revision_and_control_state_are_isolated ... ok
+test large_file_is_read_in_bounded_chunks_without_mixing_revisions ... ok
+
+test result: ok. 10 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running tests/workspace_files_portable.rs (target/debug/deps/workspace_files_portable-9234ac2501a09bfa)
+
+running 4 tests
+test linux_non_utf8_directory_entries_are_explicitly_unsupported ... ok
+test portable_descriptor_listing_never_follows_symlinks_or_special_files ... ok
+test portable_pages_read_tokens_and_external_reconciliation ... ok
+test portable_repeated_streams_close_and_nonportable_names_reject ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+   Doc-tests workspace_sdk
+
+running 3 tests
+test src/runtime/domain/secret_value.rs - runtime::domain::secret_value::SecretValue (line 15) - compile fail ... ok
+test src/lib.rs - (line 25) - compile ... ok
+test src/domain/workspace/path.rs - domain::workspace::path::WorkspacePath (line 17) ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+    Checking workspace_sdk v0.2.0 (/workspace/workspace-sdk)
+ Documenting workspace_sdk v0.2.0 (/workspace/workspace-sdk)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.42s
+   Generated /workspace/workspace-sdk/target/doc/workspace_sdk/index.html and 1 other file
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.07s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running tests/runtime_performance.rs (target/debug/deps/runtime_performance-a4f809d6d9183f1f)
+
+running 1 test
+{
+  "schema_version": 1,
+  "unix_timestamp_seconds": 1792743570,
+  "operating_system": "linux",
+  "architecture": "x86_64",
+  "debug_assertions": true,
+  "retention_bytes": 32768,
+  "minimum_load_bytes_per_stream": 131072,
+  "poll_interval_ms": 10,
+  "samples": [
+    {
+      "launch_ms": 2.462558,
+      "launch_to_first_output_ms": 4.102093,
+      "reconnect_ms": 0.029144,
+      "idempotent_retry_ms": 1.509901,
+      "loaded_read_ms": 1.632825,
+      "cancel_ms": 51.980658,
+      "final_stdout_offset": 192512,
+      "final_stderr_offset": 192512,
+      "retained_stdout_bytes": 16384,
+      "retained_stderr_bytes": 16384
+    },
+    {
+      "launch_ms": 1.940736,
+      "launch_to_first_output_ms": 3.647782,
+      "reconnect_ms": 0.048763,
+      "idempotent_retry_ms": 1.6095300000000001,
+      "loaded_read_ms": 1.833365,
+      "cancel_ms": 51.973078,
+      "final_stdout_offset": 204800,
+      "final_stderr_offset": 204800,
+      "retained_stdout_bytes": 16384,
+      "retained_stderr_bytes": 16384
+    },
+    {
+      "launch_ms": 1.980586,
+      "launch_to_first_output_ms": 3.798819,
+      "reconnect_ms": 0.027471,
+      "idempotent_retry_ms": 3.1531010000000004,
+      "loaded_read_ms": 2.1427490000000002,
+      "cancel_ms": 52.297754000000005,
+      "final_stdout_offset": 204800,
+      "final_stderr_offset": 204800,
+      "retained_stdout_bytes": 16384,
+      "retained_stderr_bytes": 16384
+    }
+  ]
+}
+Performance report: /workspace/workspace-sdk/target/runtime-performance.json
+test managed_runs_remain_reconnectable_and_cancelable_under_output_load ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running tests/runtime_pty_performance.rs (target/debug/deps/runtime_pty_performance-97ad44b3f6d7512b)
+
+running 1 test
+{
+  "architecture": "x86_64",
+  "debug_assertions": true,
+  "os": "linux",
+  "samples": [
+    {
+      "cancel_ms": 52.107018,
+      "elapsed_to_cancel_ms": 614.285755,
+      "input_delivery_ms": 10.6512,
+      "launch_ms": 2.956963,
+      "observed_bytes_per_second": 855159.0130882979,
+      "output_bytes": 525312,
+      "population": 1,
+      "ready_ms": 9.112861,
+      "resize_observed_ms": 26.982204,
+      "retained_bytes": 131072,
+      "supervisor_open_descriptors": 17,
+      "supervisor_rss_kib": 6404
+    },
+    {
+      "cancel_ms": 52.013206,
+      "elapsed_to_cancel_ms": 607.717619,
+      "input_delivery_ms": 11.334874,
+      "launch_ms": 1.795879,
+      "observed_bytes_per_second": 869456.4440462602,
+      "output_bytes": 528384,
+      "population": 1,
+      "ready_ms": 7.935042999999999,
+      "resize_observed_ms": 21.593375,
+      "retained_bytes": 131072,
+      "supervisor_open_descriptors": 17,
+      "supervisor_rss_kib": 6400
+    },
+    {
+      "cancel_ms": 52.022451,
+      "elapsed_to_cancel_ms": 612.41303,
+      "input_delivery_ms": 9.635589,
+      "launch_ms": 1.795479,
+      "observed_bytes_per_second": 864462.3384319566,
+      "output_bytes": 529408,
+      "population": 1,
+      "ready_ms": 7.931587,
+      "resize_observed_ms": 27.084688,
+      "retained_bytes": 131072,
+      "supervisor_open_descriptors": 17,
+      "supervisor_rss_kib": 6400
+    },
+    {
+      "cancel_ms": 52.205606,
+      "elapsed_to_cancel_ms": 645.0321260000001,
+      "input_delivery_ms": 5.404522,
+      "launch_ms": 1.8832250000000001,
+      "observed_bytes_per_second": 874722.3235203637,
+      "output_bytes": 564224,
+      "population": 4,
+      "ready_ms": 8.019704,
+      "resize_observed_ms": 58.599274,
+      "retained_bytes": 131072,
+      "supervisor_open_descriptors": 17,
+      "supervisor_rss_kib": 6340
+    },
+    {
+      "cancel_ms": 52.598554,
+      "elapsed_to_cancel_ms": 667.932258,
+      "input_delivery_ms": 2.21719,
+      "launch_ms": 1.833896,
+      "observed_bytes_per_second": 869261.8046903793,
+      "output_bytes": 580608,
+      "population": 4,
+      "ready_ms": 7.961482000000001,
+      "resize_observed_ms": 27.67118,
+      "retained_bytes": 131072,
+      "supervisor_open_descriptors": 17,
+      "supervisor_rss_kib": 6364
+    },
+    {
+      "cancel_ms": 52.925433,
+      "elapsed_to_cancel_ms": 660.732676,
+      "input_delivery_ms": 11.379365,
+      "launch_ms": 1.8047119999999999,
+      "observed_bytes_per_second": 861685.853720363,
+      "output_bytes": 569344,
+      "population": 4,
+      "ready_ms": 7.94715,
+      "resize_observed_ms": 40.678134,
+      "retained_bytes": 131072,
+      "supervisor_open_descriptors": 17,
+      "supervisor_rss_kib": 6504
+    },
+    {
+      "cancel_ms": 52.178255,
+      "elapsed_to_cancel_ms": 652.3842960000001,
+      "input_delivery_ms": 16.980783,
+      "launch_ms": 2.195678,
+      "observed_bytes_per_second": 864864.472458117,
+      "output_bytes": 564224,
+      "population": 4,
+      "ready_ms": 8.335813,
+      "resize_observed_ms": 25.097642999999998,
+      "retained_bytes": 131072,
+      "supervisor_open_descriptors": 17,
+      "supervisor_rss_kib": 6396
+    },
+    {
+      "cancel_ms": 52.196951999999996,
+      "elapsed_to_cancel_ms": 663.396205,
+      "input_delivery_ms": 7.878817999999999,
+      "launch_ms": 1.759896,
+      "observed_bytes_per_second": 862856.9106752729,
+      "output_bytes": 572416,
+      "population": 4,
+      "ready_ms": 7.902433,
+      "resize_observed_ms": 21.598653,
+      "retained_bytes": 131072,
+      "supervisor_open_descriptors": 17,
+      "supervisor_rss_kib": 6316
+    },
+    {
+      "cancel_ms": 52.084129,
+      "elapsed_to_cancel_ms": 649.508955,
+      "input_delivery_ms": 11.797366,
+      "launch_ms": 2.0855140000000003,
+      "observed_bytes_per_second": 871846.3319724359,
+      "output_bytes": 566272,
+      "population": 4,
+      "ready_ms": 8.220590999999999,
+      "resize_observed_ms": 40.690712,
+      "retained_bytes": 131072,
+      "supervisor_open_descriptors": 17,
+      "supervisor_rss_kib": 6400
+    },
+    {
+      "cancel_ms": 53.003646,
+      "elapsed_to_cancel_ms": 657.837276,
+      "input_delivery_ms": 4.906808000000001,
+      "launch_ms": 1.841207,
+      "observed_bytes_per_second": 860808.6234383592,
+      "output_bytes": 566272,
+      "population": 4,
+      "ready_ms": 6.98556,
+      "resize_observed_ms": 60.554852,
+      "retained_bytes": 131072,
+      "supervisor_open_descriptors": 17,
+      "supervisor_rss_kib": 6320
+    },
+    {
+      "cancel_ms": 53.643554,
+      "elapsed_to_cancel_ms": 642.237025,
+      "input_delivery_ms": 7.494182,
+      "launch_ms": 2.05039,
+      "observed_bytes_per_second": 864179.389221604,
+      "output_bytes": 555008,
+      "population": 4,
+      "ready_ms": 8.19389,
+      "resize_observed_ms": 33.785061999999996,
+      "retained_bytes": 131072,
+      "supervisor_open_descriptors": 17,
+      "supervisor_rss_kib": 6400
+    },
+    {
+      "cancel_ms": 51.835271,
+      "elapsed_to_cancel_ms": 640.2342239999999,
+      "input_delivery_ms": 10.38373,
+      "launch_ms": 1.986415,
+      "observed_bytes_per_second": 866882.7425882813,
+      "output_bytes": 555008,
+      "population": 4,
+      "ready_ms": 8.123325000000001,
+      "resize_observed_ms": 35.780323,
+      "retained_bytes": 131072,
+      "supervisor_open_descriptors": 17,
+      "supervisor_rss_kib": 6516
+    },
+    {
+      "cancel_ms": 53.147055,
+      "elapsed_to_cancel_ms": 658.456961,
+      "input_delivery_ms": 2.6885559999999997,
+      "launch_ms": 2.008979,
+      "observed_bytes_per_second": 869329.4078487236,
+      "output_bytes": 572416,
+      "population": 4,
+      "ready_ms": 8.17409,
+      "resize_observed_ms": 54.131994000000006,
+      "retained_bytes": 131072,
+      "supervisor_open_descriptors": 17,
+      "supervisor_rss_kib": 6380
+    },
+    {
+      "cancel_ms": 51.759201999999995,
+      "elapsed_to_cancel_ms": 647.83501,
+      "input_delivery_ms": 3.482275,
+      "launch_ms": 1.790231,
+      "observed_bytes_per_second": 869357.1531430511,
+      "output_bytes": 563200,
+      "population": 4,
+      "ready_ms": 7.937987000000001,
+      "resize_observed_ms": 21.665875,
+      "retained_bytes": 131072,
+      "supervisor_open_descriptors": 17,
+      "supervisor_rss_kib": 6328
+    },
+    {
+      "cancel_ms": 53.101867,
+      "elapsed_to_cancel_ms": 633.636344,
+      "input_delivery_ms": 8.105649,
+      "launch_ms": 1.968789,
+      "observed_bytes_per_second": 862980.8014926618,
+      "output_bytes": 546816,
+      "population": 4,
+      "ready_ms": 8.103565,
+      "resize_observed_ms": 27.469376999999998,
+      "retained_bytes": 131072,
+      "supervisor_open_descriptors": 17,
+      "supervisor_rss_kib": 6448
+    }
+  ],
+  "schema_version": 1,
+  "unix_timestamp_seconds": 1792743575
+}
+test qualify_loaded_pty_controls_and_concurrent_sessions ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.94s
+
+Mechanical checks passed. Record independent design and adversarial review decisions before accepting the quality gate.

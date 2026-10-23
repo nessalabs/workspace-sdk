@@ -152,6 +152,15 @@ impl GitCheckpointEngine {
                 "review directory changed; accept its resolved contents before apply".into(),
             ));
         }
+        // Before mutation or recovery intent, reject every result-path collision
+        // with data absent from the captured before tree. Otherwise automatic
+        // rollback could remove a preexisting ignored file it never backed up.
+        super::apply_preflight::preflight(
+            &reconciliation.destination,
+            &before,
+            &after,
+            &self.limits,
+        )?;
         let mut journal = match existing_journal {
             Some(journal) => journal,
             None => {

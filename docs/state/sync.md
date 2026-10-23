@@ -5,9 +5,12 @@ kind: flow
 status: implemented
 summary: Capture filtered checkpoints, review a three-way merge, and publish only against the expected local contents.
 parent: workspace-sdk
+sourceRevision: "ec32735865d41e6b5d320ffaed6a9c8f91bedf46"
 sources:
   - src/application/sync/sync_service.rs
   - src/checkpoint/infrastructure/apply.rs
+  - src/checkpoint/infrastructure/apply_preflight.rs
+  - tests/managed_edit_sessions.rs
   - src/checkpoint/domain/apply.rs
   - src/domain/synchronization/handoff.rs
   - tests/sdk_workflow.rs
@@ -72,3 +75,9 @@ After admission, an owned worker retains coordination and finishes the accepted 
 Initialization, sync-back, and handoff retain workflow progress. Direct capture and restoration have no pollable workflow receipt; retain and await an application-owned task instead of canceling its observer. The same service and its clones admit one workflow or direct transfer at a time. Separate services still need caller coordination for direct transfers.
 
 Runtime shutdown, process death, and cleanup transport failure can still leave a scoped archive. Removal remains best effort; it is not permission to delete unrelated files.
+
+## Uncaptured destination data
+
+Apply preflights result paths before recovery intent or mutation. Unselected files, symlinks and empty directories are preserved by refusing collisions. A selected directory cannot be replaced if uncaptured children remain. This prevents failed publication and automatic rollback from deleting data absent from the captured backup. Checks are bounded and still depend on actual caller-established quiescence. [Managed local sessions](managed-editing.md) compose this same owner with staged candidates and cooperative SDK leases.
+
+The source checkpoint above covers the existing sync flow plus this preflight hardening. Execution, review closure and render validation are in the [managed-edit review](../reviews/2026-10-23-managed-editing.md).

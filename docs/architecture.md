@@ -58,3 +58,19 @@ The client's handoff journal records callback progress; callers still implement 
 ## Current delivery
 
 The active product is the Rust library plus Rust supervisor. The TypeScript package, its JSONL client CLI, and obsolete spike harnesses have been removed. Historical evidence is retained with its original scope; it is not proof of the rewritten supervisor. Registry publication and additional language bindings remain separate later work.
+
+## Managed local editing
+
+`application/edit` stages immutable candidate archives under session-qualified
+revisions and delegates all validation, merge, resolution and publication to
+`ICheckpointEngine`. Its effective limits are exposed through that port and
+checked before session capture. `IEditCoordinator` isolates the local root/lease
+seam; `LocalEditCoordinator` reuses the existing workflow lease repository with
+a canonical-root key and directory-identity check. It serializes participating
+SDK controllers only. Actual unmanaged-writer quiescence is caller-owned.
+
+The checkpoint owner preflights uncaptured destination collisions before apply
+intent/mutation, protecting ignored files from rollback removal. Live observations
+use descriptor-relative POSIX directory enumeration on Linux/macOS. Native
+exclusive creation still requires Linux anonymous-file support. UI, polling and
+writer pause/resume remain host responsibilities. See [managed editing](state/managed-editing.md).

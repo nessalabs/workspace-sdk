@@ -5,6 +5,10 @@ use crate::Result;
 use std::path::Path;
 
 impl ICheckpointEngine for GitCheckpointEngine {
+    fn limits(&self) -> CheckpointLimits {
+        GitCheckpointEngine::limits(self).clone()
+    }
+
     fn capture(&self, root: &Path, options: CaptureOptions) -> Result<Checkpoint> {
         self.capture_operation(root, options)
     }

@@ -5,6 +5,7 @@
 //! inside a target's scoped staging directory without importing Git history.
 
 mod apply;
+mod apply_preflight;
 mod archive;
 mod bundle;
 mod capture;

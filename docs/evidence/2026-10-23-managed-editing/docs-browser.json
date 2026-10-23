@@ -1,0 +1,55 @@
+{
+  "checks": [
+    {
+      "name": "root map links to managed editing",
+      "pass": true
+    },
+    {
+      "name": "both managed edit charts render",
+      "pass": true
+    },
+    {
+      "name": "sourceRevision exact reviewed commit",
+      "pass": true
+    },
+    {
+      "name": "candidate explanation describes isolated staging",
+      "pass": true
+    },
+    {
+      "name": "interrupted explanation preserves recovery",
+      "pass": true
+    },
+    {
+      "name": "conflict node has existing owner drill-down",
+      "pass": true
+    },
+    {
+      "name": "conflict detail links to existing checkpoint workflow",
+      "pass": true
+    },
+    {
+      "name": "existing checkpoint chart still renders",
+      "pass": true
+    },
+    {
+      "name": "mobile no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "portable observation charts render",
+      "pass": true
+    },
+    {
+      "name": "portable page names macOS",
+      "pass": true
+    },
+    {
+      "name": "no page errors",
+      "pass": true
+    }
+  ],
+  "errors": [],
+  "engine": "system chromium",
+  "sourceRevision": "ec32735865d41e6b5d320ffaed6a9c8f91bedf46"
+}

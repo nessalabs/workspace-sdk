@@ -13,6 +13,7 @@
 
 pub mod deletion;
 pub mod descriptor;
+pub mod edit_session;
 pub mod file_browser;
 pub mod file_tree;
 pub mod files;
@@ -25,6 +26,7 @@ pub mod resources;
 
 pub use deletion::{DeleteOperation, DeleteState, OperationId, OperationRef};
 pub use descriptor::{BackendDescriptor, Capabilities, Isolation, Ownership, WorkspaceState};
+pub use edit_session::{EditChange, EditRevision};
 pub use file_browser::*;
 pub use file_tree::{TreeExportReceipt, TreeImportReceipt, TreeTransfer};
 pub use files::{FileChunk, ReadFile, WriteFile};

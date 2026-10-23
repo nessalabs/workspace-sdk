@@ -57,11 +57,11 @@ pub(super) fn handle(request: SupervisorRequest) -> Result<SupervisorValue> {
             filesystem::write_file(root, &path, offset, &bytes, truncate, executable)?;
             Ok(SupervisorValue::Empty)
         }
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
         SupervisorOperation::ListDirectory(request) => Ok(SupervisorValue::DirectoryPage(
             super::file_browser::list(context, request)?,
         )),
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
         SupervisorOperation::ReadVersionedFile(request) => Ok(SupervisorValue::VersionedFileChunk(
             super::file_browser::read(context, request)?,
         )),
@@ -80,7 +80,7 @@ pub(super) fn handle(request: SupervisorRequest) -> Result<SupervisorValue> {
                 Err(error) => SupervisorValue::PublishRejected(SupervisorFault::from_error(error)),
             })
         }
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         SupervisorOperation::ListDirectory(_) | SupervisorOperation::ReadVersionedFile(_) => Err(
             Error::Unsupported("file browser currently requires Linux descriptor paths".into()),
         ),
