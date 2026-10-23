@@ -60,6 +60,8 @@ Requirements: Rust 1.89+ to build, a supported POSIX target for process supervis
 
 ## Find the model and API
 
+- [Browsable system map and lifecycle decisions](docs/state/README.md): workspace ownership, execution, sync, runtime preparation, and verification limits.
+
 - [Domain model and context boundaries](docs/domain-model.md): entities, value objects, commands, snapshots, and interfaces.
 - [Rust SDK guide](docs/sdk-guide.md): configuration, runs, preparation, sync, and handoff.
 - [Architecture](docs/architecture.md): dependency direction and the Rust supervisor boundary.
