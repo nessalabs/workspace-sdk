@@ -1,0 +1,93 @@
+{
+  "ok": true,
+  "browser": "156.0.8078.80",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "pages": 16,
+  "diagrams": 14,
+  "errors": [],
+  "results": [
+    {
+      "id": "workspace-sdk",
+      "figures": 1,
+      "failed": 0
+    },
+    {
+      "id": "directory-baseline",
+      "figures": 1,
+      "failed": 0
+    },
+    {
+      "id": "edit-review",
+      "figures": 1,
+      "failed": 0
+    },
+    {
+      "id": "managed-execution",
+      "figures": 1,
+      "failed": 0
+    },
+    {
+      "id": "feature-map",
+      "figures": 0,
+      "failed": 0
+    },
+    {
+      "id": "workspace-files",
+      "figures": 2,
+      "failed": 0
+    },
+    {
+      "id": "handoff",
+      "figures": 1,
+      "failed": 0
+    },
+    {
+      "id": "managed-editing",
+      "figures": 2,
+      "failed": 0
+    },
+    {
+      "id": "open-identity",
+      "figures": 1,
+      "failed": 0
+    },
+    {
+      "id": "persistence",
+      "figures": 0,
+      "failed": 0
+    },
+    {
+      "id": "runtime-preparation",
+      "figures": 1,
+      "failed": 0
+    },
+    {
+      "id": "providers",
+      "figures": 0,
+      "failed": 0
+    },
+    {
+      "id": "file-sync",
+      "figures": 2,
+      "failed": 0
+    },
+    {
+      "id": "verification-current",
+      "figures": 0,
+      "failed": 0
+    },
+    {
+      "id": "sdk-verification",
+      "figures": 0,
+      "failed": 0
+    },
+    {
+      "id": "workspace-ownership",
+      "figures": 1,
+      "failed": 0
+    }
+  ]
+}

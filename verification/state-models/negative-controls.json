@@ -1,0 +1,281 @@
+{
+  "ok": true,
+  "checker": "tlc-1.7.4",
+  "date": "2026-11-03T08:45:49.304Z",
+  "models": 4,
+  "baselines": [
+    {
+      "document": "directory-baseline",
+      "state": "passed",
+      "states": 27,
+      "modelDigest": "cab51a66d8d6f312a543feae2d6d8a611e338189e002a5b80c97fe6a4d03d6fd",
+      "sourceRevision": "867a4c15e97e025a1066b3c0cd133ffa81f374f1",
+      "checker": "tlc-1.7.4",
+      "date": "2026-11-03T08:45:33.501Z",
+      "held": [
+        "ConsistentPublication",
+        "AbortPreservesBaseline",
+        "CompletePublication"
+      ]
+    },
+    {
+      "document": "edit-review",
+      "state": "passed",
+      "states": 21,
+      "modelDigest": "2a747d40883399edc6ce20d507777dd10436be9eadb1b0bbb7dc74c8207aa0a1",
+      "sourceRevision": "867a4c15e97e025a1066b3c0cd133ffa81f374f1",
+      "checker": "tlc-1.7.4",
+      "date": "2026-11-03T08:45:34.165Z",
+      "held": ["LatestReviewOnly", "QuiescentApply"]
+    },
+    {
+      "document": "handoff",
+      "state": "passed",
+      "states": 10,
+      "modelDigest": "4a65801cb362246f9f277228696a0e1d16d976bf22d48a4dadce87d805830c45",
+      "sourceRevision": "867a4c15e97e025a1066b3c0cd133ffa81f374f1",
+      "checker": "tlc-1.7.4",
+      "date": "2026-11-03T08:45:34.857Z",
+      "held": ["CaptureAfterStop", "StartAfterStop", "RestoreAfterStop"]
+    },
+    {
+      "document": "open-identity",
+      "state": "passed",
+      "states": 13,
+      "modelDigest": "cdb3bc237a0bed7a0ddea3e589736f74d70a9a870203eec6781bbc540cb84932",
+      "sourceRevision": "867a4c15e97e025a1066b3c0cd133ffa81f374f1",
+      "checker": "tlc-1.7.4",
+      "date": "2026-11-03T08:45:35.549Z",
+      "held": ["SavedIdentity", "ReservationStable"]
+    }
+  ],
+  "probes": 10,
+  "completed": 10,
+  "results": [
+    {
+      "document": "open-identity",
+      "name": "reservation-reuse",
+      "ok": true,
+      "state": "broke",
+      "expected": ["ReservationStable"],
+      "broke": ["ReservationStable"],
+      "unchecked": [],
+      "counterexamples": [
+        {
+          "rule": "ReservationStable",
+          "path": [
+            "Start with owner is 0, request is 0, reserved is 0, phase is Empty, saved is 0.",
+            "Choose: owner is 0, request is 1, reserved is 0, phase is Empty, saved is 0.",
+            "Reserve: owner is 1, request is 0, reserved is 1, phase is Reserved, saved is 0.",
+            "Choose: owner is 1, request is 2, reserved is 1, phase is Reserved, saved is 0.",
+            "Reserve: owner is 1, request is 0, reserved is 2, phase is Reserved, saved is 0."
+          ],
+          "states": []
+        }
+      ],
+      "modelDigest": "ba5b6c45aef466fffab3526c00a9c2eadbbdeee09eeb3a4d3b02fe4186528cb3"
+    },
+    {
+      "document": "open-identity",
+      "name": "foreign-descriptor",
+      "ok": true,
+      "state": "broke",
+      "expected": ["SavedIdentity"],
+      "broke": ["SavedIdentity"],
+      "unchecked": [],
+      "counterexamples": [
+        {
+          "rule": "SavedIdentity",
+          "path": [
+            "Start with owner is 0, request is 0, reserved is 0, phase is Empty, saved is 0.",
+            "Choose: owner is 0, request is 1, reserved is 0, phase is Empty, saved is 0.",
+            "Reserve: owner is 1, request is 0, reserved is 1, phase is Reserved, saved is 0.",
+            "Choose: owner is 1, request is 2, reserved is 1, phase is Reserved, saved is 0.",
+            "Save: owner is 1, request is 2, reserved is 1, phase is Saved, saved is 2."
+          ],
+          "states": []
+        }
+      ],
+      "modelDigest": "c8e0ff7e1aa7c460f2b57373678428edaba4ce41b59a4691ba9b6c79ebe1ef4d"
+    },
+    {
+      "document": "handoff",
+      "name": "capture-running",
+      "ok": true,
+      "state": "broke",
+      "expected": ["CaptureAfterStop"],
+      "broke": ["CaptureAfterStop"],
+      "unchecked": [],
+      "counterexamples": [
+        {
+          "rule": "CaptureAfterStop",
+          "path": [
+            "Start with source is Running, capturedSafe is TRUE, restoredSafe is TRUE, startedSafe is TRUE, phase is New.",
+            "Capture: source is Running, capturedSafe is FALSE, restoredSafe is TRUE, startedSafe is TRUE, phase is Captured."
+          ],
+          "states": []
+        }
+      ],
+      "modelDigest": "fa88104b0e56c7376a6e386e9961391838e4a649f2d6811cf7f3616181800854"
+    },
+    {
+      "document": "handoff",
+      "name": "start-lost",
+      "ok": true,
+      "state": "broke",
+      "expected": ["StartAfterStop"],
+      "broke": ["StartAfterStop"],
+      "unchecked": [],
+      "counterexamples": [
+        {
+          "rule": "StartAfterStop",
+          "path": [
+            "Start with source is Running, capturedSafe is TRUE, restoredSafe is TRUE, startedSafe is TRUE, phase is New.",
+            "Observe: source is Stopped, capturedSafe is TRUE, restoredSafe is TRUE, startedSafe is TRUE, phase is New.",
+            "Capture: source is Stopped, capturedSafe is TRUE, restoredSafe is TRUE, startedSafe is TRUE, phase is Captured.",
+            "Restore: source is Stopped, capturedSafe is TRUE, restoredSafe is TRUE, startedSafe is TRUE, phase is Restored.",
+            "Observe: source is Running, capturedSafe is TRUE, restoredSafe is TRUE, startedSafe is TRUE, phase is Restored.",
+            "Start: source is Running, capturedSafe is TRUE, restoredSafe is TRUE, startedSafe is FALSE, phase is Started."
+          ],
+          "states": []
+        }
+      ],
+      "modelDigest": "7b01ae78296c8e4e59e310cf86e784d3316a161b1c29ba166583f11191c0d1c7"
+    },
+    {
+      "document": "directory-baseline",
+      "name": "mixed-revision",
+      "ok": true,
+      "state": "broke",
+      "expected": ["ConsistentPublication"],
+      "broke": ["ConsistentPublication"],
+      "unchecked": [],
+      "counterexamples": [
+        {
+          "rule": "ConsistentPublication",
+          "path": [
+            "Start with first is 0, second is 0, baseline is 0, publishedPages is 0, phase is Idle, valid is TRUE, pages is 0.",
+            "Begin: first is 1, second is 2, baseline is 0, publishedPages is 0, phase is Reading, valid is TRUE, pages is 0.",
+            "ReadPage: first is 1, second is 2, baseline is 0, publishedPages is 0, phase is Reading, valid is TRUE, pages is 1.",
+            "ReadPage: first is 1, second is 2, baseline is 0, publishedPages is 0, phase is Reading, valid is TRUE, pages is 2.",
+            "Publish: first is 1, second is 2, baseline is 1, publishedPages is 2, phase is Published, valid is FALSE, pages is 2."
+          ],
+          "states": []
+        }
+      ],
+      "modelDigest": "1b995e23c36e3f9d711c4cc193e12cdf3e52f4710fb7edabbf07de4a93ba1df8"
+    },
+    {
+      "document": "edit-review",
+      "name": "stale-review",
+      "ok": true,
+      "state": "broke",
+      "expected": ["LatestReviewOnly"],
+      "broke": ["LatestReviewOnly"],
+      "unchecked": [],
+      "counterexamples": [
+        {
+          "rule": "LatestReviewOnly",
+          "path": [
+            "Start with offered is -1, generation is 0, applied is FALSE, quiet is FALSE, acceptedGeneration is -1, latest is -1, acceptedQuiet is TRUE.",
+            "Quiet: offered is -1, generation is 0, applied is FALSE, quiet is TRUE, acceptedGeneration is -1, latest is -1, acceptedQuiet is TRUE.",
+            "Review: offered is 0, generation is 0, applied is FALSE, quiet is TRUE, acceptedGeneration is -1, latest is 0, acceptedQuiet is TRUE.",
+            "Stage: offered is 0, generation is 1, applied is FALSE, quiet is TRUE, acceptedGeneration is -1, latest is -1, acceptedQuiet is TRUE.",
+            "Apply: offered is 0, generation is 1, applied is TRUE, quiet is TRUE, acceptedGeneration is 0, latest is -1, acceptedQuiet is TRUE."
+          ],
+          "states": []
+        }
+      ],
+      "modelDigest": "8c5e947ba7fdf0662148a4a05c6fcb9cb5a9f1efdd6ee5ed0dc6d02adaa919ef"
+    },
+    {
+      "document": "edit-review",
+      "name": "skip-quiescence",
+      "ok": true,
+      "state": "broke",
+      "expected": ["QuiescentApply"],
+      "broke": ["QuiescentApply"],
+      "unchecked": [],
+      "counterexamples": [
+        {
+          "rule": "QuiescentApply",
+          "path": [
+            "Start with offered is -1, generation is 0, applied is FALSE, quiet is FALSE, acceptedGeneration is -1, latest is -1, acceptedQuiet is TRUE.",
+            "Quiet: offered is -1, generation is 0, applied is FALSE, quiet is TRUE, acceptedGeneration is -1, latest is -1, acceptedQuiet is TRUE.",
+            "Review: offered is 0, generation is 0, applied is FALSE, quiet is TRUE, acceptedGeneration is -1, latest is 0, acceptedQuiet is TRUE.",
+            "Quiet: offered is 0, generation is 0, applied is FALSE, quiet is FALSE, acceptedGeneration is -1, latest is 0, acceptedQuiet is TRUE.",
+            "Apply: offered is 0, generation is 0, applied is TRUE, quiet is FALSE, acceptedGeneration is 0, latest is 0, acceptedQuiet is FALSE."
+          ],
+          "states": []
+        }
+      ],
+      "modelDigest": "e86c3d9b6dfa463856844fe929f47873d0443be7b013a9208939fb3f64054790"
+    },
+    {
+      "document": "directory-baseline",
+      "name": "publish-partial-on-abort",
+      "ok": true,
+      "state": "broke",
+      "expected": ["AbortPreservesBaseline"],
+      "broke": ["AbortPreservesBaseline"],
+      "unchecked": [],
+      "counterexamples": [
+        {
+          "rule": "AbortPreservesBaseline",
+          "path": [
+            "Start with first is 0, second is 0, baseline is 0, publishedPages is 0, phase is Idle, valid is TRUE, pages is 0.",
+            "Begin: first is 1, second is 1, baseline is 0, publishedPages is 0, phase is Reading, valid is TRUE, pages is 0.",
+            "Abort: first is 1, second is 1, baseline is 1, publishedPages is 0, phase is Aborted, valid is TRUE, pages is 0."
+          ],
+          "states": []
+        }
+      ],
+      "modelDigest": "94ffeb6fd4e4264a4ebc3d788f8d0937dcd1d92fcfea69936888965e34d14058"
+    },
+    {
+      "document": "directory-baseline",
+      "name": "publish-before-final-page",
+      "ok": true,
+      "state": "broke",
+      "expected": ["CompletePublication"],
+      "broke": ["CompletePublication"],
+      "unchecked": [],
+      "counterexamples": [
+        {
+          "rule": "CompletePublication",
+          "path": [
+            "Start with first is 0, second is 0, baseline is 0, publishedPages is 0, phase is Idle, valid is TRUE, pages is 0.",
+            "Begin: first is 1, second is 1, baseline is 0, publishedPages is 0, phase is Reading, valid is TRUE, pages is 0.",
+            "ReadPage: first is 1, second is 1, baseline is 0, publishedPages is 0, phase is Reading, valid is TRUE, pages is 1.",
+            "Publish: first is 1, second is 1, baseline is 1, publishedPages is 1, phase is Published, valid is TRUE, pages is 1."
+          ],
+          "states": []
+        }
+      ],
+      "modelDigest": "ac1b216cfd73b00f0af24e466d42399edce4e7cd369d1ada86dce72c35c739b1"
+    },
+    {
+      "document": "handoff",
+      "name": "restore-lost",
+      "ok": true,
+      "state": "broke",
+      "expected": ["RestoreAfterStop"],
+      "broke": ["RestoreAfterStop"],
+      "unchecked": [],
+      "counterexamples": [
+        {
+          "rule": "RestoreAfterStop",
+          "path": [
+            "Start with source is Running, capturedSafe is TRUE, restoredSafe is TRUE, startedSafe is TRUE, phase is New.",
+            "Observe: source is Stopped, capturedSafe is TRUE, restoredSafe is TRUE, startedSafe is TRUE, phase is New.",
+            "Capture: source is Stopped, capturedSafe is TRUE, restoredSafe is TRUE, startedSafe is TRUE, phase is Captured.",
+            "Observe: source is Running, capturedSafe is TRUE, restoredSafe is TRUE, startedSafe is TRUE, phase is Captured.",
+            "Restore: source is Running, capturedSafe is TRUE, restoredSafe is FALSE, startedSafe is TRUE, phase is Restored."
+          ],
+          "states": []
+        }
+      ],
+      "modelDigest": "b74c83795362f687a050360b7d2d74713119fd53b13f13671fa70d487392dfec"
+    }
+  ]
+}
