@@ -14,7 +14,9 @@ sources:
 diagramLinks: {}
 ---
 
-The source map starts from `0b7bbc0a9be0cce0713df05be56f2a63d6c14c30`, the merged workspace-sdk main observed on 2026-10-23. PTY integration and live qualification PRs #1 and #2 were already merged before this readiness task. The original checkout's historical review-file edit is excluded from this task's isolated branch.
+This page preserves historical qualification. For this refresh, use [current verification](verification-current.md).
+
+The historical source map starts from `0b7bbc0a9be0cce0713df05be56f2a63d6c14c30`, the merged workspace-sdk main observed on 2026-10-23. PTY integration and live qualification PRs #1 and #2 were already merged before this readiness task. The original checkout's historical review-file edit is excluded from this task's isolated branch.
 
 The [readiness review](../reviews/2026-10-23-sdk-readiness.md) records current commands, source revisions, fixes, independent decisions, and remaining failures. Earlier [live Linux artifacts](../evidence/vercel-linux-pty-artifacts/README.md) retain their historical source and environment identities; they are not evidence for later code bytes.
 
@@ -30,4 +32,4 @@ Performance suites record a few local samples and bounds. They do not establish 
 
 ## Documentation checks
 
-Catalog validation must resolve stable IDs, parents, source paths, headings, and drill-down targets. Render every diagram and inspect navigation. Record the tool result and any visual exclusions in the readiness review. The source revision is recorded in prose because Nessa Docs rejects unknown frontmatter fields.
+Catalog validation must resolve stable IDs, parents, source paths, headings, and drill-down targets. Render every diagram and inspect navigation. Record the tool result and any visual exclusions in the readiness review. Current Nessa Docs supports the `sourceRevision` frontmatter checkpoint. Historical pages above retain their originally recorded scope; a navigation update does not advance it.

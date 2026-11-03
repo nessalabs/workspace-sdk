@@ -1,0 +1,80 @@
+{
+  "ok": true,
+  "documents": 16,
+  "issues": [],
+  "models": [
+    {
+      "document": "directory-baseline",
+      "state": "passed",
+      "message": "Every rule held. This checks the design, not the code.",
+      "saved": true,
+      "result": {
+        "sourceRevision": "867a4c15e97e025a1066b3c0cd133ffa81f374f1",
+        "checker": "tlc-1.7.4",
+        "date": "2026-11-03T08:45:30.175Z",
+        "config": "tla/directory-baseline.cfg",
+        "modelDigest": "cab51a66d8d6f312a543feae2d6d8a611e338189e002a5b80c97fe6a4d03d6fd",
+        "states": 27,
+        "held": [
+          "ConsistentPublication",
+          "AbortPreservesBaseline",
+          "CompletePublication"
+        ],
+        "broke": [],
+        "unchecked": []
+      }
+    },
+    {
+      "document": "edit-review",
+      "state": "passed",
+      "message": "Every rule held. This checks the design, not the code.",
+      "saved": true,
+      "result": {
+        "sourceRevision": "867a4c15e97e025a1066b3c0cd133ffa81f374f1",
+        "checker": "tlc-1.7.4",
+        "date": "2026-11-03T08:45:30.843Z",
+        "config": "tla/edit-review.cfg",
+        "modelDigest": "2a747d40883399edc6ce20d507777dd10436be9eadb1b0bbb7dc74c8207aa0a1",
+        "states": 21,
+        "held": ["LatestReviewOnly", "QuiescentApply"],
+        "broke": [],
+        "unchecked": []
+      }
+    },
+    {
+      "document": "handoff",
+      "state": "passed",
+      "message": "Every rule held. This checks the design, not the code.",
+      "saved": true,
+      "result": {
+        "sourceRevision": "867a4c15e97e025a1066b3c0cd133ffa81f374f1",
+        "checker": "tlc-1.7.4",
+        "date": "2026-11-03T08:45:31.523Z",
+        "config": "tla/handoff.cfg",
+        "modelDigest": "4a65801cb362246f9f277228696a0e1d16d976bf22d48a4dadce87d805830c45",
+        "states": 10,
+        "held": ["CaptureAfterStop", "StartAfterStop", "RestoreAfterStop"],
+        "broke": [],
+        "unchecked": []
+      }
+    },
+    {
+      "document": "open-identity",
+      "state": "passed",
+      "message": "Every rule held. This checks the design, not the code.",
+      "saved": true,
+      "result": {
+        "sourceRevision": "867a4c15e97e025a1066b3c0cd133ffa81f374f1",
+        "checker": "tlc-1.7.4",
+        "date": "2026-11-03T08:45:32.176Z",
+        "config": "tla/open-identity.cfg",
+        "modelDigest": "cdb3bc237a0bed7a0ddea3e589736f74d70a9a870203eec6781bbc540cb84932",
+        "states": 13,
+        "held": ["SavedIdentity", "ReservationStable"],
+        "broke": [],
+        "unchecked": []
+      }
+    }
+  ],
+  "saved": ["directory-baseline", "edit-review", "handoff", "open-identity"]
+}

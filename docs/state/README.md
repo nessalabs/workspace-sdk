@@ -15,7 +15,7 @@ diagramLinks:
   Execution: managed-execution
   Sync: file-sync
   Preparation: runtime-preparation
-  Evidence: sdk-verification
+  Evidence: verification-current
   Files: workspace-files
   Editing: managed-editing
 ---
@@ -33,7 +33,7 @@ flowchart TD
     Preparation --> Execution
     Execution --> Supervisor[Target Rust supervisor]
     Sync --> Checkpoints[Immutable checkpoints and recovery]
-    Evidence[Verification and limits] --> Workspace
+    Evidence[Current verification and limits] --> Workspace
 ```
 
 [Open and reconnect](workspace.md), [run and reconnect](execution.md), [review and publish files](sync.md), and [prepare a runtime](preparation.md) explain the main user goals. Each page distinguishes recorded intent, observed effects, and uncertainty.
@@ -45,3 +45,16 @@ Source checkpoint: inspected baseline `0b7bbc0a9be0cce0713df05be56f2a63d6c14c30`
 [Browse and observe files](files.md) documents the qualified Linux first slice and remaining live editing work. This navigation addition does not advance unrelated pages' source checkpoints.
 
 [Managed local editing](managed-editing.md) stages candidates and reuses checkpoint review/publication within explicit caller quiescence and shared SDK coordination.
+
+[Feature ownership and verification map](feature-map.md) links the expanded provider, persistence, identity, handoff, observation and edit-review coverage.
+
+## Make a safe next decision
+
+- If opening timed out, [inspect the saved identity](open-identity.md) before deciding whether to retry creation.
+- If a file poll failed halfway, [retain the last complete view](directory-baseline.md).
+- If a human changed files after review, [review the current candidate again](edit-review.md) rather than apply a stale review.
+- If a run is Lost, [do not hand it off as stopped](handoff.md).
+- Compare [provider boundaries](providers.md) before promising isolation or deletion.
+- Keep [private receipts and leases](persistence.md) outside transferred projects.
+
+[Current verification](verification-current.md) separates checks run for this update from historical deployment evidence.
