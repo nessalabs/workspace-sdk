@@ -103,14 +103,14 @@ fn only_the_explicit_agent_credential_posture_is_admitted() {
 fn identities_and_observed_receipts_must_name_the_same_immutable_version() {
     let identity = EnvironmentIdentity::new(
         "11111111-1111-4111-8111-111111111111".into(),
-        "nessa".into(),
+        "agents".into(),
         "22222222-2222-4222-8222-222222222222".into(),
         2,
     )
     .unwrap();
     assert_eq!(
         identity.check(&ObservedEnvironment {
-            name: Some("nessa".into()),
+            name: Some("agents".into()),
             version: Some(2)
         }),
         Ok(())
@@ -132,14 +132,14 @@ fn identities_and_observed_receipts_must_name_the_same_immutable_version() {
         ),
         (
             ObservedEnvironment {
-                name: Some("nessa".into()),
+                name: Some("agents".into()),
                 version: None,
             },
             AdmissionRefusal::MissingVersion,
         ),
         (
             ObservedEnvironment {
-                name: Some("nessa".into()),
+                name: Some("agents".into()),
                 version: Some(3),
             },
             AdmissionRefusal::WrongVersion,
@@ -148,10 +148,10 @@ fn identities_and_observed_receipts_must_name_the_same_immutable_version() {
         assert_eq!(identity.check(&observed), Err(cause));
     }
     for (id, name, version_id, version) in [
-        ("bad", "nessa", identity.version_id(), 2),
+        ("bad", "agents", identity.version_id(), 2),
         (identity.id(), "a/b", identity.version_id(), 2),
-        (identity.id(), "nessa", "bad", 2),
-        (identity.id(), "nessa", identity.version_id(), 0),
+        (identity.id(), "agents", "bad", 2),
+        (identity.id(), "agents", identity.version_id(), 0),
     ] {
         assert_eq!(
             EnvironmentIdentity::new(id.into(), name.into(), version_id.into(), version),
@@ -182,14 +182,14 @@ fn nil_and_noncanonical_environment_ids_never_become_admission_proof() {
     ] {
         assert!(EnvironmentIdentity::new(
             invalid.into(),
-            "nessa".into(),
+            "agents".into(),
             "22222222-2222-4222-8222-222222222222".into(),
             2
         )
         .is_err());
         assert!(EnvironmentIdentity::new(
             "11111111-1111-4111-8111-111111111111".into(),
-            "nessa".into(),
+            "agents".into(),
             invalid.into(),
             2
         )

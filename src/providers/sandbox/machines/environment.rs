@@ -1,6 +1,6 @@
 //! Identity of the immutable Boat environment configuration a VM was admitted
 //! under, and the bounded evidence of why one was refused.
-use super::MachineFailure;
+use super::spec::{plain_segment, MachineFailure};
 
 /// The environment a VM was admitted under: its id, name, and the exact
 /// version. A VM is used only while the account's environment is still this
@@ -13,6 +13,9 @@ pub struct EnvironmentIdentity {
     version: u32,
 }
 impl EnvironmentIdentity {
+    /// The environment `id` named `name`, at version `version_id`, number
+    /// `version`.
+    ///
     /// # Errors
     /// [`MachineFailure::EnvironmentUnavailable`] unless both ids are
     /// canonical non-nil UUIDs, the name is one plain segment and the
@@ -25,12 +28,7 @@ impl EnvironmentIdentity {
     ) -> Result<Self, MachineFailure> {
         let uuid =
             |s: &str| uuid::Uuid::parse_str(s).is_ok_and(|id| id.to_string() == s && !id.is_nil());
-        let plain = !name.is_empty()
-            && name.len() <= 128
-            && name
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'));
-        if !uuid(&id) || !uuid(&version_id) || !plain || version == 0 {
+        if !uuid(&id) || !uuid(&version_id) || !plain_segment(&name) || version == 0 {
             return Err(MachineFailure::EnvironmentUnavailable);
         }
         Ok(Self {
@@ -40,18 +38,26 @@ impl EnvironmentIdentity {
             version,
         })
     }
+    /// The environment's id.
     pub fn id(&self) -> &str {
         &self.id
     }
+    /// The environment's name.
     pub fn name(&self) -> &str {
         &self.name
     }
+    /// The id of the version admitted.
     pub fn version_id(&self) -> &str {
         &self.version_id
     }
+    /// The number of the version admitted.
     pub fn version(&self) -> u32 {
         self.version
     }
+    /// Whether a VM's receipt names this environment, at this version.
+    ///
+    /// # Errors
+    /// The [`AdmissionRefusal`] for the first thing that differs.
     pub fn check(&self, observed: &ObservedEnvironment) -> Result<(), AdmissionRefusal> {
         match (&observed.name, observed.version) {
             (None, _) => Err(AdmissionRefusal::MissingEnvironment),
@@ -66,23 +72,35 @@ impl EnvironmentIdentity {
 /// What a VM's receipt says about its environment.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ObservedEnvironment {
+    /// The environment name it gives, if any.
     pub name: Option<String>,
+    /// The environment version number it gives, if any.
     pub version: Option<u32>,
 }
 /// Why a VM, or the account's environment, was refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AdmissionRefusal {
+    /// The VM's receipt names no environment.
     MissingEnvironment,
+    /// It names another environment.
     WrongEnvironment,
+    /// It names no environment version.
     MissingVersion,
+    /// It names another version.
     WrongVersion,
+    /// The account's environment is no longer the one admitted.
     EnvironmentChanged,
+    /// The account's environment is gone or not in the supported posture.
     EnvironmentUnavailable,
+    /// A receipt could not be read strictly, or grants too much.
     InvalidReceipt,
+    /// No usable receipt arrived in time.
     ReceiptUnavailable,
+    /// The VM's lifetime is missing or longer than the spec allows.
     LifetimeNotEnforced,
 }
 impl AdmissionRefusal {
+    /// Its name in a record.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::MissingEnvironment => "missing_environment",
@@ -137,6 +155,9 @@ pub struct AdmissionRejection {
     observed: Option<ObservedEnvironment>,
 }
 impl AdmissionRejection {
+    /// A refusal for `cause`, with what the receipt said. A name too long,
+    /// not ASCII or holding control characters is not kept: the refusal
+    /// becomes [`AdmissionRefusal::InvalidReceipt`] with nothing observed.
     pub fn new(cause: AdmissionRefusal, observed: Option<ObservedEnvironment>) -> Self {
         if observed
             .as_ref()
@@ -150,9 +171,11 @@ impl AdmissionRejection {
         }
         Self { cause, observed }
     }
+    /// Why it was refused.
     pub fn cause(&self) -> AdmissionRefusal {
         self.cause
     }
+    /// What the receipt said, when it could be kept.
     pub fn observed(&self) -> Option<&ObservedEnvironment> {
         self.observed.as_ref()
     }

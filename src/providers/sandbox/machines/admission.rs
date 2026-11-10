@@ -3,12 +3,14 @@
 //! acknowledgement and the complete info receipt are each read as raw JSON so
 //! a new credential or access field cannot be dropped by a lenient decoder.
 use super::{
+    account::{Boat, Created, Disposition},
     diagnostics::{self, Diagnostic, Stage},
     environment::{
         AdmissionRefusal, AdmissionRejection, EnvironmentConfiguration, EnvironmentIdentity,
         ObservedEnvironment,
     },
-    Boat, Created, Disposition, MachineFailure, MachineSpec,
+    events::MachineEvent,
+    spec::{MachineFailure, MachineSpec},
 };
 use sandbox_client::{
     CreateSandboxRequest, CreateSandboxResponse, SandboxInfoResponse, SandboxState,
@@ -95,7 +97,7 @@ pub(super) async fn environment(
     let mut matches = response
         .environments
         .iter()
-        .filter(|e| e.name == spec.environment);
+        .filter(|e| e.name == spec.environment());
     let env = matches
         .next()
         .ok_or(MachineFailure::EnvironmentUnavailable)?;
@@ -185,6 +187,16 @@ pub(super) async fn environment(
     )
 }
 
+/// A VM id Boat could have named: 1 to 128 letters, digits, `_` or `-`, so
+/// it is safe in a path.
+pub(super) fn vm_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 128
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
+}
+
 fn supported_state(sandbox: &sandbox_client::Sandbox) -> bool {
     sandbox.state != SandboxState::Unknown
 }
@@ -224,28 +236,43 @@ pub(super) async fn create(
     admission: EnvironmentIdentity,
     deadline: Instant,
 ) -> Result<Created, MachineFailure> {
-    let ttl_seconds = spec.lifetime;
-    let response = boat
+    let ttl_seconds = spec.lifetime();
+    let request = boat
         .request(reqwest::Method::POST, "sandboxes")
         .header("Idempotency-Key", key)
         .json(&CreateSandboxRequest {
-            type_: Some(spec.machine_type.clone()),
+            type_: Some(spec.machine_type().into()),
             ttl_seconds: Some(ttl_seconds),
-            environment: Some(spec.environment.clone()),
-            env: Some(spec.variables.clone().into_iter().collect()),
-            from: Some(spec.image.clone()),
+            environment: Some(spec.environment().into()),
+            env: Some(spec.variables().clone().into_iter().collect()),
+            from: Some(spec.image().into()),
             snapshots: Some(true),
             ..Default::default()
-        })
-        .send()
-        .await
-        .map_err(|_| MachineFailure::ProvisioningUncertain)?;
-    if !response.status().is_success() {
-        return Err(MachineFailure::ProvisioningUncertain);
-    }
-    let value = bounded_json(boat, response, Stage::CreateBody)
-        .await
-        .map_err(|_| MachineFailure::ProvisioningUncertain)?;
+        });
+    // Once the request may have been sent, only an answer that names no VM
+    // for certain is anything but uncertain.
+    let value = tokio::time::timeout_at(deadline, async {
+        let response = request
+            .send()
+            .await
+            .map_err(|_| MachineFailure::ProvisioningUncertain)?;
+        let status = response.status();
+        if status.is_client_error() && !matches!(status.as_u16(), 408 | 409 | 425 | 429) {
+            return Err(if status == reqwest::StatusCode::NOT_FOUND {
+                MachineFailure::Missing
+            } else {
+                MachineFailure::Provider
+            });
+        }
+        if !status.is_success() {
+            return Err(MachineFailure::ProvisioningUncertain);
+        }
+        bounded_json(boat, response, Stage::CreateBody)
+            .await
+            .map_err(|_| MachineFailure::ProvisioningUncertain)
+    })
+    .await
+    .map_err(|_| MachineFailure::ProvisioningUncertain)??;
     // A ready response is an idempotent replay of an older VM. An unknown
     // acknowledgement cannot authorize deletion of the ID it happens to name.
     let acknowledgement = match (
@@ -264,13 +291,7 @@ pub(super) async fn create(
         .get("sandbox")
         .and_then(|s| s.get("id"))
         .and_then(Value::as_str)
-        .filter(|id| {
-            !id.is_empty()
-                && id.len() <= 128
-                && id
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
-        })
+        .filter(|id| vm_id(id))
         .ok_or(MachineFailure::ProvisioningUncertain)?
         .to_owned();
     let created: CreateSandboxResponse =
@@ -336,7 +357,9 @@ pub(super) async fn create(
         ));
     }
     if refusal.is_none() {
-        let admitted = async {
+        // Waiting for the start and checking it spend what is left of the
+        // budget; running out refuses the VM, which stays named.
+        let admitted = tokio::time::timeout_at(deadline, async {
             if disposition == Disposition::RollbackNewVm {
                 wait_for_start(boat, &vm, deadline).await?;
             }
@@ -347,11 +370,11 @@ pub(super) async fn create(
                 return Err(MachineFailure::Provider);
             }
             Ok(found)
-        };
+        });
         refusal = match admitted.await {
-            Ok(_) => None,
-            Err(MachineFailure::AdmissionRejected(rejection)) => Some(rejection),
-            Err(_) => Some(AdmissionRejection::new(
+            Ok(Ok(_)) => None,
+            Ok(Err(MachineFailure::AdmissionRejected(rejection))) => Some(rejection),
+            Ok(Err(_)) | Err(_) => Some(AdmissionRejection::new(
                 AdmissionRefusal::ReceiptUnavailable,
                 None,
             )),
@@ -410,7 +433,7 @@ async fn info(boat: &Boat, vm: &str) -> Result<Value, MachineFailure> {
 
 /// The SDK's Sandbox decoder ignores unknown fields. Read the actual JSON once
 /// through the injected client so new credential/access fields cannot disappear.
-pub(super) async fn receipt(
+async fn receipt(
     boat: &Boat,
     vm: &str,
     maximum_ttl: Option<u32>,
@@ -544,7 +567,7 @@ pub(super) async fn receipt(
                 Some("init" | "provisioning" | "provisioned" | "cloning") => "starting",
                 _ => "other",
             };
-            boat.record(super::MachineEvent::CredentialWipePending { startup_phase });
+            boat.record(MachineEvent::CredentialWipePending { startup_phase });
         }
         return Err(invalid_receipt(
             boat,
@@ -584,7 +607,7 @@ pub(super) async fn receipt(
     }
     Ok(decoded)
 }
-pub(super) fn observed(sandbox: &sandbox_client::Sandbox) -> ObservedEnvironment {
+fn observed(sandbox: &sandbox_client::Sandbox) -> ObservedEnvironment {
     ObservedEnvironment {
         name: sandbox.environment.clone(),
         version: sandbox.environment_version,

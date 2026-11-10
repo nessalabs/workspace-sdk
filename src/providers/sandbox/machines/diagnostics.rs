@@ -1,21 +1,28 @@
 //! Receipt diagnostics contain compiled field names and JSON kinds, never
 //! values: they reach the caller's event sink as
 //! [`MachineEvent::ReceiptRejected`](super::MachineEvent::ReceiptRejected).
-use super::{Boat, MachineEvent};
+use super::{account::Boat, events::MachineEvent};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 /// Which provider answer a rejected receipt came from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
+    /// Reading the creation answer's body.
     CreateBody,
+    /// Decoding the creation answer.
     CreateDecode,
+    /// Checking the decoded creation answer.
     CreateValidation,
+    /// Reading an info receipt's body.
     InfoBody,
+    /// Checking an info receipt before it is decoded.
     InfoValidation,
+    /// Decoding an info receipt.
     InfoDecode,
 }
 impl Stage {
+    /// Its name in a record.
     pub fn name(self) -> &'static str {
         match self {
             Self::CreateBody => "create_body",
@@ -32,10 +39,16 @@ impl Stage {
 /// value found, never the value itself or a key the provider made up.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Diagnostic {
+    /// Which answer it was.
     pub stage: Stage,
+    /// The part of it: `body`, `envelope` or `sandbox`.
     pub scope: &'static str,
+    /// A known field name, or `unknown` for a key Boat made up.
     pub field: &'static str,
+    /// What was wrong, such as `unknown_field` or `invalid_value`.
     pub problem: &'static str,
+    /// The JSON kind found, such as `string` or `missing`; `not_collected`
+    /// when it was not looked at.
     pub observed_type: &'static str,
 }
 impl Diagnostic {
@@ -93,10 +106,6 @@ impl Diagnostic {
     }
 }
 
-#[cfg(test)]
-#[path = "diagnostics_tests.rs"]
-mod tests;
-
 /// The SDK owns DTO decoding. Error paths are projected to compiled names;
 /// neither its error message nor arbitrary map keys cross into diagnostics.
 pub(super) fn decode<T: DeserializeOwned>(
@@ -140,3 +149,7 @@ pub(super) fn decode<T: DeserializeOwned>(
         Diagnostic::field(stage, scope, field, "decode", observed)
     })
 }
+
+#[cfg(test)]
+#[path = "diagnostics_tests.rs"]
+mod tests;

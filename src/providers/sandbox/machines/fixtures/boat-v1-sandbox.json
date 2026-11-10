@@ -47,7 +47,7 @@
     "wipePendingUntilRestart": false,
     "setupStatus": null,
     "setupError": null,
-    "environment": "nessa",
+    "environment": "agents",
     "environmentVersion": 2,
     "stop": null
   }

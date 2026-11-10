@@ -1,5 +1,6 @@
 //! Hostile provider responses cross real HTTP; no live account or VM is used.
-//! Ported with Nessa's own tests when Nessa moved its Boat logic here.
+//! Ported with the tests of the application this logic came from.
+use super::super::*;
 use super::*;
 use axum::{
     routing::{get, post},
@@ -42,7 +43,7 @@ async fn cold_receipt_diagnostics_distinguish_stages_without_values_or_unknown_k
     ] {
         let server = server().await;
         let mut cold = json!({"sandbox":{
-            "id":VM,"state":"provisioning","environment":"nessa","environmentVersion":2
+            "id":VM,"state":"provisioning","environment":"agents","environmentVersion":2
         }});
         {
             let mut state = server.state.lock().unwrap();
@@ -87,7 +88,7 @@ async fn cold_receipt_diagnostics_distinguish_stages_without_values_or_unknown_k
 async fn cold_creation_with_a_separate_valid_info_receipt_is_admitted() {
     let server = server().await;
     server.state.lock().unwrap().creation_receipt = Some(json!({"sandbox":{
-        "id":VM,"state":"provisioning","environment":"nessa","environmentVersion":2
+        "id":VM,"state":"provisioning","environment":"agents","environmentVersion":2
     }}));
     let receipt = server.machines.create(&spec(), KEY).await.unwrap();
     assert!(receipt.refusal.is_none());
@@ -258,6 +259,8 @@ struct State {
     /// Reads that still find an archiving VM archiving; the next finds it
     /// archived.
     archiving_reads: usize,
+    /// The status the creation answers with.
+    create_status: u16,
 }
 struct Server {
     base: String,
@@ -287,6 +290,7 @@ async fn server() -> Server {
         info_reads: 0,
         expected_ttl: Some(3600),
         archiving_reads: 0,
+        create_status: 200,
     }));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}/api/v1", listener.local_addr().unwrap());
@@ -301,10 +305,10 @@ async fn server() -> Server {
         .route("/api/v1/sandboxes", post(move |headers:axum::http::HeaderMap, Json(request):Json<Value>| {
             assert_eq!(headers.get("authorization").unwrap(),"Bearer fixture-token");
             assert_eq!(headers.get("x-boat-org").unwrap(),"personal");
-            assert_eq!(headers.get("idempotency-key").unwrap(),"nessa-thread-fixture-thread");
+            assert_eq!(headers.get("idempotency-key").unwrap(),"creation-fixture-key");
             let mut state=create.lock().unwrap();
-            assert_eq!(request,json!({"type":"small","ttlSeconds":state.expected_ttl,"environment":"nessa","env":{"NESSA_THREAD_ID":"fixture-thread"},"from":"bsh_fixture","snapshots":true}));
-            state.created+=1; if state.drift_on_create { state.environment["passGithub"]=json!(true); } let mut body=state.creation_receipt.as_ref().unwrap_or(&state.receipt).clone(); for field in ["ok","type","status"] {body.as_object_mut().unwrap().remove(field);} for (field,value) in state.creation_ack.as_object().unwrap() {body[field.as_str()]=value.clone();} body["ttlSeconds"]=json!(state.expected_ttl); async { Json(body) } }))
+            assert_eq!(request,json!({"type":"small","ttlSeconds":state.expected_ttl,"environment":"agents","env":{"WORKSPACE":"fixture-workspace"},"from":"bsh_fixture","snapshots":true}));
+            state.created+=1; if state.drift_on_create { state.environment["passGithub"]=json!(true); } let mut body=state.creation_receipt.as_ref().unwrap_or(&state.receipt).clone(); for field in ["ok","type","status"] {body.as_object_mut().unwrap().remove(field);} for (field,value) in state.creation_ack.as_object().unwrap() {body[field.as_str()]=value.clone();} body["ttlSeconds"]=json!(state.expected_ttl); let status=axum::http::StatusCode::from_u16(state.create_status).unwrap(); async move { (status, Json(body)) } }))
         .route("/api/v1/sandboxes/{id}", get(move || { let mut state=read.lock().unwrap(); state.info_reads+=1; if state.receipt["sandbox"]["state"]==json!("archiving") { if state.archiving_reads==0 { state.receipt["sandbox"]["state"]=json!("archived"); } else { state.archiving_reads-=1; } } let body=state.startup_receipts.pop_front().unwrap_or_else(|| state.read_override.as_ref().unwrap_or(&state.receipt).clone()); async { Json(body) } }))
         .route("/api/v1/sandboxes/{id}/resume", post(move |Json(request):Json<Value>| { let mut state=resume.lock().unwrap(); assert_eq!(request["ttlSeconds"],json!(state.expected_ttl)); state.resumed+=1; if state.drift_on_resume { state.environment["passSecrets"]=json!(true); } state.receipt["sandbox"]["state"]=json!("ready"); async move { Json(json!({"ok":true,"type":"sandbox.resumed","id":VM,"status":"ready"})) } }))
         .fallback(move || { commands.lock().unwrap().commands+=1; async { axum::http::StatusCode::FORBIDDEN } });
@@ -319,15 +323,19 @@ async fn server() -> Server {
         task,
     }
 }
-const KEY: &str = "nessa-thread-fixture-thread";
+const KEY: &str = "creation-fixture-key";
 fn spec() -> MachineSpec {
-    MachineSpec {
-        image: "bsh_fixture".into(),
-        environment: "nessa".into(),
-        machine_type: "small".into(),
-        lifetime: Some(3600),
-        variables: [("NESSA_THREAD_ID".into(), "fixture-thread".into())].into(),
-    }
+    spec_lasting(Some(3600))
+}
+fn spec_lasting(lifetime: Option<u32>) -> MachineSpec {
+    MachineSpec::new(
+        "bsh_fixture",
+        "agents",
+        "small",
+        lifetime,
+        [("WORKSPACE".into(), "fixture-workspace".into())].into(),
+    )
+    .unwrap()
 }
 fn machines(base: &str, events: Arc<Events>, timeout: std::time::Duration) -> BoatMachines {
     let mut config = sandbox_client::ClientConfig::new("fixture-token")
@@ -352,8 +360,7 @@ async fn admitted_creation_sends_explicit_null_for_no_automatic_stop() {
         state.expected_ttl = None;
         state.receipt["sandbox"]["ttlSeconds"] = Value::Null;
     }
-    let mut unlimited = spec();
-    unlimited.lifetime = None;
+    let unlimited = spec_lasting(None);
     let receipt = server.machines.create(&unlimited, KEY).await.unwrap();
     assert_eq!(receipt.vm, VM);
     assert!(receipt.refusal.is_none());
@@ -361,7 +368,7 @@ async fn admitted_creation_sends_explicit_null_for_no_automatic_stop() {
 }
 
 #[tokio::test]
-async fn finite_creation_refuses_unenforced_provider_lifetime_before_sdk_authority() {
+async fn finite_creation_refuses_unenforced_provider_lifetime_before_it_is_used() {
     for observed in [Some(Value::Null), Some(json!(0)), Some(json!(14_400)), None] {
         let server = server().await;
         {
@@ -376,8 +383,7 @@ async fn finite_creation_refuses_unenforced_provider_lifetime_before_sdk_authori
                     .remove("ttlSeconds");
             }
         }
-        let mut finite = spec();
-        finite.lifetime = Some(7_200);
+        let finite = spec_lasting(Some(7_200));
         let receipt = server.machines.create(&finite, KEY).await.unwrap();
         assert_eq!(receipt.vm, VM);
         assert_eq!(
@@ -394,8 +400,7 @@ async fn finite_creation_refuses_unenforced_provider_lifetime_before_sdk_authori
 async fn a_shorter_provider_lifetime_satisfies_the_selected_maximum() {
     let server = server().await;
     server.state.lock().unwrap().expected_ttl = Some(7_200);
-    let mut finite = spec();
-    finite.lifetime = Some(7_200);
+    let finite = spec_lasting(Some(7_200));
     let receipt = server.machines.create(&finite, KEY).await.unwrap();
     assert!(receipt.refusal.is_none());
     assert_eq!(server.state.lock().unwrap().commands, 0);
@@ -487,7 +492,7 @@ async fn post_create_environment_drift_retains_the_real_target_but_grants_no_aut
 }
 
 #[tokio::test]
-async fn mismatched_vm_receipts_retain_targets_without_extending_workspace_authority() {
+async fn mismatched_vm_receipts_retain_targets_without_admitting_them() {
     let server = server().await;
     for (field, value, cause) in [
         (
@@ -570,7 +575,7 @@ async fn reconnect_refuses_changed_environment_identity_before_resume() {
     assert_eq!(
         server
             .machines
-            .ready(&spec(), VM, &receipt.admission)
+            .ready(&spec(), VM, receipt.admission())
             .await
             .err(),
         Some(MachineFailure::AdmissionRejected(AdmissionRejection::new(
@@ -584,7 +589,7 @@ async fn reconnect_refuses_changed_environment_identity_before_resume() {
 }
 
 #[tokio::test]
-async fn resume_rechecks_environment_before_any_sdk_command_or_grant() {
+async fn resume_rechecks_environment_before_it_is_used() {
     let server = server().await;
     let receipt = server.machines.create(&spec(), KEY).await.unwrap();
     {
@@ -595,7 +600,7 @@ async fn resume_rechecks_environment_before_any_sdk_command_or_grant() {
     assert_eq!(
         server
             .machines
-            .ready(&spec(), VM, &receipt.admission)
+            .ready(&spec(), VM, receipt.admission())
             .await
             .err(),
         Some(MachineFailure::AdmissionRejected(AdmissionRejection::new(
@@ -618,11 +623,14 @@ async fn a_vm_still_stopping_is_resumed_once_it_has_stopped() {
         let mut state = server.state.lock().unwrap();
         state.receipt["sandbox"]["state"] = json!("archiving");
         state.archiving_reads = 2;
-        // Stops the opening after the resume, before any SDK command.
+        // Stops the opening after the resume, before any command.
         state.drift_on_resume = true;
     }
     assert!(matches!(
-        server.machines.ready(&spec(), VM, &receipt.admission).await,
+        server
+            .machines
+            .ready(&spec(), VM, receipt.admission())
+            .await,
         Err(MachineFailure::AdmissionRejected(_))
     ));
     let state = server.state.lock().unwrap();
@@ -641,12 +649,11 @@ async fn archived_resume_sends_explicit_null_after_lifetime_changes() {
         state.expected_ttl = None;
         state.drift_on_resume = true;
     }
-    let mut unlimited = spec();
-    unlimited.lifetime = None;
+    let unlimited = spec_lasting(None);
     assert!(matches!(
         server
             .machines
-            .ready(&unlimited, VM, &receipt.admission)
+            .ready(&unlimited, VM, receipt.admission())
             .await,
         Err(MachineFailure::AdmissionRejected(_))
     ));
@@ -654,7 +661,7 @@ async fn archived_resume_sends_explicit_null_after_lifetime_changes() {
 }
 
 #[tokio::test]
-async fn archived_resume_refuses_an_unenforced_finite_lifetime_before_sdk_authority() {
+async fn archived_resume_refuses_an_unenforced_finite_lifetime_before_it_is_used() {
     let server = server().await;
     let receipt = server.machines.create(&spec(), KEY).await.unwrap();
     {
@@ -663,9 +670,11 @@ async fn archived_resume_refuses_an_unenforced_finite_lifetime_before_sdk_author
         state.receipt["sandbox"]["ttlSeconds"] = Value::Null;
         state.expected_ttl = Some(7_200);
     }
-    let mut finite = spec();
-    finite.lifetime = Some(7_200);
-    let result = server.machines.ready(&finite, VM, &receipt.admission).await;
+    let finite = spec_lasting(Some(7_200));
+    let result = server
+        .machines
+        .ready(&finite, VM, receipt.admission())
+        .await;
     assert!(matches!(
         result,
         Err(MachineFailure::AdmissionRejected(rejection))
@@ -680,13 +689,12 @@ async fn archived_resume_refuses_an_unenforced_finite_lifetime_before_sdk_author
 async fn an_active_vm_keeps_its_original_lifetime_after_settings_change() {
     let server = server().await;
     let receipt = server.machines.create(&spec(), KEY).await.unwrap();
-    let mut changed = spec();
-    changed.lifetime = Some(7_200);
+    let changed = spec_lasting(Some(7_200));
     // A running VM is checked without a lifetime bound: it keeps the one it
     // was made with until its next resume.
     let result = server
         .machines
-        .ready(&changed, VM, &receipt.admission)
+        .ready(&changed, VM, receipt.admission())
         .await;
     assert!(result.is_ok(), "{result:?}");
     let state = server.state.lock().unwrap();
@@ -695,7 +703,7 @@ async fn an_active_vm_keeps_its_original_lifetime_after_settings_change() {
 }
 
 #[tokio::test]
-async fn a_personal_vm_without_stored_logins_does_not_gain_extra_authority() {
+async fn a_personal_vm_without_stored_logins_is_admitted_as_it_is() {
     let server = server().await;
     server.state.lock().unwrap().receipt["sandbox"]["holdsCreatorLogins"] = json!(false);
     let receipt = server.machines.create(&spec(), KEY).await.unwrap();
@@ -788,7 +796,9 @@ async fn a_stop_is_recorded_before_it_is_asked_and_once_it_is_answered() {
 #[tokio::test]
 async fn a_rollback_is_never_reported_as_confirmed() {
     let server = server().await;
-    assert!(server.machines.roll_back(VM).await.is_err());
+    let created = server.machines.create(&spec(), KEY).await.unwrap();
+    assert_eq!(created.disposition(), Disposition::RollbackNewVm);
+    assert!(server.machines.roll_back(&created).await.is_err());
     assert_eq!(
         *server.events.0.lock().unwrap(),
         [MachineEvent::RollbackObserved {
@@ -810,12 +820,12 @@ async fn an_archive_that_never_ends_fails_within_the_callers_budget() {
     server.machines = server
         .machines
         .clone()
-        .with_budget(Budget(std::time::Duration::from_secs(2)));
+        .with_budget(Budget::new(std::time::Duration::from_secs(2)).unwrap());
     let started = std::time::Instant::now();
     assert_eq!(
         server
             .machines
-            .ready(&spec(), VM, &receipt.admission)
+            .ready(&spec(), VM, receipt.admission())
             .await
             .err(),
         Some(MachineFailure::Provider)
@@ -850,4 +860,127 @@ async fn a_failing_event_sink_never_changes_an_outcome() {
         receipt.refusal.unwrap().cause(),
         AdmissionRefusal::InvalidReceipt
     );
+    assert_eq!(
+        machines.stop(VM, StopCause::Closed).await,
+        Err(MachineFailure::Provider)
+    );
+}
+
+#[tokio::test]
+async fn a_replayed_vm_is_never_rolled_back() {
+    let server = server().await;
+    server.state.lock().unwrap().creation_ack["status"] = json!("ready");
+    let created = server.machines.create(&spec(), KEY).await.unwrap();
+    assert_eq!(created.disposition(), Disposition::RetainTarget);
+    assert_eq!(
+        server.machines.roll_back(&created).await,
+        Err(MachineFailure::InvalidInput)
+    );
+    assert!(server.events.0.lock().unwrap().is_empty());
+    assert_eq!(server.state.lock().unwrap().commands, 0);
+}
+
+/// A spent budget fails; the client's readiness wait would read a zero
+/// timeout as no deadline at all.
+#[tokio::test]
+async fn a_spent_budget_fails_instead_of_waiting_without_end() {
+    let mut server = server().await;
+    let receipt = server.machines.create(&spec(), KEY).await.unwrap();
+    server.state.lock().unwrap().receipt["sandbox"]["state"] = json!("archived");
+    server.machines = server
+        .machines
+        .clone()
+        .with_budget(Budget::new(std::time::Duration::from_millis(1)).unwrap());
+    let ready = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        server.machines.ready(&spec(), VM, receipt.admission()),
+    )
+    .await
+    .expect("a spent budget waited past its deadline");
+    assert_eq!(ready.err(), Some(MachineFailure::Provider));
+}
+
+/// The admission checks accept only personal VMs, so a caller's other
+/// scope, or none, is never used: it would make VMs that are then refused.
+#[tokio::test]
+async fn every_call_is_made_in_the_personal_scope() {
+    let server = server().await;
+    for org in [None, Some("team_other".to_owned())] {
+        let mut config = sandbox_client::ClientConfig::new("fixture-token")
+            .unwrap()
+            .with_base_path(&server.base)
+            .unwrap();
+        config.org = org;
+        let machines = BoatMachines::new(
+            Api::new(config).unwrap(),
+            reqwest::Client::builder().no_proxy().build().unwrap(),
+            server.events.clone(),
+        );
+        // The fake server refuses a creation without `X-Boat-Org: personal`.
+        let receipt = machines.create(&spec(), KEY).await.unwrap();
+        assert!(receipt.refusal.is_none());
+    }
+    assert_eq!(server.state.lock().unwrap().created, 2);
+}
+
+#[tokio::test]
+async fn a_key_or_vm_boat_could_never_use_is_refused_before_asking() {
+    let server = server().await;
+    for key in ["", "has space", "line\nbreak", &"k".repeat(256)] {
+        assert_eq!(
+            server.machines.create(&spec(), key).await.err(),
+            Some(MachineFailure::InvalidInput),
+            "{key:?}"
+        );
+    }
+    let receipt = server.machines.create(&spec(), KEY).await.unwrap();
+    for vm in ["", "../me", "bx_1?x", &"v".repeat(129)] {
+        assert_eq!(
+            server
+                .machines
+                .ready(&spec(), vm, receipt.admission())
+                .await
+                .err(),
+            Some(MachineFailure::InvalidInput)
+        );
+        assert_eq!(
+            server.machines.stop(vm, StopCause::Idle).await,
+            Err(MachineFailure::InvalidInput)
+        );
+    }
+    let state = server.state.lock().unwrap();
+    assert_eq!(state.created, 1);
+    assert_eq!(state.commands, 0);
+    assert!(!server
+        .events
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|e| matches!(e, MachineEvent::StopRequested { .. })));
+}
+
+/// A definite refusal made no VM, so asking again with the key cannot help;
+/// a busy, conflicting or failing answer may have made one.
+#[tokio::test]
+async fn only_an_answer_that_may_have_made_a_vm_is_uncertain() {
+    let server = server().await;
+    for (status, failure) in [
+        (400, MachineFailure::Provider),
+        (403, MachineFailure::Provider),
+        (404, MachineFailure::Missing),
+        (422, MachineFailure::Provider),
+        (408, MachineFailure::ProvisioningUncertain),
+        (409, MachineFailure::ProvisioningUncertain),
+        (429, MachineFailure::ProvisioningUncertain),
+        (500, MachineFailure::ProvisioningUncertain),
+        (503, MachineFailure::ProvisioningUncertain),
+    ] {
+        server.state.lock().unwrap().create_status = status;
+        assert_eq!(
+            server.machines.create(&spec(), KEY).await.err(),
+            Some(failure),
+            "{status}"
+        );
+    }
 }
