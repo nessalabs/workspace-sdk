@@ -197,9 +197,14 @@ impl OwnedWorkspace {
     pub async fn inspect_delete(&self, reference: &OperationRef) -> Result<DeleteOperation> {
         self.workspace.backend.inspect_delete(reference).await
     }
-    /// Use the common workspace handle, for example to pass it to sync.
-    pub fn workspace(&self) -> &Workspace {
-        &self.workspace
+    /// Wrap a handle whose saved record says this SDK created it.
+    pub(crate) fn from_owned(workspace: Workspace) -> Result<Self> {
+        if workspace.descriptor().ownership != Ownership::SdkOwned {
+            return Err(Error::Conflict(
+                "an attached workspace cannot be stopped or destroyed by this SDK".into(),
+            ));
+        }
+        Ok(Self { workspace })
     }
 }
 impl std::ops::Deref for OwnedWorkspace {
@@ -211,16 +216,5 @@ impl std::ops::Deref for OwnedWorkspace {
 impl From<OwnedWorkspace> for Workspace {
     fn from(owned: OwnedWorkspace) -> Self {
         owned.workspace
-    }
-}
-impl TryFrom<Workspace> for OwnedWorkspace {
-    type Error = Error;
-    fn try_from(workspace: Workspace) -> Result<Self> {
-        if workspace.descriptor().ownership != Ownership::SdkOwned {
-            return Err(Error::Conflict(
-                "an attached workspace cannot be stopped or destroyed by this SDK".into(),
-            ));
-        }
-        Ok(Self { workspace })
     }
 }

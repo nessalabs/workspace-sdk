@@ -1,5 +1,5 @@
 //! The saved record of one workspace's target: one place, one set of states.
-use super::{BackendDescriptor, WorkspaceId};
+use super::{BackendDescriptor, Ownership, WorkspaceId};
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -83,9 +83,19 @@ pub struct Refusal {
     #[serde(default)]
     pub admission: Option<Admission>,
 }
+impl std::fmt::Display for RefusalKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::EnvironmentMismatch => "environment mismatch",
+            Self::PendingWipe => "pending wipe",
+            Self::NotAdmitted => "not admitted",
+            Self::Other => "refused",
+        })
+    }
+}
 impl std::fmt::Display for Refusal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}: {}", self.kind, self.message)
+        write!(f, "{}: {}", self.kind, self.message)
     }
 }
 
@@ -115,7 +125,8 @@ pub enum MachineState {
 impl MachineState {
     /// Whether `next` may follow `self`. States only move forward: a pending
     /// record ends Ready or Refused, and a Ready target can later be refused,
-    /// but only under the admission it was made Ready with.
+    /// but only under the admission it was made Ready with. A Ready target may
+    /// be refreshed, but never changes its target, ownership or admission.
     pub fn allows(&self, next: &MachineState) -> bool {
         match (self, next) {
             (Self::Provisioning { .. } | Self::Attaching, Self::Ready { .. }) => true,
@@ -123,13 +134,44 @@ impl MachineState {
             (Self::Ready { descriptor }, Self::Refused { refusal }) => {
                 refusal.admission == descriptor.admission
             }
-            // A reconnect may refresh what the descriptor reports, never its target.
             (Self::Ready { descriptor }, Self::Ready { descriptor: next }) => {
-                descriptor.reference == next.reference && descriptor.ownership == next.ownership
+                descriptor.reference == next.reference
+                    && descriptor.ownership == next.ownership
+                    && descriptor.admission == next.admission
             }
             _ => false,
         }
     }
+    /// Whether this state has no outcome yet.
+    pub fn is_pending(&self) -> bool {
+        matches!(self, Self::Provisioning { .. } | Self::Attaching)
+    }
+    /// The ownership a pending state will end with.
+    pub(crate) fn intended_ownership(&self) -> Option<Ownership> {
+        match self {
+            Self::Provisioning { .. } => Some(Ownership::SdkOwned),
+            Self::Attaching => Some(Ownership::Attached),
+            Self::Ready { descriptor } => Some(descriptor.ownership.clone()),
+            Self::Refused { .. } => None,
+        }
+    }
+}
+
+/// Where a record's ID reservation came from.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "origin")]
+pub enum RequestOrigin {
+    /// A create or attach request, by the hash of its exact contents.
+    Request {
+        /// Hash of the request, including whether it was a create or attach.
+        hash: String,
+    },
+    /// Upgraded from a state file written before requests were recorded this
+    /// way. The first create or attach for the ID that fits the saved state
+    /// adopts it.
+    Upgraded,
+    /// Saved by reconnecting to a reference made elsewhere; never adopted.
+    Connected,
 }
 
 /// The one saved record for a workspace ID.
@@ -138,10 +180,10 @@ impl MachineState {
 pub struct MachineRecord {
     /// The caller's ID for the workspace.
     pub workspace_id: WorkspaceId,
-    /// Hash of the create or attach request that reserved this ID. `None` for a
-    /// target saved by reconnecting to a reference made elsewhere.
-    pub request: Option<String>,
-    /// Increases by one on every change, for compare-and-swap updates.
+    /// Where the ID's reservation came from.
+    pub origin: RequestOrigin,
+    /// Increases on every change and never repeats for an ID, even after the
+    /// record is forgotten, so a compare-and-swap cannot land on a newer record.
     pub revision: u64,
     /// Where the target stands.
     pub state: MachineState,
@@ -152,6 +194,94 @@ impl MachineRecord {
         match &self.state {
             MachineState::Ready { descriptor } => Some(descriptor),
             _ => None,
+        }
+    }
+    /// Check a record read from storage.
+    pub fn validate(&self) -> Result<()> {
+        if self.revision == 0 {
+            return Err(Error::State("machine record revision starts at 1".into()));
+        }
+        if self
+            .descriptor()
+            .is_some_and(|descriptor| descriptor.reference.id != self.workspace_id)
+        {
+            return Err(Error::State(
+                "machine record holds another workspace's target".into(),
+            ));
+        }
+        if self.state.is_pending() && self.origin == RequestOrigin::Connected {
+            return Err(Error::State(
+                "a reconnected record cannot be pending".into(),
+            ));
+        }
+        Ok(())
+    }
+    /// Reserve `id` for `request`, given the record already saved for it.
+    ///
+    /// Returns the record to use and whether it must be saved. The same request
+    /// continues from its saved record; an upgraded record is adopted by the
+    /// first request whose kind fits it; anything else is a conflict.
+    /// `next_revision` is the first revision a new record may use.
+    pub fn begin(
+        saved: Option<&Self>,
+        id: &WorkspaceId,
+        request: &str,
+        initial: MachineState,
+        next_revision: u64,
+    ) -> Result<(Self, bool)> {
+        let wanted = initial
+            .intended_ownership()
+            .filter(|_| initial.is_pending())
+            .ok_or_else(|| {
+                Error::InvalidInput("a machine record starts Provisioning or Attaching".into())
+            })?;
+        let Some(saved) = saved else {
+            let record = Self {
+                workspace_id: id.clone(),
+                origin: RequestOrigin::Request {
+                    hash: request.to_owned(),
+                },
+                revision: next_revision,
+                state: initial,
+            };
+            return Ok((record, true));
+        };
+        match &saved.origin {
+            RequestOrigin::Request { hash } if hash == request => Ok((saved.clone(), false)),
+            RequestOrigin::Request { .. } if saved.state.is_pending() => {
+                Err(Error::Conflict(format!(
+                    "workspace {id} has an unfinished different request; finish it, or call \
+                     forget_unfinished once its provider holds nothing for it"
+                )))
+            }
+            RequestOrigin::Request { .. } => Err(Error::Conflict(format!(
+                "workspace {id} already has a different create or attach request"
+            ))),
+            RequestOrigin::Connected => Err(Error::Conflict(format!(
+                "workspace {id} was connected externally; reconnect it by reference"
+            ))),
+            RequestOrigin::Upgraded => {
+                // An upgraded unfinished reservation does not say whether it was
+                // a create or an attach, so either may take it over.
+                let state = if saved.state.is_pending() {
+                    initial
+                } else if saved.state.intended_ownership() == Some(wanted) {
+                    saved.state.clone()
+                } else {
+                    return Err(Error::Conflict(format!(
+                        "workspace {id} was saved by an older version with a different kind of target"
+                    )));
+                };
+                let record = Self {
+                    workspace_id: id.clone(),
+                    origin: RequestOrigin::Request {
+                        hash: request.to_owned(),
+                    },
+                    revision: saved.revision + 1,
+                    state,
+                };
+                Ok((record, true))
+            }
         }
     }
     /// Apply `next` if it is a legal move from the current state.
@@ -171,9 +301,50 @@ impl MachineRecord {
         }
         Ok(Self {
             workspace_id: self.workspace_id.clone(),
-            request: self.request.clone(),
+            origin: self.origin.clone(),
             revision: self.revision + 1,
             state: next,
         })
+    }
+    /// Record a descriptor seen by reconnecting. A reconnect cannot see what
+    /// the target was admitted under, so the saved admission is kept. Returns
+    /// `None` when nothing changed.
+    pub fn refresh(&self, descriptor: &BackendDescriptor) -> Result<Option<Self>> {
+        let MachineState::Ready { descriptor: saved } = &self.state else {
+            return Err(Error::Conflict(format!(
+                "workspace {} is not ready; reconnecting cannot finish it",
+                self.workspace_id
+            )));
+        };
+        let mut next = descriptor.clone();
+        next.admission = saved.admission.clone();
+        if *saved == next {
+            return Ok(None);
+        }
+        self.advance(MachineState::Ready { descriptor: next })
+            .map(Some)
+            .map_err(|_| {
+                Error::Conflict(format!(
+                    "workspace {} cannot be rebound to a different target",
+                    self.workspace_id
+                ))
+            })
+    }
+    /// Check that this record may be forgotten by a caller that read it at
+    /// `expected_revision`. Only a record with no outcome may be forgotten.
+    pub fn check_forget(&self, expected_revision: u64) -> Result<()> {
+        if self.revision != expected_revision {
+            return Err(Error::Conflict(format!(
+                "workspace {} changed since it was read",
+                self.workspace_id
+            )));
+        }
+        if !self.state.is_pending() {
+            return Err(Error::Conflict(format!(
+                "workspace {} has an outcome and cannot be forgotten",
+                self.workspace_id
+            )));
+        }
+        Ok(())
     }
 }

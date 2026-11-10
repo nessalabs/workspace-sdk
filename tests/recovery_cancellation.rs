@@ -34,6 +34,12 @@ impl IProvider for GatedProvider {
     fn id(&self) -> ProviderId {
         self.inner.id()
     }
+    fn check_create(&self, request: &CreateRequest) -> Result<()> {
+        self.inner.check_create(request)
+    }
+    fn check_attach(&self, request: &AttachRequest) -> Result<()> {
+        self.inner.check_attach(request)
+    }
 
     async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {
         self.inner.attach(request).await

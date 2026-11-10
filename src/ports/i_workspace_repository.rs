@@ -4,9 +4,11 @@ use crate::{domain::*, Result};
 ///
 /// Applications can implement this with files, a database, or memory. The role
 /// is workspace persistence, not file storage; [`crate::infrastructure::FileStateRepository`]
-/// is one implementation rather than a requirement of the domain. Every change
-/// goes through [`MachineRecord::advance`], so a store cannot accept a state
-/// move the domain forbids.
+/// is one implementation rather than a requirement of the domain. An
+/// implementation must make each call atomic and decide it with the domain:
+/// [`MachineRecord::begin`], [`MachineRecord::advance`],
+/// [`MachineRecord::refresh`] and [`MachineRecord::check_forget`]. Revisions
+/// must never repeat for an ID, even after a forget.
 pub trait IWorkspaceRepository: Send + Sync {
     /// Reserve `id` for `request` before any side effect, saving `initial`.
     ///
@@ -30,7 +32,8 @@ pub trait IWorkspaceRepository: Send + Sync {
     /// `expected_revision`. Ready and Refused records are never deleted here.
     fn forget(&self, id: &WorkspaceId, expected_revision: u64) -> Result<()>;
     /// Save a Ready descriptor seen by reconnecting. An unknown ID gets a new
-    /// record with no request; a known one may only refresh the same target.
+    /// [`RequestOrigin::Connected`] record; a known one may only refresh the
+    /// same target.
     fn save(&self, descriptor: &BackendDescriptor) -> Result<()>;
     /// Load the record for `id`.
     fn record(&self, id: &WorkspaceId) -> Result<Option<MachineRecord>>;

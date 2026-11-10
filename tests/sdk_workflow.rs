@@ -103,14 +103,23 @@ async fn persistent_reconnect_and_creation_identity_survive_controller_replaceme
             .await,
         Err(Error::Conflict(_))
     ));
+    // The local provider refuses resources before anything is reserved, so
+    // the saved record is untouched.
+    let saved = second
+        .record(&WorkspaceId::new("durable").unwrap())
+        .unwrap();
     let mut changed = request("durable");
     changed.resources.cpu = Some(1);
-    assert!(matches!(
+    assert!(second
+        .create(&ProviderId::new("local").unwrap(), changed)
+        .await
+        .is_err());
+    assert_eq!(
         second
-            .create(&ProviderId::new("local").unwrap(), changed)
-            .await,
-        Err(Error::Conflict(_))
-    ));
+            .record(&WorkspaceId::new("durable").unwrap())
+            .unwrap(),
+        saved
+    );
 }
 
 #[tokio::test]

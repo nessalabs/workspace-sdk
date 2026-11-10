@@ -22,6 +22,13 @@ pub trait IProvider: Send + Sync {
     /// [`Ownership::SdkOwned`]. Providers that cannot create refuse with
     /// `Unsupported`.
     async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>>;
+    /// Check a create request without any effect: decode its options and
+    /// refuse what [`Self::create`] would refuse before asking for anything.
+    /// The SDK calls it before reserving the ID, so a request that can never
+    /// succeed does not leave an unfinished record behind.
+    fn check_create(&self, request: &CreateRequest) -> Result<()>;
+    /// Check an attach request without any effect, as [`Self::check_create`].
+    fn check_attach(&self, request: &AttachRequest) -> Result<()>;
     /// Use an existing target without provisioning it or changing its project files.
     ///
     /// The returned descriptor must report [`Ownership::Attached`]. Providers that

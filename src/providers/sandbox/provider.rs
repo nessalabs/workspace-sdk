@@ -38,6 +38,23 @@ impl SandboxProvider {
             supervisor: SupervisorDeployment::default(),
         }
     }
+    fn create_options(&self, request: &CreateRequest) -> Result<SandboxCreateOptions> {
+        if request.resources != ResourceRequirements::default() {
+            return Err(Error::Unsupported(
+                "Boat generic resource provisioning; choose an explicit sandbox_type in SandboxCreateOptions"
+                    .into(),
+            ));
+        }
+        if request.config.is_empty() {
+            return Err(Error::InvalidInput(
+                "SandboxCreateOptions with an explicit root is required".into(),
+            ));
+        }
+        let options: SandboxCreateOptions = request.config.decode()?;
+        managed::validate_remote_path(&options.root)?;
+        self.supervisor.validate()?;
+        Ok(options)
+    }
     async fn open(
         &self,
         workspace_id: WorkspaceId,
@@ -105,22 +122,17 @@ impl IProvider for SandboxProvider {
     fn id(&self) -> ProviderId {
         self.id.clone()
     }
+    fn check_create(&self, request: &CreateRequest) -> Result<()> {
+        self.create_options(request).map(drop)
+    }
+    fn check_attach(&self, request: &AttachRequest) -> Result<()> {
+        let options: SandboxAttachOptions = request.config.decode()?;
+        managed::validate_remote_path(&options.root)?;
+        self.supervisor.validate()
+    }
     async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
         let key = request.provision_key();
-        if request.resources != ResourceRequirements::default() {
-            return Err(Error::Unsupported(
-                "Boat generic resource provisioning; choose an explicit sandbox_type in SandboxCreateOptions"
-                    .into(),
-            ));
-        }
-        if request.config.is_empty() {
-            return Err(Error::InvalidInput(
-                "SandboxCreateOptions with an explicit root is required".into(),
-            ));
-        }
-        let options: SandboxCreateOptions = request.config.decode()?;
-        managed::validate_remote_path(&options.root)?;
-        self.supervisor.validate()?;
+        let options = self.create_options(&request)?;
         let no_env = options.environment.is_none().then_some(true);
         let created = self
             .api
@@ -148,9 +160,8 @@ impl IProvider for SandboxProvider {
         .await
     }
     async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {
+        self.check_attach(&request)?;
         let options: SandboxAttachOptions = request.config.decode()?;
-        managed::validate_remote_path(&options.root)?;
-        self.supervisor.validate()?;
         self.api.get(&options.sandbox_id).await.map_err(error)?;
         self.open(
             request.workspace_id,

@@ -29,9 +29,10 @@ impl WorkspaceSdk {
     }
     /// Create a new SDK-owned target.
     ///
-    /// The ID is reserved and saved as Provisioning before the provider is
-    /// asked for anything. A retry of the same request continues from the saved
-    /// state: Provisioning asks the provider again with the same key, Ready
+    /// The provider checks the request first, without any effect. Then the ID
+    /// is reserved and saved as Provisioning before the provider is asked for
+    /// anything. A retry of the same request continues from the saved state:
+    /// Provisioning asks the provider again with the same key, Ready
     /// reconnects, Refused returns the saved refusal. A different request for
     /// the same ID, including an attach, is a conflict.
     pub async fn create(
@@ -40,84 +41,90 @@ impl WorkspaceSdk {
         request: CreateRequest,
     ) -> Result<OwnedWorkspace> {
         let adapter = self.provider(provider)?;
-        let id = request.workspace_id.clone();
-        // Hashed as before the create/attach split, so saved creates still match.
-        let identity = request_identity(&(provider, &request))?;
-        let key = request.provision_key();
-        let record = self
-            .repository
-            .begin(&id, &identity, MachineState::Provisioning { key })?;
+        adapter.check_create(&request)?;
+        let identity = request_identity(&("create", provider, &request))?;
+        let record = self.repository.begin(
+            &request.workspace_id,
+            &identity,
+            MachineState::Provisioning {
+                key: request.provision_key(),
+            },
+        )?;
         let workspace = self
-            .finish(provider, record, Ownership::SdkOwned, |state| async move {
-                if !matches!(state, MachineState::Provisioning { .. }) {
-                    return Err(Error::State("create found an attach record".into()));
-                }
-                adapter.create(request).await
-            })
+            .finish(
+                provider,
+                record,
+                Ownership::SdkOwned,
+                adapter.create(request),
+            )
             .await?;
-        Ok(OwnedWorkspace { workspace })
+        OwnedWorkspace::from_owned(workspace)
     }
     /// Attach to an existing target. The returned handle cannot stop or destroy it.
     ///
-    /// The ID is reserved and saved as Attaching first. A retry of the same
-    /// request continues from the saved state; a different request conflicts.
+    /// The provider checks the request first, then the ID is reserved and
+    /// saved as Attaching. A retry of the same request continues from the saved
+    /// state; a different request conflicts.
     pub async fn attach(&self, provider: &ProviderId, request: AttachRequest) -> Result<Workspace> {
         let adapter = self.provider(provider)?;
-        let id = request.workspace_id.clone();
+        adapter.check_attach(&request)?;
         let identity = request_identity(&("attach", provider, &request))?;
-        let record = self
-            .repository
-            .begin(&id, &identity, MachineState::Attaching)?;
-        self.finish(provider, record, Ownership::Attached, |state| async move {
-            let MachineState::Attaching = state else {
-                return Err(Error::State("attach found a create record".into()));
-            };
-            adapter.attach(request).await
-        })
+        let record =
+            self.repository
+                .begin(&request.workspace_id, &identity, MachineState::Attaching)?;
+        self.finish(
+            provider,
+            record,
+            Ownership::Attached,
+            adapter.attach(request),
+        )
         .await
     }
-    /// Delete a record that never reached an outcome, after the provider has
-    /// confirmed it holds nothing for it. The next create starts again with the
-    /// same key. Ready and Refused records are kept.
-    pub fn forget_provisioning(&self, id: &WorkspaceId) -> Result<()> {
-        let record = self
-            .repository
-            .record(id)?
-            .ok_or_else(|| Error::NotFound(format!("workspace {id}")))?;
-        self.repository.forget(id, record.revision)
+    /// Delete a record that never reached an outcome, read at
+    /// `expected_revision` with [`Self::record`].
+    ///
+    /// Call it only after the provider has confirmed it holds nothing for this
+    /// ID, for example after deleting what the lost create made: the next
+    /// create starts again with the same key, so a target the provider still
+    /// holds would be found again rather than leaked, but an attach or a
+    /// different create would lose track of it. Ready and Refused records are
+    /// kept, and a record that changed since it was read is a conflict.
+    pub fn forget_unfinished(&self, id: &WorkspaceId, expected_revision: u64) -> Result<()> {
+        self.repository.forget(id, expected_revision)
     }
     /// Load the saved record for `id`, whatever state it is in.
     pub fn record(&self, id: &WorkspaceId) -> Result<Option<MachineRecord>> {
         self.repository.record(id)
     }
-    async fn finish<F, Fut>(
+    /// Continue a reserved record to its outcome. `open` is the provider call
+    /// for the record's request; it runs only while the record is pending.
+    async fn finish(
         &self,
         provider: &ProviderId,
         record: MachineRecord,
         ownership: Ownership,
-        open: F,
-    ) -> Result<Workspace>
-    where
-        F: FnOnce(MachineState) -> Fut,
-        Fut: Future<Output = Result<Arc<dyn IBackend>>>,
-    {
+        open: impl Future<Output = Result<Arc<dyn IBackend>>>,
+    ) -> Result<Workspace> {
+        if !record.state.is_pending() {
+            return self.outcome(record).await;
+        }
+        if record.state.intended_ownership() != Some(ownership.clone()) {
+            return Err(Error::State(
+                "the saved request is for a different kind of target".into(),
+            ));
+        }
         let id = record.workspace_id.clone();
-        let pending = match record.state {
-            MachineState::Ready { descriptor } => return self.resume(&descriptor).await,
-            MachineState::Refused { refusal } => return Err(Error::Refused(Box::new(refusal))),
-            pending => pending,
-        };
-        let backend = match open(pending).await {
+        let backend = match open.await {
             Ok(backend) => backend,
             Err(Error::Refused(refusal)) => {
-                self.settle(
-                    &id,
-                    record.revision,
-                    MachineState::Refused {
-                        refusal: (*refusal).clone(),
-                    },
-                )?;
-                return Err(Error::Refused(refusal));
+                let refused = MachineState::Refused {
+                    refusal: (*refusal).clone(),
+                };
+                return match self.settle(&id, record.revision, refused)? {
+                    // Another caller finished the same request first.
+                    Some(winner) => self.outcome(winner).await,
+                    None => Err(Error::Refused(refusal)),
+                };
             }
             // No outcome: the record stays pending for a retry.
             Err(error) => return Err(error),
@@ -133,22 +140,23 @@ impl WorkspaceSdk {
             ));
         }
         // Persist the outcome before a readiness timeout can interrupt us.
-        if let Some(winner) = self.settle(
-            &id,
-            record.revision,
-            MachineState::Ready {
-                descriptor: descriptor.clone(),
-            },
-        )? {
+        let ready = MachineState::Ready {
+            descriptor: descriptor.clone(),
+        };
+        if let Some(winner) = self.settle(&id, record.revision, ready)? {
             // Another caller finished the same request first; use its outcome.
-            return match winner.state {
-                MachineState::Ready { descriptor } => self.resume(&descriptor).await,
-                MachineState::Refused { refusal } => Err(Error::Refused(Box::new(refusal))),
-                _ => Err(Error::State("concurrent create left no outcome".into())),
-            };
+            return self.outcome(winner).await;
         }
         backend.ensure_ready().await?;
         Ok(Workspace { backend })
+    }
+    /// The workspace a settled record stands for.
+    async fn outcome(&self, record: MachineRecord) -> Result<Workspace> {
+        match record.state {
+            MachineState::Ready { descriptor } => self.resume(&descriptor).await,
+            MachineState::Refused { refusal } => Err(Error::Refused(Box::new(refusal))),
+            _ => Err(Error::State("the saved record has no outcome yet".into())),
+        }
     }
     /// Save an outcome. If another caller saved one first, return its record.
     fn settle(
@@ -160,9 +168,14 @@ impl WorkspaceSdk {
         match self.repository.advance(id, revision, next) {
             Ok(_) => Ok(None),
             Err(Error::Conflict(message)) => match self.repository.record(id)? {
-                Some(record) if record.revision != revision => Ok(Some(record)),
+                Some(record) if record.revision != revision && !record.state.is_pending() => {
+                    Ok(Some(record))
+                }
                 _ => Err(Error::Conflict(message)),
             },
+            Err(Error::NotFound(_)) => Err(Error::Conflict(format!(
+                "workspace {id} was forgotten while its request ran"
+            ))),
             Err(error) => Err(error),
         }
     }
@@ -195,10 +208,19 @@ impl WorkspaceSdk {
         self.repository.save(&descriptor)?;
         Ok(Workspace { backend })
     }
-    /// Reconnect to a target this SDK created, with its stop and destroy operations.
-    /// Refuses an attached target.
+    /// Reconnect to a target this SDK created, with its stop and destroy
+    /// operations. The reference must be the one saved in this SDK's Ready
+    /// record for a create; anything else, including an attached target, is
+    /// refused.
     pub async fn connect_owned(&self, reference: &WorkspaceRef) -> Result<OwnedWorkspace> {
-        OwnedWorkspace::try_from(self.connect(reference).await?)
+        let saved = self.owned_record(&reference.id)?;
+        if saved.reference != *reference {
+            return Err(Error::Conflict(format!(
+                "workspace {} is saved with a different reference",
+                reference.id
+            )));
+        }
+        OwnedWorkspace::from_owned(self.connect(reference).await?)
     }
     /// Load a workspace reference from the repository and reconnect through its provider.
     pub async fn workspace(&self, id: &WorkspaceId) -> Result<Workspace> {
@@ -210,7 +232,21 @@ impl WorkspaceSdk {
     }
     /// Load a saved target this SDK created, with its stop and destroy operations.
     pub async fn owned_workspace(&self, id: &WorkspaceId) -> Result<OwnedWorkspace> {
-        OwnedWorkspace::try_from(self.workspace(id).await?)
+        let saved = self.owned_record(id)?;
+        OwnedWorkspace::from_owned(self.connect(&saved.reference).await?)
+    }
+    /// The saved Ready descriptor of a target this SDK created.
+    fn owned_record(&self, id: &WorkspaceId) -> Result<BackendDescriptor> {
+        let descriptor = self
+            .repository
+            .get(id)?
+            .ok_or_else(|| Error::NotFound(format!("workspace {id}")))?;
+        if descriptor.ownership != Ownership::SdkOwned {
+            return Err(Error::Conflict(format!(
+                "workspace {id} is attached; this SDK cannot stop or destroy it"
+            )));
+        }
+        Ok(descriptor)
     }
     /// List persisted descriptors without polling providers or discovering unrelated resources.
     pub fn list(&self) -> Result<Vec<BackendDescriptor>> {

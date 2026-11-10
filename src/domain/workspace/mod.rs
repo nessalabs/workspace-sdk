@@ -34,6 +34,7 @@ pub use files::{FileChunk, ReadFile, WriteFile};
 pub use identity::{ProviderId, WorkspaceId, WorkspaceRef};
 pub use machine::{
     Admission, MachineRecord, MachineState, ProvisionKey, Refusal, RefusalCleanup, RefusalKind,
+    RequestOrigin,
 };
 pub use open::{AttachRequest, CreateRequest, ResourceRequirements};
 pub use path::WorkspacePath;

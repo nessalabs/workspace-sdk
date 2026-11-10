@@ -87,10 +87,18 @@ impl IProvider for SpaceProvider {
     fn id(&self) -> ProviderId {
         self.id.clone()
     }
-    async fn create(&self, _request: CreateRequest) -> Result<Arc<dyn IBackend>> {
+    fn check_create(&self, _request: &CreateRequest) -> Result<()> {
         Err(Error::Unsupported(
             "SPACE resources are created outside this SDK; attach to an existing sandbox".into(),
         ))
+    }
+    fn check_attach(&self, request: &AttachRequest) -> Result<()> {
+        self.locator(&request.workspace_id, request.config.decode()?)
+            .map(drop)
+    }
+    async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
+        self.check_create(&request)?;
+        Err(Error::Unsupported("SPACE create".into()))
     }
     async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {
         let options: SpaceAttachOptions = request.config.decode()?;

@@ -1,4 +1,4 @@
-use crate::domain::{MachineRecord, MachineState, ProvisionKey, RecoverySession};
+use crate::domain::{MachineRecord, MachineState, ProvisionKey, RecoverySession, RequestOrigin};
 use crate::{
     BackendDescriptor, Error, HandoffReceipt, OperationId, Result, SyncSession, WorkflowRecord,
     WorkspaceId,
@@ -14,6 +14,9 @@ pub(super) const VERSION: u32 = 4;
 pub(super) struct RepositoryState {
     pub(super) version: u32,
     pub(super) machines: BTreeMap<WorkspaceId, MachineRecord>,
+    /// The last revision of each forgotten record, so a new record for the
+    /// same ID never reuses a revision an in-flight caller still holds.
+    pub(super) retired: BTreeMap<WorkspaceId, u64>,
     pub(super) workflows: BTreeMap<OperationId, WorkflowRecord>,
 }
 impl Default for RepositoryState {
@@ -21,6 +24,7 @@ impl Default for RepositoryState {
         Self {
             version: VERSION,
             machines: BTreeMap::new(),
+            retired: BTreeMap::new(),
             workflows: BTreeMap::new(),
         }
     }
@@ -38,6 +42,8 @@ struct StoredState {
     workspaces: Option<BTreeMap<WorkspaceId, BackendDescriptor>>,
     #[serde(default)]
     machines: Option<BTreeMap<WorkspaceId, MachineRecord>>,
+    #[serde(default)]
+    retired: Option<BTreeMap<WorkspaceId, u64>>,
     #[serde(deserialize_with = "decode_workflows")]
     workflows: BTreeMap<OperationId, WorkflowRecord>,
 }
@@ -46,7 +52,7 @@ impl<'de> Deserialize<'de> for RepositoryState {
         let stored = StoredState::deserialize(deserializer)?;
         let machines = match stored.version {
             1..=3 => {
-                if stored.machines.is_some() {
+                if stored.machines.is_some() || stored.retired.is_some() {
                     return Err(DeserializeError::custom("machines field in an old state"));
                 }
                 upgrade(
@@ -76,15 +82,18 @@ impl<'de> Deserialize<'de> for RepositoryState {
         Ok(Self {
             version: stored.version,
             machines,
+            retired: stored.retired.unwrap_or_default(),
             workflows: stored.workflows,
         })
     }
 }
 
-/// A saved descriptor becomes a Ready record that keeps its reservation. A
-/// reservation with no descriptor was a create that never finished: it becomes
-/// Provisioning under the key Boat was already given, which is derived from the
-/// workspace ID alone.
+/// Old request hashes cannot be compared with new requests (option shapes
+/// changed), so every upgraded record is `Upgraded`: the first create or attach
+/// that fits it adopts it. A saved descriptor becomes Ready. A reservation with
+/// no descriptor never finished; it may have been a create or an attach, so it
+/// becomes Provisioning under the key a create was given, and either kind of
+/// request can take it over.
 fn upgrade(
     reservations: BTreeMap<WorkspaceId, String>,
     workspaces: BTreeMap<WorkspaceId, BackendDescriptor>,
@@ -96,24 +105,28 @@ fn upgrade(
                 "workspace key differs from its descriptor".into(),
             ));
         }
-        let request = reservations.get(&id).cloned();
+        let origin = if reservations.contains_key(&id) {
+            RequestOrigin::Upgraded
+        } else {
+            RequestOrigin::Connected
+        };
         machines.insert(
             id.clone(),
             MachineRecord {
                 workspace_id: id,
-                request,
+                origin,
                 revision: 1,
                 state: MachineState::Ready { descriptor },
             },
         );
     }
-    for (id, request) in reservations {
+    for id in reservations.into_keys() {
         machines.entry(id.clone()).or_insert_with(|| MachineRecord {
             state: MachineState::Provisioning {
                 key: ProvisionKey::for_workspace(&id),
             },
             workspace_id: id,
-            request: Some(request),
+            origin: RequestOrigin::Upgraded,
             revision: 1,
         });
     }
@@ -182,32 +195,12 @@ impl RepositoryState {
         request: &str,
         initial: MachineState,
     ) -> Result<MachineRecord> {
-        if let Some(previous) = self.machines.get(id) {
-            return match &previous.request {
-                Some(saved) if saved == request => Ok(previous.clone()),
-                Some(_) => Err(Error::Conflict(format!(
-                    "workspace {id} already has a different create or attach request"
-                ))),
-                None => Err(Error::Conflict(format!(
-                    "workspace {id} was connected externally; reconnect it by reference"
-                ))),
-            };
+        let next_revision = self.retired.get(id).map_or(1, |last| last + 1);
+        let (record, changed) =
+            MachineRecord::begin(self.machines.get(id), id, request, initial, next_revision)?;
+        if changed {
+            self.machines.insert(id.clone(), record.clone());
         }
-        if matches!(
-            initial,
-            MachineState::Ready { .. } | MachineState::Refused { .. }
-        ) {
-            return Err(Error::InvalidInput(
-                "a machine record starts Provisioning or Attaching".into(),
-            ));
-        }
-        let record = MachineRecord {
-            workspace_id: id.clone(),
-            request: Some(request.to_owned()),
-            revision: 1,
-            state: initial,
-        };
-        self.machines.insert(id.clone(), record.clone());
         Ok(record)
     }
     pub(super) fn advance(
@@ -234,58 +227,28 @@ impl RepositoryState {
             .machines
             .get(id)
             .ok_or_else(|| Error::NotFound(format!("workspace {id}")))?;
-        if previous.revision != expected_revision {
-            return Err(Error::Conflict(format!(
-                "workspace {id} changed since it was read"
-            )));
-        }
-        if !matches!(
-            previous.state,
-            MachineState::Provisioning { .. } | MachineState::Attaching
-        ) {
-            return Err(Error::Conflict(format!(
-                "workspace {id} has an outcome and cannot be forgotten"
-            )));
-        }
+        previous.check_forget(expected_revision)?;
+        self.retired.insert(id.clone(), previous.revision);
         self.machines.remove(id);
         Ok(())
     }
     pub(super) fn save_workspace(&mut self, descriptor: &BackendDescriptor) -> Result<()> {
         let id = &descriptor.reference.id;
         let Some(previous) = self.machines.get(id) else {
-            self.machines.insert(
-                id.clone(),
-                MachineRecord {
-                    workspace_id: id.clone(),
-                    request: None,
-                    revision: 1,
-                    state: MachineState::Ready {
-                        descriptor: descriptor.clone(),
-                    },
+            let record = MachineRecord {
+                workspace_id: id.clone(),
+                origin: RequestOrigin::Connected,
+                revision: self.retired.get(id).map_or(1, |last| last + 1),
+                state: MachineState::Ready {
+                    descriptor: descriptor.clone(),
                 },
-            );
+            };
+            self.machines.insert(id.clone(), record);
             return Ok(());
         };
-        let MachineState::Ready { descriptor: saved } = &previous.state else {
-            return Err(Error::Conflict(format!(
-                "workspace {id} is not ready; reconnecting cannot finish it"
-            )));
-        };
-        // A reconnect cannot see what the target was admitted under; keep it.
-        let mut next = descriptor.clone();
-        if next.admission.is_none() {
-            next.admission = saved.admission.clone();
+        if let Some(next) = previous.refresh(descriptor)? {
+            self.machines.insert(id.clone(), next);
         }
-        if saved == &next {
-            return Ok(());
-        }
-        if saved.reference != next.reference || saved.ownership != next.ownership {
-            return Err(Error::Conflict(format!(
-                "workspace {id} cannot be rebound to a different target"
-            )));
-        }
-        let revision = previous.revision;
-        self.advance(id, revision, MachineState::Ready { descriptor: next })?;
         Ok(())
     }
 }

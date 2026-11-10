@@ -118,9 +118,15 @@ impl IProvider for LocalProvider {
     fn id(&self) -> ProviderId {
         self.id.clone()
     }
-    async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
+    fn check_create(&self, request: &CreateRequest) -> Result<()> {
         managed::require_no_resources(&request.resources)?;
-        managed::require_no_create_options(&request.config, "local")?;
+        managed::require_no_create_options(&request.config, "local")
+    }
+    fn check_attach(&self, request: &AttachRequest) -> Result<()> {
+        request.config.decode::<LocalAttachOptions>().map(drop)
+    }
+    async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
+        self.check_create(&request)?;
         self.open(request.workspace_id, None).await
     }
     async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {

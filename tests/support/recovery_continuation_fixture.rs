@@ -71,6 +71,12 @@ impl IProvider for ControlledProvider {
     fn id(&self) -> ProviderId {
         self.inner.id()
     }
+    fn check_create(&self, request: &CreateRequest) -> Result<()> {
+        self.inner.check_create(request)
+    }
+    fn check_attach(&self, request: &AttachRequest) -> Result<()> {
+        self.inner.check_attach(request)
+    }
     async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
         self.inner.create(request).await
     }

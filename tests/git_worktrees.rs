@@ -15,8 +15,8 @@ use workspace_sdk::{
     git::{GitWorktree, GitWorktreeDiscovery, GitWorktreeHead},
     infrastructure::FileStateRepository,
     providers::{LocalAttachOptions, LocalConfig, LocalProvider},
-    AttachRequest, CommandSpec, Error, OwnedWorkspace, Ownership, ProviderId, RunState, Workspace,
-    WorkspaceId, WorkspaceSdk,
+    AttachRequest, CommandSpec, Error, Ownership, ProviderId, RunState, Workspace, WorkspaceId,
+    WorkspaceSdk,
 };
 
 fn git(root: &Path, arguments: &[&str]) -> String {
@@ -349,7 +349,7 @@ async fn discovered_existing_and_explicitly_created_worktrees_execute_independen
     }
     assert!(!first_descriptor.capabilities.destroy && !second_descriptor.capabilities.destroy);
     assert!(matches!(
-        OwnedWorkspace::try_from(first.clone()),
+        sdk.connect_owned(&first.reference()).await,
         Err(Error::Conflict(_))
     ));
     assert!(matches!(

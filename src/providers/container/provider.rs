@@ -188,8 +188,14 @@ impl IProvider for ContainerProvider {
     fn id(&self) -> ProviderId {
         self.id.clone()
     }
+    fn check_create(&self, request: &CreateRequest) -> Result<()> {
+        managed::require_no_create_options(&request.config, "container")
+    }
+    fn check_attach(&self, request: &AttachRequest) -> Result<()> {
+        request.config.decode::<ContainerAttachOptions>().map(drop)
+    }
     async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
-        managed::require_no_create_options(&request.config, "container")?;
+        self.check_create(&request)?;
         self.open(request.workspace_id, request.resources, None)
             .await
     }

@@ -182,7 +182,7 @@ impl IRecoveryRepository for FileStateRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::ProvisionKey;
+    use crate::domain::{ProvisionKey, RequestOrigin};
 
     /// Reserve an ID the way an attach does, for tests about the file itself.
     trait Reserve {
@@ -350,26 +350,43 @@ mod tests {
         fs::write(&path, &bytes).unwrap();
 
         assert!(repository.list().unwrap().is_empty());
-        assert_eq!(fs::read(&path).unwrap(), bytes);
-        assert!(matches!(
-            repository.reserve(&id, "different-request"),
-            Err(Error::Conflict(_))
-        ));
-        assert_eq!(fs::read(&path).unwrap(), bytes);
-
-        repository.reserve(&id, "original-request").unwrap();
-        let upgraded: RepositoryState = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
-        assert_eq!(upgraded.version, VERSION);
         // An unfinished legacy reservation is a create that may have reached the
-        // provider: it becomes Provisioning under the key Boat was given.
-        let record = upgraded.machines.get(&id).unwrap();
-        assert_eq!(record.request.as_deref(), Some("original-request"));
+        // provider: it reads as Provisioning under the key Boat was given.
+        let record = repository.record(&id).unwrap().unwrap();
+        assert_eq!(record.origin, RequestOrigin::Upgraded);
         assert_eq!(
             record.state,
             MachineState::Provisioning {
                 key: ProvisionKey::for_workspace(&id)
             }
         );
+        // Reading never rewrites the file.
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+
+        // The first request adopts the upgraded record and saves it as v4.
+        let adopted = repository
+            .begin(
+                &id,
+                "first-request",
+                MachineState::Provisioning {
+                    key: ProvisionKey::for_workspace(&id),
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            adopted.origin,
+            RequestOrigin::Request {
+                hash: "first-request".into()
+            }
+        );
+        let upgraded: RepositoryState = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert_eq!(upgraded.version, VERSION);
+        assert_eq!(upgraded.machines.get(&id), Some(&adopted));
+        // Once adopted, it is that request's record.
+        assert!(matches!(
+            repository.reserve(&id, "different-request"),
+            Err(Error::Conflict(_))
+        ));
     }
     #[test]
     fn lease_excludes_another_repository_instance_until_dropped() {
