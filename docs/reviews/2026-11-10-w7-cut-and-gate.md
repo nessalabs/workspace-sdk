@@ -74,6 +74,6 @@ ordinary-run hash in a scratch copy of the code. The test then failed.
 
 | Finding | Severity | Decision |
 | --- | --- | --- |
-| The expected hash is built from the crate's own `SupervisorExecution`, so a change to how that type serializes changes both sides and the test still passes | P3 | Kept. The deleted test had the same limit. A change to that type's serialization would be caught by its own wire tests and review. |
+| The expected hash is built from the crate's own `SupervisorExecution`, so a change to how that type serializes changes both sides and the test still passes | P3 | Kept. The deleted test had the same limit, and this change does not touch that type. Anyone who changes how `SupervisorExecution` serializes must handle old claims anyway, and a frozen byte encoding can be added then. |
 
 No P1 or P2 is open. The gate is accepted once CI passes on both platforms.
