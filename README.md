@@ -109,8 +109,4 @@ See [recovery at an expected checkpoint](docs/recovery-expected-head.md) for exa
 
 See [retained byte output](docs/run-output-bytes.md) for binary-safe paging and retention limits.
 
-See [managed pipe input](docs/managed-pipe-input.md) for transient input, explicit EOF, and retry ownership.
-
-See [clean child environment](docs/managed-clean-environment.md) for explicit piped launch environment clearing.
-
 See [retained fingerprint verification](docs/retained-fingerprint-inspection.md) for proof-only inspection and engine compatibility.

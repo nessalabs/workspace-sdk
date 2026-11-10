@@ -3,7 +3,6 @@ mod cli;
 mod control_channel;
 mod dispatcher;
 pub(crate) mod filesystem;
-mod pipe_control;
 pub mod protocol;
 mod run_record;
 mod terminal;
