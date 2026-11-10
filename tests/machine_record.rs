@@ -365,17 +365,7 @@ async fn a_forgotten_request_cannot_land_on_the_next_record() {
         async move { sdk.create(&local(), CreateRequest::new(workspace)).await }
     });
     until(|| provider.calls() == 1).await;
-    // Another process shares the state file but keeps its own targets, so its
-    // attach and the late create do not touch the same directories.
-    let mut config = LocalConfig::trusted_host(temp.path().join("other-targets"));
-    config.supervisor = env!("CARGO_BIN_EXE_workspace-supervisor").into();
-    let other = WorkspaceSdk::builder(Arc::new(
-        FileStateRepository::new(temp.path().join("state")).unwrap(),
-    ))
-    .provider(Arc::new(LocalProvider::new(config).unwrap()))
-    .unwrap()
-    .build()
-    .unwrap();
+    let other = other_process(temp.path());
     let revision = other.record(&workspace).unwrap().unwrap().revision;
     other.forget_unfinished(&workspace, revision).unwrap();
     let attached = other
@@ -397,6 +387,52 @@ async fn a_forgotten_request_cannot_land_on_the_next_record() {
     assert_eq!(
         sdk.record(&workspace).unwrap().unwrap().descriptor(),
         Some(&attached.descriptor())
+    );
+}
+
+/// Another process: the same state file, its own targets, so its work and a
+/// late call from the first process never touch the same directories.
+fn other_process(root: &Path) -> WorkspaceSdk {
+    let mut config = LocalConfig::trusted_host(root.join("other-targets"));
+    config.supervisor = env!("CARGO_BIN_EXE_workspace-supervisor").into();
+    WorkspaceSdk::builder(Arc::new(
+        FileStateRepository::new(root.join("state")).unwrap(),
+    ))
+    .provider(Arc::new(LocalProvider::new(config).unwrap()))
+    .unwrap()
+    .build()
+    .unwrap()
+}
+
+#[tokio::test]
+async fn the_same_request_made_again_after_a_forget_is_not_the_late_calls_outcome() {
+    let temp = TempDir::new().unwrap();
+    let workspace = id("same-again");
+    let signal = Arc::new(Notify::new());
+    let (sdk, provider) = sdk(temp.path(), &[Next::RealAfter(signal.clone())]);
+    let slow = tokio::spawn({
+        let sdk = sdk.clone();
+        let workspace = workspace.clone();
+        async move { sdk.create(&local(), CreateRequest::new(workspace)).await }
+    });
+    until(|| provider.calls() == 1).await;
+    let other = other_process(temp.path());
+    let revision = other.record(&workspace).unwrap().unwrap().revision;
+    other.forget_unfinished(&workspace, revision).unwrap();
+    let again = other
+        .create(&local(), CreateRequest::new(workspace.clone()))
+        .await
+        .unwrap();
+    signal.notify_one();
+    // Same request, later generation: the late call made its own target under
+    // the forgotten key and must not report the new one as its own.
+    assert!(matches!(
+        slow.await.unwrap(),
+        Err(Error::Conflict(message)) if message.contains("forgotten")
+    ));
+    assert_eq!(
+        sdk.record(&workspace).unwrap().unwrap().descriptor(),
+        Some(&again.descriptor())
     );
 }
 

@@ -37,8 +37,9 @@ impl CreateRequest {
         }
     }
     /// The idempotency key every attempt to finish this create uses: the one
-    /// saved in its machine record. Before the SDK has reserved the ID it is
-    /// the first generation's key.
+    /// saved in its machine record. It is only meaningful inside
+    /// [`crate::ports::IProvider::create`] called by the SDK; anywhere else,
+    /// including `check_create`, it is the first generation's key.
     pub fn provision_key(&self) -> ProvisionKey {
         self.key
             .clone()

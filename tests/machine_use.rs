@@ -135,8 +135,10 @@ async fn a_use_opened_during_a_rest_pass_keeps_its_machine_awake() {
     let (machines, id) = setup(&temp).await;
     drop(machines.hold(&id, "brief").await.unwrap());
     tokio::time::sleep(IDLE * 2).await;
-    // Race a new use against the rest pass many times: whichever runs first,
-    // the use must end up on an awake machine.
+    // A new use started together with a rest pass. On this runtime the hold
+    // takes the machine's lock first, so this covers the rest pass skipping a
+    // machine that is being opened; a rest that wins the lock finishes its
+    // stop before the hold can wake the machine again.
     for round in 0..5 {
         let (held, _) = tokio::join!(
             machines.hold(&id, format!("racer-{round}")),

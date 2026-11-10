@@ -197,6 +197,10 @@ pub struct MachineRecord {
     /// Increases on every change and never repeats for an ID, even after the
     /// record is forgotten, so a compare-and-swap cannot land on a newer record.
     pub revision: u64,
+    /// The revision this record started at. A record made after a forget has
+    /// a higher one, so a call that reserved an earlier record of the same
+    /// request can tell it is not its own.
+    pub generation: u64,
     /// Where the target stands.
     pub state: MachineState,
 }
@@ -219,10 +223,16 @@ impl MachineRecord {
             workspace_id: descriptor.reference.id.clone(),
             origin: RequestOrigin::Connected,
             revision: Self::first_revision(retired),
+            generation: Self::first_revision(retired),
             state: MachineState::Ready {
                 descriptor: descriptor.clone(),
             },
         }
+    }
+    /// Whether `self`, read later, is still the record `reserved` started:
+    /// the same request and the same generation.
+    pub fn continues(&self, reserved: &Self) -> bool {
+        self.origin == reserved.origin && self.generation == reserved.generation
     }
     /// Whether this record says the SDK itself created its target: a create
     /// finished it, not a reconnect that only reported ownership.
@@ -235,7 +245,7 @@ impl MachineRecord {
     /// Check a record read from storage, given the last revision forgotten for
     /// its ID.
     pub fn validate(&self, retired: Option<u64>) -> Result<()> {
-        if self.revision < Self::first_revision(retired) {
+        if self.generation < Self::first_revision(retired) || self.revision < self.generation {
             return Err(Error::State(
                 "machine record revision is not above every forgotten one".into(),
             ));
@@ -260,7 +270,9 @@ impl MachineRecord {
     /// Returns the record to use and whether it must be saved. The same request
     /// continues from its saved record; an upgraded record is adopted by the
     /// first request whose kind fits it; anything else is a conflict.
-    /// `retired` is the last revision of a forgotten record for `id`.
+    /// `retired` is the last revision of a forgotten record for `id`. A new
+    /// Provisioning record always gets the key of its generation, whatever key
+    /// `initial` carries.
     pub fn begin(
         saved: Option<&Self>,
         id: &WorkspaceId,
@@ -290,6 +302,7 @@ impl MachineRecord {
                     hash: request.to_owned(),
                 },
                 revision: next_revision,
+                generation: next_revision,
                 state: initial,
             };
             return Ok((record, true));
@@ -326,6 +339,7 @@ impl MachineRecord {
                         hash: request.to_owned(),
                     },
                     revision: saved.revision + 1,
+                    generation: saved.generation,
                     state,
                 };
                 Ok((record, true))
@@ -358,6 +372,7 @@ impl MachineRecord {
             workspace_id: self.workspace_id.clone(),
             origin: self.origin.clone(),
             revision: self.revision + 1,
+            generation: self.generation,
             state: next,
         })
     }

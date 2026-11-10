@@ -26,8 +26,10 @@ pub struct Machines {
 
 /// One named use of a machine. Dropping it ends the use.
 ///
-/// It gives the workspace's operations through `Deref`, but not stop or
-/// destroy: resting is [`Machines::rest_idle`]'s alone.
+/// It gives the workspace's operations through `Deref`, but not the owned
+/// handle's stop or destroy: resting is [`Machines::rest_idle`]'s alone. Until
+/// lifecycle becomes its own capability, `Workspace::backend()` still reaches
+/// the backend's `stop`; a holder must not call it.
 #[must_use = "the machine may rest as soon as its use is dropped"]
 pub struct MachineUse {
     entry: Arc<Entry>,
@@ -118,15 +120,15 @@ impl Machines {
                     Some(workspace) => workspace.clone(),
                     None => self.sdk.owned_workspace(id).await?,
                 };
+                // From here it may be awake. If this wake fails, panics or is
+                // cancelled, the rest path must still stop it, so the idle
+                // clock runs until a use is recorded. A clock that is already
+                // running is kept, so failing wakes cannot keep pushing it back.
                 lifecycle.awake = Some(workspace.clone());
-                if let Err(error) = workspace.ensure_ready().await {
-                    // It may be partly awake; let the rest path stop it.
-                    let mut uses = lock(&entry.uses);
-                    if uses.holders.is_empty() {
-                        uses.idle_since = Some(Instant::now());
-                    }
-                    return Err(error);
-                }
+                lock(&entry.uses)
+                    .idle_since
+                    .get_or_insert_with(Instant::now);
+                workspace.ensure_ready().await?;
                 workspace
             }
         };
@@ -147,8 +149,8 @@ impl Machines {
         let Some(entry) = lock(&self.entries).get(id).cloned() else {
             return Vec::new();
         };
-        let names = lock(&entry.uses).holders.values().cloned().collect();
-        names
+        let uses = lock(&entry.uses);
+        uses.holders.values().cloned().collect()
     }
     /// The one rest path: stop every awake machine that has had no use for the
     /// idle time. Call it on a timer, or use [`Self::rest_every`]. A machine

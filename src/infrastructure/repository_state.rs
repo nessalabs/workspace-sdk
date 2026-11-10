@@ -123,6 +123,7 @@ fn upgrade(
                 workspace_id: id,
                 origin,
                 revision: 1,
+                generation: 1,
                 state: MachineState::Ready { descriptor },
             },
         );
@@ -135,6 +136,7 @@ fn upgrade(
             workspace_id: id,
             origin: RequestOrigin::Upgraded,
             revision: 1,
+            generation: 1,
         });
     }
     Ok(machines)

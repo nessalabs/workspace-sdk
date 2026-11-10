@@ -64,7 +64,7 @@ New separate agents reviewed `a968b79..d748636` (W2 fixes and W5).
 
 | ID | Finding | Resolution |
 | --- | --- | --- |
-| P1-A | `settle` treated any settled record as the winner, so a request whose record was forgotten could adopt another request's target. The round-1 test passed only because `from_owned` refused the attach. | Fixed. A winner must have the reserved record's origin; anything else is "forgotten while its request ran". The test now uses a second process with its own targets, so the late create really succeeds at the provider, and it asserts that message. |
+| P1-A | `settle` treated any settled record as the winner, so a request whose record was forgotten could adopt another request's target. The round-1 test passed only because `from_owned` refused the attach. | Fixed in part here, and completed in round 3. A winner must have the reserved record's origin; anything else is "forgotten while its request ran". The test now uses a second process with its own targets, so the late create really succeeds at the provider, and it asserts that message. |
 | P1-B | `MachineRecord::validate` was never called. | Fixed. Decoding runs it on every v4 and upgraded record, together with the forgotten revision: a record's revision must be above it. Test: `a_corrupt_record_refuses_to_load`. |
 | P2-A | A reference reconnected on an unknown ID minted a record that `owned_workspace` trusted. | Fixed. `MachineRecord::created_here` requires a non-`Connected` origin, and `owned_record` uses it. `Machines::hold` checks it before keeping anything. Test: `a_reconnected_target_is_never_treated_as_created_here`. |
 | P2-B | The provision key had two authorities, and a different create after a forget reused the old key. | Fixed. The record's key is the authority. It is `ProvisionKey::for_generation(id, last forgotten revision)`, and generation 0 is the old key. The SDK hands the saved key to the provider through `CreateRequest::provision_key`. Test: `a_create_after_a_forget_never_reuses_the_forgotten_key`. |
@@ -93,6 +93,18 @@ New separate agents reviewed `a968b79..d748636` (W2 fixes and W5).
 | P3-8 | Identical attaches racing each other both reach the provider. | Accepted. Attach is idempotent per control directory, and only the first save wins. |
 
 ## Round 3
+
+New separate agents reviewed `d748636..4418a19`. Both found the same gap. The design review also found one P2 and a few P3s, and the adversarial review found one more P2.
+
+| ID | Finding | Resolution |
+| --- | --- | --- |
+| P1 (design) / P2-1 (adversarial) | `settle` compared only origins. The same request made again after a forget has the same origin, so the late call took the new record's target as its own, and its own target leaked. | Fixed. Each record carries the revision it started at, `generation`. `MachineRecord::continues` needs the origin and the generation to match. Test: `the_same_request_made_again_after_a_forget_is_not_the_late_calls_outcome`. |
+| P2-1 (design) | A failing wake reset the idle clock, so repeated failing holds kept a machine up. | Fixed. A wake starts the idle clock only if it is not already running. |
+| P2-2 (adversarial) | A first wake that was cancelled or panicked left the machine awake with no idle clock. | Fixed. The clock starts before the wake is awaited, and a recorded use clears it. |
+| P2-2 (design) | `MachineUse` docs said it could not stop the machine, but `backend()` still can. | The docs now say so and name the W6 limitation. |
+| P3 | `begin` replaces the key it is given. `provision_key()` outside `create` gives the first generation's key. The private `key` field stops struct-literal construction. A missing local path was an I/O error. The race test covers one ordering. `uses()` had an extra binding. | Documented on `begin` and `provision_key`. Construction goes through `CreateRequest::new` and `with_options` (SDK guide). A missing local path is now InvalidInput. The race test's comment says which ordering it covers. The binding is fixed. |
+
+## Round 4
 
 Pending.
 

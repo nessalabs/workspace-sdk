@@ -159,9 +159,9 @@ impl WorkspaceSdk {
         }
     }
     /// Save the outcome of the request that reserved `reserved`. If another
-    /// caller of the same request saved one first, return its record. A record
-    /// that a different request made after this one was forgotten is never
-    /// treated as this request's outcome.
+    /// caller of the same reservation saved one first, return its record. A
+    /// record made after this one was forgotten, even for the same request, is
+    /// never treated as this call's outcome.
     fn settle(
         &self,
         reserved: &MachineRecord,
@@ -176,7 +176,7 @@ impl WorkspaceSdk {
         match self.repository.advance(id, reserved.revision, next) {
             Ok(_) => Ok(None),
             Err(Error::Conflict(message)) => match self.repository.record(id)? {
-                Some(record) if record.origin != reserved.origin => Err(forgotten()),
+                Some(record) if !record.continues(reserved) => Err(forgotten()),
                 Some(record) if !record.state.is_pending() => Ok(Some(record)),
                 _ => Err(Error::Conflict(message)),
             },
