@@ -312,6 +312,7 @@ impl IBackend for ManagedBackend {
             .await?
             .empty()
     }
+    #[cfg(feature = "portability")]
     async fn list_directory(&self, request: ListDirectory) -> Result<DirectoryPage> {
         request.validate()?;
         let expected_request = request.clone();
@@ -327,6 +328,7 @@ impl IBackend for ManagedBackend {
             _ => Err(Error::State("invalid directory response".into())),
         }
     }
+    #[cfg(feature = "portability")]
     async fn read_versioned_file(&self, request: ReadVersionedFile) -> Result<VersionedFileChunk> {
         request.validate()?;
         let offset = request.offset;
@@ -349,6 +351,7 @@ impl IBackend for ManagedBackend {
             _ => Err(Error::State("invalid versioned file response".into())),
         }
     }
+    #[cfg(feature = "portability")]
     async fn publish_file(&self, request: PublishFile) -> Result<PublishOutcome> {
         request.validate()?;
         match self
@@ -363,6 +366,10 @@ impl IBackend for ManagedBackend {
             }
             Ok(SupervisorValue::PublishOutcome(outcome)) => Ok(outcome),
             Ok(SupervisorValue::PublishRejected(fault)) => Err(fault.into_error()),
+            // Only a supervisor refusing the request before dispatch reports
+            // Unsupported (an unknown operation or protocol version), so nothing
+            // was published. Every other failure leaves the outcome unknown.
+            Err(Error::Unsupported(message)) => Err(Error::Unsupported(message)),
             Ok(_) | Err(_) => Ok(PublishOutcome::Unknown),
         }
     }
@@ -431,6 +438,7 @@ impl IBackend for ManagedBackend {
             .await?
             .run()
     }
+    #[cfg(feature = "portability")]
     async fn export_tree(&self, transfer: &TreeTransfer) -> Result<TreeExportReceipt> {
         self.target
             .invoke(self.protocol_request(SupervisorOperation::ExportTree {
@@ -439,6 +447,7 @@ impl IBackend for ManagedBackend {
             .await?
             .tree_export()
     }
+    #[cfg(feature = "portability")]
     async fn import_tree(&self, transfer: &TreeTransfer) -> Result<TreeImportReceipt> {
         self.target
             .invoke(self.protocol_request(SupervisorOperation::ImportTree {
@@ -447,6 +456,7 @@ impl IBackend for ManagedBackend {
             .await?
             .tree_import()
     }
+    #[cfg(feature = "portability")]
     async fn remove_transfer(&self, transfer: &TreeTransfer) -> Result<()> {
         self.target
             .invoke(self.protocol_request(SupervisorOperation::RemoveTransfer {

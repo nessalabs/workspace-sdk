@@ -27,6 +27,7 @@ pub mod reconciliation;
 pub mod restore;
 pub mod tree_archive;
 
+#[cfg(feature = "portability")]
 pub(crate) use apply::RecoveryJournal;
 pub use apply::{ApplyOptions, ApplyReceipt, ApplyState, RecoveryRef};
 pub use capture::{CaptureOptions, CheckpointLimits};

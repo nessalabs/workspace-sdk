@@ -21,9 +21,10 @@ pub enum HandoffPhase {
 /// Durable progress of one identity-bearing handoff operation.
 ///
 /// The operation keeps the same `id` through capture, restore, and launch.
-/// [`crate::SyncService`] validates its input fingerprint on retry, requires a
-/// stopped source, and resumes from the recorded phase. This transfers selected
-/// files, not process memory or an implicit agent conversation.
+/// `SyncService` (`portability` feature) validates its input fingerprint on
+/// retry, requires a stopped source, and resumes from the recorded phase. This
+/// transfers selected files, not process memory or an implicit agent
+/// conversation.
 #[serde(deny_unknown_fields)]
 pub struct HandoffReceipt {
     /// Stable identity of this handoff workflow.

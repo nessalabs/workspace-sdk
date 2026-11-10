@@ -3,8 +3,9 @@ use super::{
     protocol::{SupervisorFault, SupervisorOperation, SupervisorRequest, SupervisorValue},
     run_record, workload,
 };
+#[cfg(feature = "portability")]
+use crate::checkpoint::infrastructure::{cleanup_transfer, export_remote_tree, import_remote_tree};
 use crate::{
-    checkpoint::infrastructure::{cleanup_transfer, export_remote_tree, import_remote_tree},
     runtime::infrastructure::{ensure_private_directory, inspect_resources, write_private_file},
     Error, Result,
 };
@@ -20,19 +21,15 @@ pub(super) fn handle(request: SupervisorRequest) -> Result<SupervisorValue> {
         return Ok(SupervisorValue::Empty);
     }
     if let Err(error) = filesystem::check(context) {
-        return if matches!(
-            &request.operation,
-            SupervisorOperation::TerminalInput { .. }
-        ) {
-            Ok(SupervisorValue::InputRejected(SupervisorFault::from_error(
-                error,
-            )))
-        } else if matches!(&request.operation, SupervisorOperation::PublishFile(..)) {
-            Ok(SupervisorValue::PublishRejected(
+        return match &request.operation {
+            SupervisorOperation::TerminalInput { .. } => Ok(SupervisorValue::InputRejected(
                 SupervisorFault::from_error(error),
-            ))
-        } else {
-            Err(error)
+            )),
+            #[cfg(feature = "portability")]
+            SupervisorOperation::PublishFile(..) => Ok(SupervisorValue::PublishRejected(
+                SupervisorFault::from_error(error),
+            )),
+            _ => Err(error),
         };
     }
     let root = Path::new(&context.root);
@@ -57,14 +54,15 @@ pub(super) fn handle(request: SupervisorRequest) -> Result<SupervisorValue> {
             filesystem::write_file(root, &path, offset, &bytes, truncate, executable)?;
             Ok(SupervisorValue::Empty)
         }
-        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        #[cfg(all(feature = "portability", any(target_os = "linux", target_os = "macos")))]
         SupervisorOperation::ListDirectory(request) => Ok(SupervisorValue::DirectoryPage(
             super::file_browser::list(context, request)?,
         )),
-        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        #[cfg(all(feature = "portability", any(target_os = "linux", target_os = "macos")))]
         SupervisorOperation::ReadVersionedFile(request) => Ok(SupervisorValue::VersionedFileChunk(
             super::file_browser::read(context, request)?,
         )),
+        #[cfg(feature = "portability")]
         SupervisorOperation::PublishFile(request) => {
             #[cfg(target_os = "linux")]
             let outcome = super::file_browser::publish(context, request);
@@ -80,7 +78,10 @@ pub(super) fn handle(request: SupervisorRequest) -> Result<SupervisorValue> {
                 Err(error) => SupervisorValue::PublishRejected(SupervisorFault::from_error(error)),
             })
         }
-        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+        #[cfg(all(
+            feature = "portability",
+            not(any(target_os = "linux", target_os = "macos"))
+        ))]
         SupervisorOperation::ListDirectory(_) | SupervisorOperation::ReadVersionedFile(_) => Err(
             Error::Unsupported("file browser currently requires Linux descriptor paths".into()),
         ),
@@ -156,12 +157,15 @@ pub(super) fn handle(request: SupervisorRequest) -> Result<SupervisorValue> {
             workload::stop_owned(context, true)?;
             Ok(SupervisorValue::Empty)
         }
+        #[cfg(feature = "portability")]
         SupervisorOperation::ExportTree { transfer } => Ok(SupervisorValue::TreeExport(
             export_remote_tree(root, &transfer)?,
         )),
+        #[cfg(feature = "portability")]
         SupervisorOperation::ImportTree { transfer } => Ok(SupervisorValue::TreeImport(
             import_remote_tree(root, &transfer)?,
         )),
+        #[cfg(feature = "portability")]
         SupervisorOperation::RemoveTransfer { transfer } => {
             cleanup_transfer(root, &transfer)?;
             Ok(SupervisorValue::Empty)
@@ -185,5 +189,8 @@ pub(super) fn handle(request: SupervisorRequest) -> Result<SupervisorValue> {
             filesystem::remove_request(context, id)?;
             Ok(SupervisorValue::Empty)
         }
+        SupervisorOperation::Unknown => Err(Error::Unsupported(
+            "supervisor operation is not in this supervisor build".into(),
+        )),
     }
 }

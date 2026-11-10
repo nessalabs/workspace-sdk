@@ -1,3 +1,4 @@
+#![cfg(feature = "portability")]
 //! In-process caller loss must not drop effect ownership while a real provider is active.
 //! This does not simulate runtime/process death or qualify remote host failover.
 mod support;

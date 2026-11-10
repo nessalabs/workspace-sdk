@@ -1,8 +1,26 @@
 # Using the Rust SDK
 
+## Features
+
+The default features are `["boat"]`. Checkpoints, sync, handoff, recovery,
+Git worktrees and the file browser below need the `portability` feature; the
+container provider needs `container`.
+
+| Feature | Default | Adds |
+| --- | --- | --- |
+| `boat` | yes | The Boat provider (`BoatProvider`) and the reexported `boat_client`. |
+| `portability` | no | Workspace portability: checkpoints (`checkpoint` engine), `SyncService` sync and handoff, `RecoveryService`, Git worktree helpers (`git`), `DirectoryObserver` and the file-browser and tree-transfer backend operations (`list_directory`, `read_versioned_file`, `publish_file`, `export_tree`, `import_tree`, `remove_transfer`) with their supervisor operations. |
+| `container` | no | The Docker/Podman-compatible `ContainerProvider`. |
+| `space` | no | The SPACE attachment provider (`SpaceProvider`). |
+| `testing` | no | `MemoryStateRepository`, for tests only. |
+
+Saved state reads and writes the same with or without `portability`. Deploy a
+supervisor built with `portability`; one built without it refuses the
+portability operations with `Error::Unsupported`, never a schema error.
+
 ## Register infrastructure explicitly
 
-Create a `WorkspaceSdk` with an injected `IWorkspaceRepository`, then register each `IProvider`. `FileStateRepository` is the default durable implementation and also implements `IWorkflowRepository`; `MemoryStateRepository` is useful for ephemeral consumers and tests. Keep state outside project roots.
+Create a `WorkspaceSdk` with an injected `IWorkspaceRepository`, then register each `IProvider`. `FileStateRepository` is the default durable implementation and, with `portability`, also implements `IWorkflowRepository`; `MemoryStateRepository` is useful for ephemeral consumers and tests. Keep state outside project roots.
 
 The provider IDs default to `local`, `boat`, `ssh`, and `container`. Each adapter supports `with_id(ProviderId)` so one application can register multiple SSH hosts or cloud accounts. Credentials belong to configured providers and credential resolvers, never to `WorkspaceRef`. The pinned Boat client is reexported as `workspace_sdk::boat_client`, so consumers need no separate sibling dependency.
 
@@ -11,7 +29,7 @@ The provider IDs default to `local`, `boat`, `ssh`, and `container`. Each adapte
 | Local | `LocalProvider::new(LocalConfig::trusted_host(base_dir))` | none; creates an owned project | `LocalAttachOptions { path }` |
 | Boat | `BoatProvider::new(explicit_boat_api)` | `BoatCreateOptions::new(root)`: target root and Boat type/TTL/environment | `BoatAttachOptions { root, sandbox_id }` |
 | SSH | `SshProvider::new(SshConfig::trusted_host(host, root))` | none; creates a project under the root | `SshAttachOptions { path }`; host keys and SSH login must already work |
-| Container | `ContainerProvider::new(ContainerConfig::new(engine, image, root))` | none; creates a labeled container/volume | `ContainerAttachOptions { container_id }` |
+| Container | `ContainerProvider::new(ContainerConfig::new(engine, image, root))` (feature `container`) | none; creates a labeled container/volume | `ContainerAttachOptions { container_id }` |
 | SPACE | `SpaceProvider::new(config)` (feature `space`) | create is refused | `SpaceAttachOptions::new(sandbox_id, root)` |
 
 Create with `CreateRequest::new(workspace_id)` or `CreateRequest::with_options(workspace_id, &options)`, and attach with `AttachRequest::new(workspace_id, &options)`. `ProviderOptions` erases the concrete type only for registry dispatch; the adapter decodes it immediately into its own schema. Create refuses attach-shaped options rather than ignoring them. Resource requirements are validated or rejected; they are never silently treated as provisioned. Boat sizing currently uses an explicit Boat type. Runtime resource checks can verify the CPU, memory, disk, platform and GPU needs of an existing host.
@@ -20,7 +38,7 @@ Local and SSH execution share the user's host permissions. Container isolation d
 
 ## Deploy the Rust supervisor
 
-Build `workspace-supervisor` for the target platform. `LocalConfig.supervisor` names the local executable. For remote providers, configure `SupervisorDeployment::Preinstalled { executable }` or `SupervisorDeployment::Upload { artifact, executable }`. `SupervisorArtifact` contains the local binary path and `TargetPlatform`; the adapter checks the target OS/architecture before upload. The supplied build must also support the target’s C runtime.
+Build `workspace-supervisor` for the target platform, with the `portability` feature so it serves every client build. `LocalConfig.supervisor` names the local executable. For remote providers, configure `SupervisorDeployment::Preinstalled { executable }` or `SupervisorDeployment::Upload { artifact, executable }`. `SupervisorArtifact` contains the local binary path and `TargetPlatform`; the adapter checks the target OS/architecture before upload. The supplied build must also support the target’s C runtime.
 
 All roots are explicit: local application directories, SSH and Boat target roots, and the container mount root. No adapter assumes `/home/user`. An upload destination is also an explicit absolute target path. Keep private application state and credentials outside synchronized project roots.
 

@@ -5,7 +5,7 @@ The current deliverables are the Rust library source and `workspace-supervisor`.
 ## Local build
 
 ```sh
-cargo build --locked --no-default-features --bin workspace-supervisor
+cargo build --locked --no-default-features --features portability --bin workspace-supervisor
 cargo test --locked --all-features --all-targets
 cargo clippy --locked --all-features --all-targets -- -D warnings
 cargo fmt --check
@@ -17,10 +17,10 @@ Generated API documentation is in `target/doc/workspace_sdk/index.html`. Domain 
 Install the supervisor into a caller-chosen prefix:
 
 ```sh
-cargo install --locked --path . --no-default-features --bin workspace-supervisor --root "$INSTALL_PREFIX"
+cargo install --locked --path . --no-default-features --features portability --bin workspace-supervisor --root "$INSTALL_PREFIX"
 ```
 
-Set `INSTALL_PREFIX` to an application-owned directory first. Configure `LocalConfig.supervisor` with the resulting executable path, or install it on the target and use `SupervisorDeployment::Preinstalled`.
+Build supervisors with `portability`: a supervisor built without it refuses the checkpoint, sync and file-browser operations with `Unsupported`. Set `INSTALL_PREFIX` to an application-owned directory first. Configure `LocalConfig.supervisor` with the resulting executable path, or install it on the target and use `SupervisorDeployment::Preinstalled`.
 
 ## Remote artifacts
 

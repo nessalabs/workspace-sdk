@@ -90,12 +90,14 @@ impl Workspace {
     pub async fn write_file(&self, request: WriteFile) -> Result<()> {
         self.backend.write_file(request).await
     }
+    #[cfg(feature = "portability")]
     /// Observe one expanded directory through caller-driven complete reconciliation.
     /// No watcher is installed. Poll on your timer, back off on failure, and reset
     /// the UI when the first result says reset. Drop to release retained metadata.
     pub fn observe_directory(&self, path: crate::WorkspacePath) -> super::DirectoryObserver {
         super::DirectoryObserver::new(self.clone(), path)
     }
+    #[cfg(feature = "portability")]
     /// List a bounded directory page; stale continuations must restart from the beginning.
     pub async fn list_directory(
         &self,
@@ -103,6 +105,7 @@ impl Workspace {
     ) -> Result<crate::DirectoryPage> {
         self.backend.list_directory(request).await
     }
+    #[cfg(feature = "portability")]
     /// Read bytes tied to a revision. Keep its token across chunks and reject stale buffers.
     pub async fn read_versioned_file(
         &self,
@@ -110,6 +113,7 @@ impl Workspace {
     ) -> Result<crate::VersionedFileChunk> {
         self.backend.read_versioned_file(request).await
     }
+    #[cfg(feature = "portability")]
     /// Publish only where the target enforces the requested precondition.
     pub async fn publish_file(&self, request: crate::PublishFile) -> Result<crate::PublishOutcome> {
         self.backend.publish_file(request).await

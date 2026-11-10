@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// Version of the portable checkpoint manifest understood by this release.
 ///
-/// [`crate::checkpoint::GitCheckpointEngine`] rejects other versions during
+/// `GitCheckpointEngine` rejects other versions during
 /// import instead of interpreting a potentially incompatible snapshot.
 pub const CHECKPOINT_FORMAT_VERSION: u32 = 1;
 

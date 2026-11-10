@@ -1,23 +1,23 @@
 use super::repository_state::RepositoryState;
 use crate::domain::ProviderId;
+#[cfg(feature = "portability")]
 use crate::{
     domain::RecoverySession,
-    ports::{IRecoveryRepository, IWorkflowLease},
-    WorkflowRecord,
+    ports::{IRecoveryRepository, IWorkflowLease, IWorkflowRepository},
+    OperationId, WorkflowRecord,
 };
 use crate::{
     domain::{MachineRecord, MachineState},
-    ports::IWorkflowRepository,
-    BackendDescriptor, Error, IWorkspaceRepository, OperationId, Result, WorkspaceId,
+    BackendDescriptor, Error, IWorkspaceRepository, Result, WorkspaceId,
 };
-use std::{
-    collections::BTreeSet,
-    sync::{Arc, Mutex},
-};
+use std::sync::Mutex;
+#[cfg(feature = "portability")]
+use std::{collections::BTreeSet, sync::Arc};
 
 #[derive(Default)]
 pub struct MemoryStateRepository {
     state: Mutex<RepositoryState>,
+    #[cfg(feature = "portability")]
     leases: Arc<Mutex<BTreeSet<OperationId>>>,
 }
 impl IWorkspaceRepository for MemoryStateRepository {
@@ -76,6 +76,7 @@ impl IWorkspaceRepository for MemoryStateRepository {
             .collect())
     }
 }
+#[cfg(feature = "portability")]
 impl IWorkflowRepository for MemoryStateRepository {
     fn acquire(&self, id: &OperationId) -> Result<Box<dyn IWorkflowLease>> {
         if !self.leases.lock().map_err(poisoned)?.insert(id.clone()) {
@@ -110,6 +111,7 @@ fn poisoned<T>(_: T) -> Error {
     Error::State("state repository lock poisoned".into())
 }
 
+#[cfg(feature = "portability")]
 impl IRecoveryRepository for MemoryStateRepository {
     fn acquire_recovery(&self, id: &OperationId) -> Result<Box<dyn IWorkflowLease>> {
         IWorkflowRepository::acquire(self, id)

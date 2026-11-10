@@ -1,3 +1,4 @@
+#![cfg(feature = "portability")]
 //! Retained native namespaces, not host/process migration. Availability and
 //! missing-status mutations are labeled simulations; all successful runs are real.
 #[path = "support/recovery_continuation_fixture.rs"]

@@ -1,6 +1,6 @@
 //! Real Git discovery and existing LocalProvider attachments. Explicit Git
 //! worktree creation remains a caller command, not an SDK lifecycle guarantee.
-#![cfg(unix)]
+#![cfg(all(feature = "portability", unix))]
 mod support;
 
 use std::{

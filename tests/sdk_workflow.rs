@@ -1,18 +1,21 @@
 mod support;
+use std::{fs, path::Path, sync::Arc, time::Duration};
+#[cfg(feature = "portability")]
 use std::{
-    fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Mutex,
     },
-    time::Duration,
 };
 use tempfile::TempDir;
+#[cfg(feature = "portability")]
 use workspace_sdk::{
     checkpoint::{ApplyOptions, GitCheckpointEngine, ReconciliationStatus},
-    infrastructure::FileStateRepository,
     ports::{IWorkflowLease, IWorkflowRepository},
+};
+use workspace_sdk::{
+    infrastructure::FileStateRepository,
     providers::{LocalAttachOptions, LocalConfig, LocalProvider},
     *,
 };
@@ -154,6 +157,7 @@ async fn launch_retry_does_not_repeat_side_effect_and_rejects_rebound_intent() {
     ));
 }
 
+#[cfg(feature = "portability")]
 #[tokio::test]
 async fn sync_stages_merge_preserves_secrets_and_applies_only_with_fingerprint() {
     let temp = TempDir::new().unwrap();
@@ -230,6 +234,7 @@ async fn sync_stages_merge_preserves_secrets_and_applies_only_with_fingerprint()
     assert!(second.conflicts.is_empty());
 }
 
+#[cfg(feature = "portability")]
 #[tokio::test]
 async fn handoff_refuses_active_source_and_resumes_once_across_controller_replacement() {
     let temp = TempDir::new().unwrap();
@@ -311,6 +316,7 @@ async fn handoff_refuses_active_source_and_resumes_once_across_controller_replac
     );
 }
 
+#[cfg(feature = "portability")]
 /// Fail only the selected handoff publication, leaving capture and other workflows intact.
 struct HandoffReceiptFaultStore {
     inner: Arc<FileStateRepository>,
@@ -320,6 +326,7 @@ struct HandoffReceiptFaultStore {
     fail_next: AtomicBool,
     attempted: Mutex<Option<HandoffReceipt>>,
 }
+#[cfg(feature = "portability")]
 impl IWorkflowRepository for HandoffReceiptFaultStore {
     fn acquire(&self, id: &OperationId) -> Result<Box<dyn IWorkflowLease>> {
         IWorkflowRepository::acquire(&*self.inner, id)
@@ -344,21 +351,25 @@ impl IWorkflowRepository for HandoffReceiptFaultStore {
     }
 }
 
+#[cfg(feature = "portability")]
 #[tokio::test]
 async fn handoff_recovers_restored_receipt_failure_before_destination_launch() {
     handoff_recovers_phase_failure(HandoffPhase::Restored, false).await;
 }
 
+#[cfg(feature = "portability")]
 #[tokio::test]
 async fn handoff_recovers_started_receipt_failure_without_relaunching_destination() {
     handoff_recovers_phase_failure(HandoffPhase::Started, false).await;
 }
 
+#[cfg(feature = "portability")]
 #[tokio::test]
 async fn handoff_recovers_started_acknowledgement_loss_without_relaunching_destination() {
     handoff_recovers_phase_failure(HandoffPhase::Started, true).await;
 }
 
+#[cfg(feature = "portability")]
 async fn handoff_recovers_phase_failure(phase: HandoffPhase, commit_before_error: bool) {
     let temporary = TempDir::new().unwrap();
     let state = temporary.path().join("state");
@@ -546,10 +557,12 @@ async fn handoff_recovers_phase_failure(phase: HandoffPhase, commit_before_error
     );
 }
 
+#[cfg(feature = "portability")]
 struct FailOnceWorkflowStore {
     inner: Arc<FileStateRepository>,
     fail_next: AtomicBool,
 }
+#[cfg(feature = "portability")]
 impl IWorkflowRepository for FailOnceWorkflowStore {
     fn acquire(&self, id: &OperationId) -> Result<Box<dyn IWorkflowLease>> {
         IWorkflowRepository::acquire(&*self.inner, id)
@@ -564,6 +577,7 @@ impl IWorkflowRepository for FailOnceWorkflowStore {
         IWorkflowRepository::save(&*self.inner, id, value)
     }
 }
+#[cfg(feature = "portability")]
 #[tokio::test]
 async fn sync_recovers_receipt_failure_after_apply_without_overwriting_later_edits() {
     let temporary = TempDir::new().unwrap();
@@ -661,6 +675,7 @@ async fn caller_wait_timeout_does_not_cancel_the_detached_run() {
         .contains("survived"));
 }
 
+#[cfg(feature = "portability")]
 #[tokio::test]
 async fn next_sync_recovers_previous_apply_before_processing_a_remote_revert() {
     let temporary = TempDir::new().unwrap();

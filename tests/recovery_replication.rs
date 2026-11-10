@@ -1,3 +1,4 @@
+#![cfg(feature = "portability")]
 //! Native restart and independent-store simulation using existing public ports.
 //! Separate temporary roots model placement; they do not prove physical off-host
 //! durability, power-loss persistence, or distributed authority semantics.

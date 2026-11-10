@@ -1,6 +1,6 @@
 //! Real disposable Git repositories and native managed runs. These establish
 //! local command identity and retry behavior, not remote transport qualification.
-#![cfg(unix)]
+#![cfg(all(feature = "portability", unix))]
 #[path = "support/git_worktree_fixture.rs"]
 mod fixture;
 

@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 /// Result of materializing an existing checkpoint into an empty local directory.
 ///
-/// [`crate::checkpoint::ICheckpointEngine::restore`] refuses populated destinations.
+/// `ICheckpointEngine::restore` refuses populated destinations.
 /// For an existing working copy, use reconciliation and explicit apply instead.
 /// This receipt records the restored selection, not a live synchronization link.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -29,7 +29,7 @@ pub struct RestoreReceipt {
 /// Archive restoration requires an empty real directory and validates all entry
 /// paths, hashes, modes, sizes, and symlink targets before writing selected files.
 /// It does not create a stored checkpoint identity; use
-/// [`crate::checkpoint::ICheckpointEngine::capture_archive`] when one is needed.
+/// `ICheckpointEngine::capture_archive` when one is needed.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RestoreTreeReceipt {
     /// Canonical local directory populated with the archive's selected entries.

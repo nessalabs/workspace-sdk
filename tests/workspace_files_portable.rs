@@ -1,5 +1,5 @@
 //! The same native subprocess observations run in Linux and macOS CI.
-#![cfg(any(target_os = "linux", target_os = "macos"))]
+#![cfg(all(feature = "portability", any(target_os = "linux", target_os = "macos")))]
 use std::{fs, path::Path, sync::Arc};
 use tempfile::TempDir;
 use workspace_sdk::{

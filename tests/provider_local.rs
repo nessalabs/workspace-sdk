@@ -395,3 +395,59 @@ async fn credentials_are_transient_and_missing_state_is_not_reinitialized() {
         .is_err());
     assert!(!Path::new(&backend.descriptor().control_root).exists());
 }
+
+/// Send one raw request to the real supervisor executable and return its answer.
+fn supervisor_answer(operation: serde_json::Value) -> serde_json::Value {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let request = serde_json::json!({
+        "version": 1,
+        "context": {
+            "workspace_id": "workspace",
+            "root": "/nonexistent/project",
+            "control": "/nonexistent/control",
+            "ownership": "attached",
+        },
+        "operation": operation,
+    });
+    let mut child = Command::new(env!("CARGO_BIN_EXE_workspace-supervisor"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(&serde_json::to_vec(&request).unwrap())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success());
+    serde_json::from_slice(&output.stdout).unwrap()
+}
+
+/// A newer or more featureful client must get a clear Unsupported answer from
+/// the real supervisor executable, never a hang or a schema error.
+#[test]
+fn supervisor_answers_an_operation_it_lacks_with_unsupported() {
+    let mut operations = vec![serde_json::json!({
+        "operation": "future_operation",
+        "parameters": {"path": "docs"},
+    })];
+    // The cross-build case: this executable was built without `portability`.
+    if cfg!(not(feature = "portability")) {
+        operations.push(serde_json::json!({
+            "operation": "list_directory",
+            "parameters": {"path": "docs", "limit": 256, "cursor": null},
+        }));
+        operations.push(serde_json::json!({
+            "operation": "export_tree",
+            "parameters": {"transfer": {"id": "transfer"}},
+        }));
+    }
+    for operation in operations {
+        let answer = supervisor_answer(operation);
+        assert_eq!(answer["status"], "failure", "{answer}");
+        assert_eq!(answer["result"]["kind"], "unsupported", "{answer}");
+    }
+}

@@ -1,9 +1,10 @@
 //! Default persistence adapters; applications may inject their own.
 mod file_state_repository;
+#[cfg(feature = "portability")]
 mod file_workflow_lease;
 #[cfg(any(test, feature = "testing"))]
 mod memory_state_repository;
-#[cfg(any(test, feature = "testing"))]
+#[cfg(all(any(test, feature = "testing"), feature = "portability"))]
 mod memory_workflow_lease;
 mod repository_state;
 

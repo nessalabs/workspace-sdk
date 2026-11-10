@@ -250,10 +250,13 @@ async fn native_claim_reconnect_output_files_tree_and_attached_lifecycle() {
             .bytes,
         full_chunk
     );
-    let transfer = TreeTransfer::new();
-    let exported = backend.export_tree(&transfer).await.unwrap();
-    assert!(exported.bytes > 0 && exported.files >= 2);
-    backend.remove_transfer(&transfer).await.unwrap();
+    #[cfg(feature = "portability")]
+    {
+        let transfer = TreeTransfer::new();
+        let exported = backend.export_tree(&transfer).await.unwrap();
+        assert!(exported.bytes > 0 && exported.files >= 2);
+        backend.remove_transfer(&transfer).await.unwrap();
+    }
     // The reconnect sequence must probe existing identity, never initialize it.
     let requests = fixture.requests();
     for request in &requests[before..] {

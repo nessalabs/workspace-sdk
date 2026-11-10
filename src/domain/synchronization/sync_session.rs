@@ -7,9 +7,10 @@ use std::path::PathBuf;
 /// Durable state of one file-synchronization relationship.
 ///
 /// This is an identity-bearing workflow entity: `id` remains stable while its
-/// baseline, pending review, and publication receipt advance. [`crate::SyncService`]
-/// owns those transitions under a repository lease. A copy is only a persisted
-/// snapshot, not a second controller authorized to mutate the workflow.
+/// baseline, pending review, and publication receipt advance. `SyncService`
+/// (`portability` feature) owns those transitions under a repository lease. A
+/// copy is only a persisted snapshot, not a second controller authorized to
+/// mutate the workflow.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SyncSession {

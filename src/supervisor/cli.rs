@@ -46,8 +46,7 @@ pub unsafe fn run_cli() -> i32 {
                 "supervisor request exceeds 32 MiB".into(),
             ));
         }
-        let request: SupervisorRequest = serde_json::from_slice(&bytes)
-            .map_err(|_| Error::InvalidInput("invalid supervisor request schema".into()))?;
+        let request = SupervisorRequest::decode(&bytes)?;
         if context.is_some_and(|context| context != request.context) {
             return Err(Error::Conflict(
                 "request context does not match its private file owner".into(),

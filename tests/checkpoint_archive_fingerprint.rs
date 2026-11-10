@@ -1,3 +1,4 @@
+#![cfg(feature = "portability")]
 //! Full archive validation without publishing a proof-only Git checkpoint.
 use base64::Engine;
 use sha2::Digest;
