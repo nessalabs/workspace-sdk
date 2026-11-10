@@ -59,21 +59,38 @@ impl SocketForward {
 /// How a process on the machine ended, as far as the connection can tell.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProcessEnd {
-    /// It exited with this status.
+    /// It exited with this status. A command killed by a signal may show as
+    /// 128 plus the signal's number.
     Exited(i32),
-    /// The connection ended first, or the process was killed by a signal:
-    /// the two look the same from here. `diagnostic` is the end of what the
-    /// connection reported, printable ASCII only.
-    Lost { diagnostic: String },
+    /// The connection ended first, or the command was killed in a way the
+    /// connection could not report. An implementation may also report a
+    /// command's own exit status 255 this way.
+    Lost,
 }
 
-/// A process started through a connection. Dropping it ends the process
-/// within a few seconds, with every process it started that stayed in its
-/// process group; those also end when it exits.
+/// The most of a process's standard error that is kept: its last bytes.
+pub const MAX_ERRORS: usize = 4096;
+
+/// What [`IConnectionProcess::wait`] answers.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProcessExit {
+    /// How it ended.
+    pub end: ProcessEnd,
+    /// The last [`MAX_ERRORS`] bytes of its standard error, printable ASCII
+    /// only. It holds what the command printed as well as what the
+    /// connection reported, so it is treated as the command's output, never
+    /// logged as if it were free of secrets.
+    pub errors: String,
+}
+
+/// A process started through a connection. Dropping it ends the process:
+/// it and every process in its session are asked to end, then killed a few
+/// seconds later; those processes also end when it exits. A process that
+/// starts a session of its own escapes this.
 #[async_trait]
 pub trait IConnectionProcess: Send {
     /// Wait for it to end.
-    async fn wait(&mut self) -> Result<ProcessEnd>;
+    async fn wait(&mut self) -> Result<ProcessExit>;
 }
 
 /// A process started by [`IConnection::stream`].
@@ -83,7 +100,8 @@ pub struct ConnectionStream {
     pub input: ConnectionInput,
     /// Its standard output.
     pub output: ConnectionOutput,
-    /// The process itself; dropping it ends the process.
+    /// The process itself; dropping it ends the process. Its standard
+    /// error is kept in [`ProcessExit::errors`].
     pub process: Box<dyn IConnectionProcess>,
 }
 
@@ -100,11 +118,13 @@ pub struct FileChannel {
 /// What [`IConnection::run`] answers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RunOutput {
-    /// The command's exit status.
-    pub exit_code: i32,
+    /// How the command ended. [`ProcessEnd::Lost`] means it may have run.
+    pub end: ProcessEnd,
     /// The last [`MAX_RUN_OUTPUT`] bytes of its standard output, decoded
     /// lossily.
     pub output: String,
+    /// Its standard error, as in [`ProcessExit::errors`].
+    pub errors: String,
 }
 
 /// The most of a [`IConnection::run`] command's output that is kept: its
@@ -115,7 +135,8 @@ pub const MAX_RUN_OUTPUT: usize = 64 * 1024;
 /// handle to it, or any stream or file channel from it, is held.
 ///
 /// Every `command` is a POSIX `sh` script, run in the machine account's home
-/// directory; the caller changes directory itself. Nothing an application
+/// directory; the caller changes directory itself. Each stream and run may
+/// be a connection of its own, with a sign-in's cost. Nothing an application
 /// passes in a command line is secret: a secret goes in a stream's first
 /// line.
 #[async_trait]
@@ -132,12 +153,13 @@ pub trait IConnection: Send + Sync {
 
     /// Run `command` with the file `input` on its standard input, and wait
     /// at most `timeout` for it to exit. Processes it leaves behind in its
-    /// process group end with it.
+    /// session end with it.
     ///
     /// # Errors
-    /// [`Error::Timeout`] when `timeout` passed, the command then being
-    /// ended as a dropped process is; [`Error::Provider`] when the
-    /// connection failed or the command was killed by a signal.
+    /// [`Error::Timeout`] when `timeout` passed, and the command is ended as
+    /// if dropped; [`Error::Provider`] when the command could not be started.
+    /// A command that started and was then lost is answered, as
+    /// [`ProcessEnd::Lost`].
     async fn run(
         &self,
         command: &str,
@@ -146,11 +168,13 @@ pub trait IConnection: Send + Sync {
     ) -> Result<RunOutput>;
 
     /// A channel to the machine's SFTP version 3 file server, which every
-    /// implementation serves. It keeps the connection open.
+    /// implementation serves. It keeps the connection open. An
+    /// implementation may limit how many are open at once.
     async fn files(self: Arc<Self>) -> Result<FileChannel>;
 
     /// Where inside the machine the forwarded local socket is reachable, if
     /// the connection was asked for one. It is bound before the connection
-    /// is handed out.
+    /// is handed out; if the connection is lost later, this still names it,
+    /// and new commands are refused.
     fn forwarded_socket(&self) -> Option<&str>;
 }

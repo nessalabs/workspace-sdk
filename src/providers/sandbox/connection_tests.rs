@@ -19,27 +19,74 @@ fn host_key_line(key: &[u8; 32]) -> String {
     )
 }
 
+/// The wrapper, run as sshd runs it: leading its own session.
+fn bound(command: &str, shell: &str) -> std::process::Output {
+    use std::os::unix::process::CommandExt;
+    let script = format!(
+        "exec sh -c {} workspace-sdk {} {}",
+        quote(SESSION_BOUND),
+        quote(command),
+        quote(WATCH)
+    );
+    let mut run = std::process::Command::new(shell);
+    run.args(["-c", &script]);
+    // SAFETY: setsid is async-signal-safe and touches no memory.
+    unsafe {
+        run.pre_exec(|| {
+            libc::setsid();
+            Ok(())
+        });
+    }
+    run.output().unwrap()
+}
+
 #[test]
 fn a_script_with_its_own_quotes_reaches_sh_whole() {
-    let script = format!(
-        "exec sh -c {} wsdk {}",
-        quote(SESSION_BOUND),
-        quote("echo 'a  b'; echo \"$(echo c)\"; exit 3")
-    );
     // The machine's sshd hands the command to the account's login shell.
     for shell in ["bash", "sh"] {
-        // Not a group leader here, so the wrapper must leave this group be.
-        let said = std::process::Command::new(shell)
-            .args(["-c", &script])
-            .output()
-            .unwrap();
+        let said = bound("echo 'a  b'; echo \"$(echo c)\"; exit 3", shell);
         assert_eq!(
             String::from_utf8_lossy(&said.stdout),
             "a  b\nc\n",
             "{shell}"
         );
         assert_eq!(said.status.code(), Some(3), "{shell}");
+        // A command that looks like an option is still a command.
+        assert_eq!(bound("-x", shell).status.code(), Some(127), "{shell}");
     }
+}
+
+#[test]
+fn what_a_command_leaves_in_its_session_ends_with_it() {
+    let started = std::time::Instant::now();
+    let said = bound(
+        "trap '' TERM; sleep 4701 & timeout 4702 sleep 4702 & \
+         (trap '' TERM; sleep 4703) & echo started",
+        "sh",
+    );
+    assert_eq!(String::from_utf8_lossy(&said.stdout), "started\n");
+    assert_eq!(said.status.code(), Some(0));
+    assert!(started.elapsed() < Duration::from_secs(10));
+    for marker in ["4701", "4702", "4703"] {
+        assert!(!running(marker), "{marker} outlived its command");
+    }
+}
+
+#[test]
+fn a_command_that_does_not_lead_its_session_is_refused() {
+    let script = format!(
+        "exec sh -c {} workspace-sdk {} {}",
+        quote(SESSION_BOUND),
+        quote("echo ran"),
+        quote(WATCH)
+    );
+    let said = std::process::Command::new("sh")
+        .args(["-c", &script])
+        .output()
+        .unwrap();
+    assert_eq!(said.status.code(), Some(255));
+    assert!(said.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&said.stderr).contains("does not lead its session"));
 }
 
 #[test]
@@ -262,7 +309,7 @@ async fn gone(marker: &str) -> bool {
 }
 
 #[tokio::test]
-#[ignore = "needs a local sshd, python3 and an account named user"]
+#[ignore = "needs a local sshd and an account named user"]
 async fn a_connection_streams_runs_and_serves_files() {
     let machine = Machine::start(true).await;
     let connection = machine.connect(None).await.unwrap();
@@ -273,12 +320,22 @@ async fn a_connection_streams_runs_and_serves_files() {
         .run("echo 'it'\"'\"'s'; whoami", None, Duration::from_secs(10))
         .await
         .unwrap();
-    assert_eq!((ran.exit_code, ran.output.as_str()), (0, "it's\nuser\n"));
+    assert_eq!(
+        (&ran.end, ran.output.as_str()),
+        (&ProcessEnd::Exited(0), "it's\nuser\n")
+    );
     let failed = connection
-        .run("echo partial; exit 7", None, Duration::from_secs(10))
+        .run(
+            "echo partial; echo why >&2; exit 7",
+            None,
+            Duration::from_secs(10),
+        )
         .await
         .unwrap();
-    assert_eq!((failed.exit_code, failed.output.as_str()), (7, "partial\n"));
+    assert_eq!(
+        (&failed.end, failed.output.as_str(), failed.errors.as_str()),
+        (&ProcessEnd::Exited(7), "partial\n", "why")
+    );
     let input = tempfile::tempfile().unwrap();
     std::io::Write::write_all(&mut &input, b"from a file\n").unwrap();
     std::io::Seek::rewind(&mut &input).unwrap();
@@ -301,7 +358,10 @@ async fn a_connection_streams_runs_and_serves_files() {
     let mut said = String::new();
     stream.output.read_to_string(&mut said).await.unwrap();
     assert_eq!(said, "first:SENTINEL_SECRET\nafter\n");
-    assert_eq!(stream.process.wait().await.unwrap(), ProcessEnd::Exited(4));
+    assert_eq!(
+        stream.process.wait().await.unwrap().end,
+        ProcessEnd::Exited(4)
+    );
     assert!(matches!(
         connection.clone().stream("true", Some(b"a\nb")).await,
         Err(Error::InvalidInput(_))
@@ -378,7 +438,7 @@ async fn a_forwarded_socket_is_bound_when_connected_and_removed_after() {
 }
 
 #[tokio::test]
-#[ignore = "needs a local sshd, python3 and an account named user"]
+#[ignore = "needs a local sshd and an account named user"]
 async fn a_refused_key_or_forward_fails_with_what_ssh_said() {
     let machine = Machine::start(false).await;
     let local = machine.place.path().join("local.sock");
@@ -400,7 +460,7 @@ async fn a_refused_key_or_forward_fails_with_what_ssh_said() {
 }
 
 #[tokio::test]
-#[ignore = "needs a local sshd, python3 and an account named user"]
+#[ignore = "needs a local sshd and an account named user"]
 async fn a_dropped_or_timed_out_command_ends_on_the_machine() {
     let machine = Machine::start(true).await;
     let connection = machine.connect(None).await.unwrap();
@@ -433,18 +493,35 @@ async fn a_dropped_or_timed_out_command_ends_on_the_machine() {
     assert!(started.elapsed() < Duration::from_secs(5));
     assert!(gone("4303").await, "a timed-out command kept running");
 
-    // What a command leaves behind ends with it.
-    let left = connection
-        .run("sleep 4304 & echo started", None, Duration::from_secs(10))
+    // A command that ignores TERM, and one that left its process group,
+    // still end with their dropped stream.
+    let stream = connection
+        .clone()
+        .stream("trap '' TERM; timeout 4305 sleep 4305 & sleep 4306", None)
         .await
         .unwrap();
-    assert_eq!((left.exit_code, left.output.as_str()), (0, "started\n"));
-    assert!(gone("4304").await);
+    for _ in 0..50 {
+        if running("4306") {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    drop(stream);
+    for _ in 0..100 {
+        if !running("4305") && !running("4306") {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert!(
+        !running("4305") && !running("4306"),
+        "a dropped stream kept running"
+    );
 }
 
 #[tokio::test]
-#[ignore = "needs a local sshd, python3 and an account named user"]
-async fn with_its_master_gone_a_connection_fails_instead_of_signing_in_again() {
+#[ignore = "needs a local sshd and an account named user"]
+async fn with_its_master_gone_a_connection_refuses_new_commands_and_files() {
     let machine = Machine::start(true).await;
     let connection = machine.connect(None).await.unwrap();
     let master = connection
@@ -464,7 +541,13 @@ async fn with_its_master_gone_a_connection_fails_instead_of_signing_in_again() {
         .run("echo still", None, Duration::from_secs(10))
         .await
     else {
-        panic!("a session signed in again without its master");
+        panic!("a command ran without its master");
     };
     assert!(message.contains("lost"), "{message}");
+    assert!(connection.clone().files().await.is_err());
+    // Through the control socket alone, a session fails rather than signing
+    // in on its own.
+    let mut alone = connection.session();
+    alone.arg(connection.target()).arg("true");
+    assert_eq!(alone.status().await.unwrap().code(), Some(255));
 }

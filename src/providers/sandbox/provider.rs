@@ -13,6 +13,12 @@ use std::sync::{atomic::AtomicBool, Arc};
 
 /// Uses an injected real Api. Construct its configuration explicitly; this
 /// adapter never reads API credentials from the process environment.
+///
+/// Each [`IBackend::connection`](crate::ports::IBackend::connection) to one
+/// of its workspaces authorizes a new SSH key on the machine, which Boat
+/// cannot revoke; the key's private half is deleted with the connection.
+/// Connections need `ssh` and `ssh-keygen` on this machine, and Linux with
+/// `/proc` on the workspace's.
 #[derive(Clone)]
 pub struct SandboxProvider {
     id: ProviderId,

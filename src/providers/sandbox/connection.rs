@@ -5,7 +5,8 @@
 //! ```text
 //! connect:  ssh-keygen ─► POST sshkey ─► pin host key ─► master ─► -O check
 //!           [forward: keeper makes a private directory ─► -O forward -R]
-//! stream / run:  a connection each, while the master lives
+//! stream / run:  a connection each, while the master lives, under a
+//!                 wrapper that ends the command's session with it
 //! files:          a session through the master
 //! drop:     keeper ends (its directory is removed) ─► master ends ─► key removed
 //! ```
@@ -13,11 +14,14 @@
 //! Boat cannot revoke a key: each connection leaves one more authorized key
 //! on the machine, whose private half is deleted with the connection. A
 //! process that is killed outright (not dropped) also leaves its master
-//! running until the machine or the network ends it.
+//! running until the machine or the network ends it. A client cut off by a
+//! network partition is seen only when sshd notices, which may take hours
+//! with its default settings. Endpoints are taken by address: an IPv6
+//! address's scope is not kept.
 use crate::{
     ports::{
-        ConnectionStream, FileChannel, IConnection, IConnectionProcess, ProcessEnd, RunOutput,
-        SocketForward, MAX_RUN_OUTPUT,
+        ConnectionStream, FileChannel, IConnection, IConnectionProcess, ProcessEnd, ProcessExit,
+        RunOutput, SocketForward, MAX_ERRORS, MAX_RUN_OUTPUT,
     },
     providers::managed::quote,
     Error, Result,
@@ -41,22 +45,71 @@ const HOST_ALIAS: &str = "workspace-sdk-boat";
 const MASTER_START_TIMEOUT: Duration = Duration::from_secs(15);
 const KEY_TIMEOUT: Duration = Duration::from_secs(10);
 const FORWARD_TIMEOUT: Duration = Duration::from_secs(15);
+const FIRST_LINE_TIMEOUT: Duration = Duration::from_secs(10);
 /// The most of what ssh reports that a diagnostic keeps.
 const MAX_DIAGNOSTIC: usize = 512;
 
-/// Runs a command so that it ends when its session does, and leaves nothing
-/// behind when it ends. sshd makes the command a process-group leader but
-/// sends it nothing when the client goes away; this watches for its session
-/// process to end (the shell is then reparented) and ends the whole group,
-/// and ends the group's other processes once the command exits. It ends a
-/// group only when the command leads it, so it never reaches past its own
-/// session. It needs Linux's `/proc`.
-const SESSION_BOUND: &str = "p=$PPID; \
-    if [ \"$(cut -d \" \" -f 5 /proc/$$/stat 2>/dev/null)\" = \"$$\" ]; then g=0; else g=; fi; \
-    (while [ \"$(cut -d \" \" -f 4 /proc/$$/stat 2>/dev/null)\" = \"$p\" ]; do sleep 1; done; \
-    [ -n \"$g\" ] && kill -TERM 0) </dev/null >/dev/null 2>&1 & w=$!; \
-    sh -c \"$1\"; s=$?; kill $w 2>/dev/null; \
-    if [ -n \"$g\" ]; then trap \"\" TERM; kill -TERM 0; fi; exit $s";
+/// Ends every process of the session `$me` but `$skip`: asks them, waits up
+/// to five seconds, then kills what is left. A process that started a
+/// session of its own is not reached.
+macro_rules! end_session {
+    () => {
+        r#"k() {
+  f=0
+  for d in /proc/[0-9]*; do
+    n=${d#/proc/}
+    [ "$n" = "$skip" ] && continue
+    read -r l 2>/dev/null < "$d/stat" || continue
+    set -- ${l##*) }
+    [ "$4" = "$me" ] && [ "$1" != Z ] || continue
+    f=1
+    kill -"$sig" "$n" 2>/dev/null
+  done
+}
+finish() {
+  sig=TERM; k; i=0
+  while [ "$f" = 1 ] && [ "$i" -lt 50 ]; do sleep 0.1; sig=0; k; i=$((i + 1)); done
+  sig=KILL; k
+}
+"#
+    };
+}
+
+/// Watches the session `$1`, whose leader's parent is `$2` (sshd's process
+/// for this connection), and ends the session once that parent is gone:
+/// sshd tells a command nothing when its client goes away. It needs Linux's
+/// `/proc`, and polls once a second.
+const WATCH: &str = concat!(
+    end_session!(),
+    r#"trap '' TERM
+me=$1; p=$2; skip=$$
+while read -r l 2>/dev/null < "/proc/$me/stat"; do
+  set -- ${l##*) }
+  [ "$2" = "$p" ] || break
+  sleep 1
+done
+finish
+"#
+);
+
+/// Runs the command `$1` (with the watcher `$2`) so that it ends when its
+/// connection does, and leaves nothing of its session behind when it exits.
+/// It refuses to run unless it leads its session, as sshd makes it, so it
+/// never reaches past what this connection started.
+const SESSION_BOUND: &str = concat!(
+    end_session!(),
+    r#"c=$1; watch=$2; me=$$
+read -r l 2>/dev/null < "/proc/$me/stat" || { echo "workspace-sdk: the machine has no /proc" >&2; exit 255; }
+set -- ${l##*) }; p=$2
+[ "$4" = "$me" ] || { echo "workspace-sdk: the command does not lead its session" >&2; exit 255; }
+sh -c "$watch" workspace-sdk-watch "$me" "$p" < /dev/null > /dev/null 2>&1 &
+w=$!
+sh -c -- "$c"; s=$?
+kill -KILL "$w" 2>/dev/null
+trap '' TERM; skip=$me; finish
+exit "$s"
+"#
+);
 
 /// Makes a private directory, says where, and removes it once its input
 /// ends, which is when the connection does.
@@ -88,6 +141,7 @@ impl SshConnection {
         // A short path: the master's socket must fit a Unix socket address.
         let directory = tempfile::Builder::new()
             .prefix("wsdk-ssh-")
+            .permissions(std::os::unix::fs::PermissionsExt::from_mode(0o700))
             .tempdir_in("/tmp")?;
         let public_key = make_key(&directory).await?;
         let (endpoint, host_key) = authorize(api, vm, public_key).await?;
@@ -155,8 +209,9 @@ impl SshConnection {
         Ok(())
     }
 
-    /// One session, only through the master: with no master it fails
-    /// rather than signing in again on its own.
+    /// One session through the master. With the master gone it fails rather
+    /// than opening a connection of its own, which would hide that the
+    /// connection, and its forward, were lost.
     fn session(&self) -> Command {
         let mut command = ssh(&self.directory, self.endpoint);
         command.args([
@@ -176,19 +231,21 @@ impl SshConnection {
     /// a connection of its own, so its end is seen on the machine: a session
     /// shared through the master ends without the machine's command being
     /// told. It is refused once the master has ended, as every session is.
-    fn bound(&self, command: &str) -> Result<Command> {
+    fn session_bound_command(&self, command: &str) -> Result<Command> {
         self.require_master()?;
         let mut ssh = ssh_via(&self.directory, self.endpoint, false);
         ssh.arg(self.target())
             .arg(format!(
-                "exec sh -c {} wsdk {}",
+                "exec sh -c {} workspace-sdk {} {}",
                 quote(SESSION_BOUND),
-                quote(command)
+                quote(command),
+                quote(WATCH)
             ))
             .stderr(Stdio::piped());
         Ok(ssh)
     }
-    /// Fails once the master has ended: its forward is gone with it.
+    /// Fails once the master has ended: its forward is gone with it. A
+    /// command already running is not told.
     fn require_master(&self) -> Result<()> {
         let mut master = self
             .master
@@ -205,25 +262,26 @@ impl SshConnection {
 
 impl Drop for SshConnection {
     fn drop(&mut self) {
-        // The keeper first, so its directory goes; then the master, which
-        // must be gone before its key and socket files are removed with
-        // `directory`.
+        // The keeper first, so its directory goes; then the master. Its key
+        // and socket files may go with `directory` while it is still ending:
+        // it has read the key, and nothing uses the socket once it is dead.
         for slot in [&mut self.keeper, &mut self.master] {
             if let Some(child) = slot.get_mut().ok().and_then(Option::take) {
-                end(child);
+                kill_and_reap(child);
             }
         }
     }
 }
 
-/// Kill `child` and wait up to 200 ms for it to go.
-fn end(mut child: Child) {
+/// Kill `child` now, and reap it without blocking the caller's thread.
+fn kill_and_reap(mut child: Child) {
     let _ = child.start_kill();
-    for _ in 0..40 {
-        if !matches!(child.try_wait(), Ok(None)) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(5));
+    if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+        runtime.spawn(async move {
+            let _ = tokio::time::timeout(Duration::from_secs(5), child.wait()).await;
+        });
+    } else {
+        let _ = child.try_wait();
     }
 }
 
@@ -315,41 +373,47 @@ async fn start_master(directory: &tempfile::TempDir, endpoint: SocketAddr) -> Re
     Ok(master)
 }
 
-/// One session's process: its child, the end of what ssh reported, and the
+/// One session's process: its child, the end of its standard error, and the
 /// connection it keeps open.
 struct SshProcess {
     child: Child,
-    stderr: Option<tokio::task::JoinHandle<String>>,
+    errors: Option<tokio::task::JoinHandle<String>>,
     _connection: Option<Arc<SshConnection>>,
 }
 impl SshProcess {
     fn new(mut child: Child, connection: Option<Arc<SshConnection>>) -> Self {
-        let stderr = child
-            .stderr
-            .take()
-            .map(|stderr| tokio::spawn(tail_diagnostic(stderr)));
+        let errors = child.stderr.take().map(|stderr| {
+            tokio::spawn(async move {
+                printable(&read_tail(stderr, MAX_ERRORS).await.unwrap_or_default())
+            })
+        });
         Self {
             child,
-            stderr,
+            errors,
             _connection: connection,
         }
     }
 }
 #[async_trait]
 impl IConnectionProcess for SshProcess {
-    async fn wait(&mut self) -> Result<ProcessEnd> {
+    async fn wait(&mut self) -> Result<ProcessExit> {
         let status = self.child.wait().await?;
-        // ssh answers 255 for its own failure and for a command killed by a
-        // signal; a command's own 255 is read the same way.
-        Ok(match status.code() {
+        // ssh answers 255 for its own failure, and the wrapper for a
+        // machine it cannot bind a command on; a command's own 255 reads
+        // the same way.
+        let end = match status.code() {
             Some(code) if code != 255 => ProcessEnd::Exited(code),
-            _ => ProcessEnd::Lost {
-                diagnostic: match self.stderr.take() {
-                    Some(said) => said.await.unwrap_or_default(),
-                    None => String::new(),
-                },
-            },
-        })
+            _ => ProcessEnd::Lost,
+        };
+        let errors = match self.errors.take() {
+            Some(errors) => tokio::time::timeout(Duration::from_secs(1), errors)
+                .await
+                .ok()
+                .and_then(std::result::Result::ok)
+                .unwrap_or_default(),
+            None => String::new(),
+        };
+        Ok(ProcessExit { end, errors })
     }
 }
 
@@ -363,7 +427,7 @@ impl IConnection for SshConnection {
         if first_line.is_some_and(|line| line.contains(&b'\n')) {
             return Err(Error::InvalidInput("a first line holds no newline".into()));
         }
-        let mut ssh = self.bound(command)?;
+        let mut ssh = self.session_bound_command(command)?;
         ssh.stdin(Stdio::piped()).stdout(Stdio::piped());
         let mut child = ssh.spawn()?;
         let output = child
@@ -375,8 +439,12 @@ impl IConnection for SshConnection {
             .take()
             .ok_or_else(|| connection_error("no standard input"))?;
         if let Some(line) = first_line {
-            input.write_all(line).await?;
-            input.write_all(b"\n").await?;
+            tokio::time::timeout(FIRST_LINE_TIMEOUT, async {
+                input.write_all(line).await?;
+                input.write_all(b"\n").await
+            })
+            .await
+            .map_err(|_| connection_error("the first line was not taken in time"))??;
         }
         Ok(ConnectionStream {
             input: Box::new(input),
@@ -391,7 +459,7 @@ impl IConnection for SshConnection {
         input: Option<std::fs::File>,
         timeout: Duration,
     ) -> Result<RunOutput> {
-        let mut ssh = self.bound(command)?;
+        let mut ssh = self.session_bound_command(command)?;
         ssh.stdin(input.map_or_else(Stdio::null, Stdio::from))
             .stdout(Stdio::piped());
         let mut child = ssh.spawn()?;
@@ -401,21 +469,17 @@ impl IConnection for SshConnection {
             .ok_or_else(|| connection_error("no standard output"))?;
         let mut process = SshProcess::new(child, None);
         // On a timeout the session is dropped, which ends the command.
-        let (output, end) = tokio::time::timeout(timeout, async {
+        let (output, exit) = tokio::time::timeout(timeout, async {
             let output = read_tail(stdout, MAX_RUN_OUTPUT).await?;
             Ok::<_, Error>((output, process.wait().await?))
         })
         .await
         .map_err(|_| Error::Timeout("the command did not end in time".into()))??;
-        match end {
-            ProcessEnd::Exited(exit_code) => Ok(RunOutput {
-                exit_code,
-                output: String::from_utf8_lossy(&output).into_owned(),
-            }),
-            ProcessEnd::Lost { diagnostic } => Err(connection_error(&format!(
-                "the command was lost: {diagnostic}"
-            ))),
-        }
+        Ok(RunOutput {
+            end: exit.end,
+            output: String::from_utf8_lossy(&output).into_owned(),
+            errors: exit.errors,
+        })
     }
 
     async fn files(self: Arc<Self>) -> Result<FileChannel> {
@@ -485,11 +549,6 @@ async fn diagnostic(stderr: ChildStderr) -> String {
     )
     .await;
     printable(&bytes)
-}
-
-/// The end of everything a session's ssh reports, read until it closes.
-async fn tail_diagnostic(stderr: ChildStderr) -> String {
-    printable(&read_tail(stderr, MAX_DIAGNOSTIC).await.unwrap_or_default())
 }
 
 /// Printable ASCII only, so no provider text can forge a line.
