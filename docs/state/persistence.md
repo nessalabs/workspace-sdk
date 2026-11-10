@@ -24,4 +24,4 @@ Workspace reservations bind IDs to request fingerprints. Workflow records preser
 
 A cancelled async waiter does not imply accepted blocking publication has stopped. Sync closures retain the workflow lease during blocking engine application and receipt save; owned transfer tasks continue through cleanup. Failure after file publication but before receipt save is reconciled through engine apply state, not by blindly replaying a fresh review.
 
-This page describes persistence contracts, not a proof of filesystem durability under power loss or malicious same-UID writers. [Edit review](edit-review.md), [handoff](handoff.md), and [sync](sync.md) own the related workflows. Existing repository unit tests exercise corruption, symlink refusal, reservation persistence and cross-instance lease exclusion.
+This page describes persistence contracts, not a proof of filesystem durability under power loss or malicious same-UID writers. [Handoff](handoff.md) and [sync](sync.md) own the related workflows. Existing repository unit tests exercise corruption, symlink refusal, reservation persistence and cross-instance lease exclusion.

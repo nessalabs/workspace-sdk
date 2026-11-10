@@ -51,11 +51,7 @@ impl ManagedBackend {
             Ok(())
         }
     }
-    async fn launch(
-        &self,
-        request: LaunchRequest,
-        directory: WorkingDirectory,
-    ) -> Result<RunRef> {
+    async fn launch(&self, request: LaunchRequest, directory: WorkingDirectory) -> Result<RunRef> {
         request.execution.command.validate()?;
         if !(2..=16 * 1024 * 1024).contains(&request.output_limit_bytes) {
             return Err(Error::InvalidInput(

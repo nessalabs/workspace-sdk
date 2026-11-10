@@ -1,7 +1,5 @@
 use crate::{
-    domain::{
-        OutputBytesPage, OutputCursor, OutputPage, RunRef, RunState,
-    },
+    domain::{OutputBytesPage, OutputCursor, OutputPage, RunRef, RunState},
     ports::IBackend,
     Error, Result,
 };

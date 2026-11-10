@@ -225,12 +225,7 @@ impl Drop for OwnedProcessGroup {
         }
     }
 }
-fn work(
-    path: &Path,
-    cwd: &Path,
-    execution: &SupervisorExecution,
-    limit: usize,
-) -> Result<()> {
+fn work(path: &Path, cwd: &Path, execution: &SupervisorExecution, limit: usize) -> Result<()> {
     let started = Instant::now();
     let input = execution
         .private_stdin

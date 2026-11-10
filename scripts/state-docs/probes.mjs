@@ -35,20 +35,6 @@ const cases = [
     "/\\ TRUE",
   ],
   [
-    "edit-review",
-    "stale-review",
-    "LatestReviewOnly",
-    "/\\ offered = latest /\\ latest = generation",
-    "/\\ TRUE",
-  ],
-  [
-    "edit-review",
-    "skip-quiescence",
-    "QuiescentApply",
-    "latest = generation /\\ quiet",
-    "latest = generation",
-  ],
-  [
     "directory-baseline",
     "publish-partial-on-abort",
     "AbortPreservesBaseline",
