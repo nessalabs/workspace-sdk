@@ -1,4 +1,4 @@
-use super::{engine::*, target::ContainerTarget, ContainerConfig, ContainerOpenOptions};
+use super::{engine::*, target::ContainerTarget, ContainerAttachOptions, ContainerConfig};
 use crate::providers::{
     managed::{self, Locator, ManagedBackend},
     ICommandRunner, SystemCommandRunner,
@@ -39,53 +39,17 @@ impl ContainerProvider {
     async fn command(&self, args: Vec<String>) -> Result<ExecResult> {
         engine(&self.config, self.runner.as_ref(), args).await
     }
-    fn backend(&self, reference: WorkspaceRef, locator: Locator) -> ManagedBackend {
-        let owned = locator.ownership == Ownership::SdkOwned;
-        ManagedBackend {
-            descriptor: BackendDescriptor {
-                reference: reference.clone(),
-                root: locator.root.clone(),
-                control_root: locator.control.clone(),
-                isolation: Isolation::Container,
-                ownership: locator.ownership.clone(),
-                capabilities: Capabilities {
-                    managed_runs: true,
-                    file_transfer: true,
-                    stop: owned,
-                    destroy: owned,
-                    ..Capabilities::default()
-                },
-            },
-            target: Arc::new(ContainerTarget {
-                config: self.config.clone(),
-                runner: self.runner.clone(),
-                reference,
-                locator,
-            }),
-        }
-    }
-}
-#[async_trait]
-impl IProvider for ContainerProvider {
-    fn id(&self) -> ProviderId {
-        self.id.clone()
-    }
-    async fn open(&self, request: OpenRequest) -> Result<Arc<dyn IBackend>> {
-        let options: ContainerOpenOptions = if request.config.is_empty() {
-            ContainerOpenOptions::default()
-        } else {
-            request.config.decode()?
-        };
-        if request.resources.disk_mib.is_some() {
+    async fn open(
+        &self,
+        workspace_id: WorkspaceId,
+        resources: ResourceRequirements,
+        attach: Option<String>,
+    ) -> Result<Arc<dyn IBackend>> {
+        if resources.disk_mib.is_some() {
             return Err(Error::Unsupported("portable container disk quotas".into()));
         }
-        let owned = options.container_id.is_none();
-        if !owned {
-            managed::require_no_resources(&request.resources)?;
-        }
-        let target = options
-            .container_id
-            .unwrap_or_else(|| format!("workspace-sdk-{}", request.workspace_id));
+        let owned = attach.is_none();
+        let target = attach.unwrap_or_else(|| format!("workspace-sdk-{}", workspace_id));
         name(&target)?;
         succeeded(
             self.command(vec!["info".into(), "--format".into(), "{{json .}}".into()])
@@ -103,7 +67,7 @@ impl IProvider for ContainerProvider {
         if inspected.success() {
             let value = container_info(&inspected)?;
             if owned {
-                check_owner(&value, &request.workspace_id)?;
+                check_owner(&value, &workspace_id)?;
             }
         } else if owned {
             let volume = target.clone();
@@ -118,14 +82,14 @@ impl IProvider for ContainerProvider {
                 .await?;
             if inspected_volume.success() {
                 let existing = volume_info(&inspected_volume)?;
-                check_volume_owner(&existing, &request.workspace_id)?;
+                check_volume_owner(&existing, &workspace_id)?;
             } else {
                 succeeded(
                     self.command(vec![
                         "volume".into(),
                         "create".into(),
                         "--label".into(),
-                        format!("dev.workspace-sdk.workspace={}", request.workspace_id),
+                        format!("dev.workspace-sdk.workspace={}", workspace_id),
                         volume.clone(),
                     ])
                     .await?,
@@ -138,22 +102,22 @@ impl IProvider for ContainerProvider {
                 "--name".into(),
                 target.clone(),
                 "--label".into(),
-                format!("dev.workspace-sdk.workspace={}", request.workspace_id),
+                format!("dev.workspace-sdk.workspace={}", workspace_id),
                 "--mount".into(),
                 format!("type=volume,source={volume},target={}", self.config.root),
                 "--workdir".into(),
                 self.config.root.clone(),
             ];
-            if let Some(cpu) = request.resources.cpu {
+            if let Some(cpu) = resources.cpu {
                 args.extend(["--cpus".into(), cpu.to_string()]);
             }
-            if let Some(memory) = request.resources.memory_mib {
+            if let Some(memory) = resources.memory_mib {
                 args.extend(["--memory".into(), format!("{memory}m")]);
             }
-            if let Some(platform) = request.resources.platform {
+            if let Some(platform) = resources.platform {
                 args.extend(["--platform".into(), platform]);
             }
-            if let Some(gpu) = request.resources.gpu {
+            if let Some(gpu) = resources.gpu {
                 args.extend(["--gpus".into(), gpu]);
             }
             args.extend([
@@ -169,7 +133,7 @@ impl IProvider for ContainerProvider {
         let directory = format!(
             "{}/{}",
             self.config.root.trim_end_matches('/'),
-            request.workspace_id
+            workspace_id
         );
         let locator = Locator {
             root: format!("{directory}/project"),
@@ -183,7 +147,7 @@ impl IProvider for ContainerProvider {
         };
         let reference = WorkspaceRef {
             version: 1,
-            id: request.workspace_id,
+            id: workspace_id,
             provider: self.id(),
             locator: WorkspaceLocator::from_locator(&locator)?,
         };
@@ -191,6 +155,62 @@ impl IProvider for ContainerProvider {
         backend.target.ensure().await?;
         backend.initialize(true).await?;
         Ok(Arc::new(backend))
+    }
+    fn backend(&self, reference: WorkspaceRef, locator: Locator) -> ManagedBackend {
+        let owned = locator.ownership == Ownership::SdkOwned;
+        ManagedBackend {
+            descriptor: BackendDescriptor {
+                reference: reference.clone(),
+                root: locator.root.clone(),
+                control_root: locator.control.clone(),
+                isolation: Isolation::Container,
+                ownership: locator.ownership.clone(),
+                capabilities: Capabilities {
+                    managed_runs: true,
+                    file_transfer: true,
+                    stop: owned,
+                    destroy: owned,
+                    ..Capabilities::default()
+                },
+                admission: None,
+            },
+            target: Arc::new(ContainerTarget {
+                config: self.config.clone(),
+                runner: self.runner.clone(),
+                reference,
+                locator,
+            }),
+        }
+    }
+}
+#[async_trait]
+impl IProvider for ContainerProvider {
+    fn id(&self) -> ProviderId {
+        self.id.clone()
+    }
+    fn check_create(&self, request: &CreateRequest) -> Result<()> {
+        managed::require_no_create_options(&request.config, "container")?;
+        if request.resources.disk_mib.is_some() {
+            return Err(Error::Unsupported("portable container disk quotas".into()));
+        }
+        name(&format!("workspace-sdk-{}", request.workspace_id))
+    }
+    fn check_attach(&self, request: &AttachRequest) -> Result<()> {
+        attach_options(request).map(drop)
+    }
+    async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
+        self.check_create(&request)?;
+        self.open(request.workspace_id, request.resources, None)
+            .await
+    }
+    async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {
+        let options = attach_options(&request)?;
+        self.open(
+            request.workspace_id,
+            ResourceRequirements::default(),
+            Some(options.container_id),
+        )
+        .await
     }
     async fn connect(&self, reference: &WorkspaceRef) -> Result<Arc<dyn IBackend>> {
         let locator = managed::decode(reference, &self.id())?;
@@ -211,4 +231,11 @@ impl IProvider for ContainerProvider {
         }
         Ok(Arc::new(self.backend(reference.clone(), locator)))
     }
+}
+
+/// Decode and check attach options with no effect.
+fn attach_options(request: &AttachRequest) -> Result<ContainerAttachOptions> {
+    let options: ContainerAttachOptions = request.config.decode()?;
+    name(&options.container_id)?;
+    Ok(options)
 }

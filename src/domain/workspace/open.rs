@@ -1,32 +1,81 @@
-//! Commands and resource requirements for opening a workspace.
-use super::{ProviderOptions, WorkspaceId};
+//! Commands and resource requirements for creating or attaching a workspace.
+use super::{ProviderOptions, ProvisionKey, WorkspaceId};
 use crate::Result;
 use serde::{Deserialize, Serialize};
 
-/// Provider-specific workspace creation or attachment request.
+/// Request to create a new SDK-owned target.
 ///
-/// Keep `workspace_id` stable when retrying. Configuration must match the chosen
-/// provider and must not contain credentials, because the request can be
-/// serialized and retained between attempts.
+/// The SDK may provision the target, initialises it once, and may later stop or
+/// destroy it. Keep `workspace_id` stable when retrying. Configuration must match
+/// the chosen provider's create options and must not contain credentials,
+/// because the request can be serialized and retained between attempts.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct OpenRequest {
+pub struct CreateRequest {
     /// Caller-selected SDK identity, distinct from a cloud resource ID.
     pub workspace_id: WorkspaceId,
-    /// Serialized options for the selected provider, such as `SandboxOpenOptions`.
+    /// Serialized create options for the selected provider, such as
+    /// `SandboxCreateOptions`. Providers without create options require it empty.
     #[serde(default)]
     pub config: ProviderOptions,
     /// Requested target resources; unsupported requirements may be rejected.
     #[serde(default)]
     pub resources: ResourceRequirements,
+    /// The key saved in this request's machine record, set by the SDK before
+    /// the provider is asked. Not part of the request's identity.
+    #[serde(skip)]
+    pub(crate) key: Option<ProvisionKey>,
 }
 
-impl OpenRequest {
-    /// Build a request from the selected provider’s named configuration struct.
-    pub fn new<T: Serialize>(workspace_id: WorkspaceId, options: &T) -> Result<Self> {
+impl CreateRequest {
+    /// Request a target with the provider's default create options.
+    pub fn new(workspace_id: WorkspaceId) -> Self {
+        Self {
+            workspace_id,
+            config: ProviderOptions::default(),
+            resources: ResourceRequirements::default(),
+            key: None,
+        }
+    }
+    /// The idempotency key every attempt to finish this create uses: the one
+    /// saved in its machine record. It is only meaningful inside
+    /// [`crate::ports::IProvider::create`] called by the SDK; anywhere else,
+    /// including `check_create`, it is the first generation's key.
+    pub fn provision_key(&self) -> ProvisionKey {
+        self.key
+            .clone()
+            .unwrap_or_else(|| ProvisionKey::for_workspace(&self.workspace_id))
+    }
+    /// Request a target using the selected provider's named create options.
+    pub fn with_options<T: Serialize>(workspace_id: WorkspaceId, options: &T) -> Result<Self> {
         Ok(Self {
             workspace_id,
             config: ProviderOptions::from_options(options)?,
             resources: ResourceRequirements::default(),
+            key: None,
+        })
+    }
+}
+
+/// Request to use an existing target that someone else owns.
+///
+/// The SDK never provisions, stops or destroys an attached target, and never
+/// changes its project files during attachment. It only prepares its own private
+/// control state. Configuration names the existing target, such as
+/// `LocalAttachOptions`, and must not contain credentials.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AttachRequest {
+    /// Caller-selected SDK identity, distinct from the target's own ID.
+    pub workspace_id: WorkspaceId,
+    /// Serialized attach options for the selected provider.
+    pub config: ProviderOptions,
+}
+
+impl AttachRequest {
+    /// Build a request from the selected provider's named attach options.
+    pub fn new<T: Serialize>(workspace_id: WorkspaceId, options: &T) -> Result<Self> {
+        Ok(Self {
+            workspace_id,
+            config: ProviderOptions::from_options(options)?,
         })
     }
 }

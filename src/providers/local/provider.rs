@@ -1,4 +1,4 @@
-use super::{target::LocalTarget, LocalConfig, LocalOpenOptions};
+use super::{target::LocalTarget, LocalAttachOptions, LocalConfig};
 use crate::providers::{
     managed::{self, Locator, ManagedBackend},
     ICommandRunner, SystemCommandRunner,
@@ -42,6 +42,48 @@ impl LocalProvider {
         fs::create_dir_all(&self.config.base_dir)?;
         Ok(self.config.base_dir.canonicalize()?)
     }
+    async fn open(
+        &self,
+        workspace_id: WorkspaceId,
+        attach: Option<PathBuf>,
+    ) -> Result<Arc<dyn IBackend>> {
+        let base = self.base()?;
+        let directory = base.join(workspace_id.as_str());
+        if directory
+            .symlink_metadata()
+            .is_ok_and(|m| m.file_type().is_symlink())
+        {
+            return Err(Error::InvalidInput(
+                "owned task directory must not be a symlink".into(),
+            ));
+        }
+        let ownership = if attach.is_some() {
+            Ownership::Attached
+        } else {
+            Ownership::SdkOwned
+        };
+        let root = match attach {
+            Some(path) => path.canonicalize()?,
+            None => directory.join("project"),
+        };
+        let locator = Locator {
+            root: path_string(&root)?,
+            control: path_string(&directory.join("control"))?,
+            ownership,
+            target: "localhost".into(),
+        };
+        let reference = WorkspaceRef {
+            version: 1,
+            id: workspace_id,
+            provider: self.id(),
+            locator: WorkspaceLocator::from_locator(&locator)?,
+        };
+        let backend = self.backend(reference, locator, base);
+        backend
+            .initialize(backend.descriptor.ownership == Ownership::SdkOwned)
+            .await?;
+        Ok(Arc::new(backend))
+    }
     fn backend(&self, reference: WorkspaceRef, locator: Locator, base: PathBuf) -> ManagedBackend {
         let owned = locator.ownership == Ownership::SdkOwned;
         ManagedBackend {
@@ -59,6 +101,7 @@ impl LocalProvider {
                     private_ports: true,
                     hosted_ports: false,
                 },
+                admission: None,
             },
             target: Arc::new(LocalTarget {
                 supervisor: self.config.supervisor.clone(),
@@ -75,50 +118,37 @@ impl IProvider for LocalProvider {
     fn id(&self) -> ProviderId {
         self.id.clone()
     }
-    async fn open(&self, request: OpenRequest) -> Result<Arc<dyn IBackend>> {
+    fn check_create(&self, request: &CreateRequest) -> Result<()> {
         managed::require_no_resources(&request.resources)?;
-        let options: LocalOpenOptions = if request.config.is_empty() {
-            LocalOpenOptions::default()
-        } else {
-            request.config.decode()?
-        };
-        let base = self.base()?;
-        let directory = base.join(request.workspace_id.as_str());
-        if directory
-            .symlink_metadata()
-            .is_ok_and(|m| m.file_type().is_symlink())
-        {
-            return Err(Error::InvalidInput(
-                "owned task directory must not be a symlink".into(),
-            ));
-        }
-        let ownership = if options.attach.is_some() {
-            Ownership::Attached
-        } else {
-            Ownership::SdkOwned
-        };
-        let root = match options.attach {
-            Some(path) => path.canonicalize()?,
-            None => directory.join("project"),
-        };
-        let locator = Locator {
-            root: path_string(&root)?,
-            control: path_string(&directory.join("control"))?,
-            ownership,
-            target: "localhost".into(),
-        };
-        let reference = WorkspaceRef {
-            version: 1,
-            id: request.workspace_id,
-            provider: self.id(),
-            locator: WorkspaceLocator::from_locator(&locator)?,
-        };
-        let backend = self.backend(reference, locator, base);
-        backend
-            .initialize(backend.descriptor.ownership == Ownership::SdkOwned)
-            .await?;
-        Ok(Arc::new(backend))
+        managed::require_no_create_options(&request.config, "local")
     }
+    fn check_attach(&self, request: &AttachRequest) -> Result<()> {
+        // Reading the path changes nothing, and a missing one can never attach.
+        let options: LocalAttachOptions = request.config.decode()?;
+        let not_directory =
+            || Error::InvalidInput("a local attach path must be a directory".into());
+        let path = options
+            .path
+            .canonicalize()
+            .map_err(|error| match error.kind() {
+                std::io::ErrorKind::NotFound => not_directory(),
+                _ => error.into(),
+            })?;
+        if !path.is_dir() {
+            return Err(not_directory());
+        }
+        Ok(())
+    }
+    async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
+        self.check_create(&request)?;
+        self.open(request.workspace_id, None).await
+    }
+    async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {
+        self.check_attach(&request)?;
+        let options: LocalAttachOptions = request.config.decode()?;
+        self.open(request.workspace_id, Some(options.path)).await
+    }
+
     async fn connect(&self, reference: &WorkspaceRef) -> Result<Arc<dyn IBackend>> {
         let locator = managed::decode(reference, &self.id())?;
         let base = self.base()?;

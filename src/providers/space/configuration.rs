@@ -144,11 +144,11 @@ pub(super) fn canonical_uuid(value: &str) -> bool {
 /// Creation/deletion of the SPACE resource and resource scheduling are unsupported.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct SpaceOpenOptions {
+pub struct SpaceAttachOptions {
     pub sandbox_id: String,
     pub root: String,
 }
-impl SpaceOpenOptions {
+impl SpaceAttachOptions {
     pub fn new(sandbox_id: impl Into<String>, root: impl Into<String>) -> Self {
         Self {
             sandbox_id: sandbox_id.into(),

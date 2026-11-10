@@ -88,16 +88,13 @@ async fn workspace(f: &Fixture, runner: Arc<SyntheticHost>) -> Workspace {
         .unwrap()
         .build()
         .unwrap();
-    sdk.open(
+    sdk.create(
         &host("laptop"),
-        OpenRequest {
-            workspace_id: WorkspaceId::new("clean-environment").unwrap(),
-            config: ProviderOptions::default(),
-            resources: ResourceRequirements::default(),
-        },
+        CreateRequest::new(WorkspaceId::new("clean-environment").unwrap()),
     )
     .await
     .unwrap()
+    .into()
 }
 const SCRIPT: &str = r#"import os,json
 keys=['SDK_HOST_SENTINEL','PATH','HOME','REMOVE_ONLY','REINTRODUCED','PRECEDENCE','PUBLIC_ONLY','SECRET_ONLY']

@@ -4,7 +4,7 @@ use tempfile::tempdir;
 use workspace_sdk::{
     checkpoint::{ApplyOptions, GitCheckpointEngine},
     infrastructure::FileStateRepository,
-    providers::{LocalConfig, LocalOpenOptions, LocalProvider},
+    providers::{LocalConfig, LocalProvider},
     *,
 };
 
@@ -33,9 +33,9 @@ async fn main() -> Result<()> {
         .provider(Arc::new(LocalProvider::new(local)?))?
         .build()?;
     let workspace = sdk
-        .open(
+        .create(
             &ProviderId::new("local")?,
-            OpenRequest::new(WorkspaceId::new("example")?, &LocalOpenOptions::default())?,
+            CreateRequest::new(WorkspaceId::new("example")?),
         )
         .await?;
     let sync = SyncService::new(

@@ -6,7 +6,9 @@ use std::sync::Arc;
 use workspace_sdk::{
     boat_client::{BoatApi, BoatClientConfig},
     infrastructure::MemoryStateRepository,
-    providers::{BoatOpenOptions, BoatProvider, SandboxOpenOptions, SandboxProvider},
+    providers::{
+        BoatAttachOptions, BoatCreateOptions, BoatProvider, SandboxCreateOptions, SandboxProvider,
+    },
     Error, IProvider, ProviderId, ProviderOptions, WorkspaceRef, WorkspaceSdk,
 };
 
@@ -33,7 +35,7 @@ fn boat_and_neutral_public_names_share_the_client_and_boat_provider_id() {
             json!("boat")
         );
     }
-    let neutral_options: SandboxOpenOptions = BoatOpenOptions::new("/work/task");
+    let neutral_options: SandboxCreateOptions = BoatCreateOptions::new("/work/task");
     assert_eq!(neutral_options.root, "/work/task");
     assert_eq!(neutral_options.ttl_seconds, Some(3600));
 }
@@ -42,13 +44,11 @@ fn boat_and_neutral_public_names_share_the_client_and_boat_provider_id() {
 fn current_option_names_round_trip_to_the_canonical_schema() {
     let canonical = json!({
         "root": "/work/task",
-        "sandbox_id": "bx_23456789",
         "sandbox_type": "large",
         "ttl_seconds": null,
         "environment": "customer-fixture"
     });
-    let options: BoatOpenOptions = serde_json::from_value(canonical.clone()).unwrap();
-    assert_eq!(options.sandbox_id.as_deref(), Some("bx_23456789"));
+    let options: BoatCreateOptions = serde_json::from_value(canonical.clone()).unwrap();
     assert_eq!(options.sandbox_type.as_deref(), Some("large"));
     assert_eq!(
         options.ttl_seconds, None,
@@ -57,18 +57,26 @@ fn current_option_names_round_trip_to_the_canonical_schema() {
     assert_eq!(serde_json::to_value(&options).unwrap(), canonical);
     let opaque = ProviderOptions::from_options(&options).unwrap();
     assert_eq!(serde_json::to_value(&opaque).unwrap(), canonical);
-    let restored: BoatOpenOptions = opaque.decode().unwrap();
+    let restored: BoatCreateOptions = opaque.decode().unwrap();
     assert_eq!(serde_json::to_value(restored).unwrap(), canonical);
 
-    let defaults: BoatOpenOptions = serde_json::from_value(json!({"root": "/work/task"})).unwrap();
+    let defaults: BoatCreateOptions =
+        serde_json::from_value(json!({"root": "/work/task"})).unwrap();
     assert_eq!(defaults.ttl_seconds, Some(3600));
-    assert_eq!(defaults.sandbox_id, None);
     assert_eq!(defaults.sandbox_type, None);
     assert_eq!(defaults.environment, None);
+    // A Sandbox ID belongs to attach options; create options refuse it.
+    assert!(serde_json::from_value::<BoatCreateOptions>(
+        json!({"root": "/work/task", "sandbox_id": "bx_23456789"})
+    )
+    .is_err());
+    let attach: BoatAttachOptions =
+        serde_json::from_value(json!({"root": "/work/task", "sandbox_id": "bx_23456789"})).unwrap();
+    assert_eq!(attach.sandbox_id, "bx_23456789");
     assert!(
-        serde_json::from_value::<BoatOpenOptions>(json!({"sandbox_id": "bx_23456789"})).is_err()
+        serde_json::from_value::<BoatAttachOptions>(json!({"sandbox_id": "bx_23456789"})).is_err()
     );
-    assert!(serde_json::from_value::<BoatOpenOptions>(
+    assert!(serde_json::from_value::<BoatCreateOptions>(
         json!({"root": "/work/task", "sandbox_typo": "large"})
     )
     .is_err());
@@ -81,12 +89,14 @@ fn obsolete_box_option_fields_are_rejected_alone_and_with_current_fields() {
         ("box_type", "sandbox_type", "large"),
     ] {
         let old_only = format!(r#"{{"root":"/work/task","{obsolete}":"{value}"}}"#);
-        assert!(serde_json::from_str::<BoatOpenOptions>(&old_only).is_err());
+        assert!(serde_json::from_str::<BoatCreateOptions>(&old_only).is_err());
+        assert!(serde_json::from_str::<BoatAttachOptions>(&old_only).is_err());
         for (first, second) in [(obsolete, current), (current, obsolete)] {
             let combined =
                 format!(r#"{{"root":"/work/task","{first}":"{value}","{second}":"{value}"}}"#);
             assert!(
-                serde_json::from_str::<BoatOpenOptions>(&combined).is_err(),
+                serde_json::from_str::<BoatCreateOptions>(&combined).is_err()
+                    && serde_json::from_str::<BoatAttachOptions>(&combined).is_err(),
                 "obsolete fields must not be accepted alongside current options: {combined}"
             );
         }
@@ -101,7 +111,8 @@ fn duplicate_current_option_fields_are_rejected_in_both_value_orders() {
                 let input =
                     format!(r#"{{"root":"/work/task","{field}":{first},"{field}":{second}}}"#);
                 assert!(
-                    serde_json::from_str::<BoatOpenOptions>(&input).is_err(),
+                    serde_json::from_str::<BoatCreateOptions>(&input).is_err()
+                        && serde_json::from_str::<BoatAttachOptions>(&input).is_err(),
                     "duplicate fields must not pick a target or machine type by field order: {input}"
                 );
             }

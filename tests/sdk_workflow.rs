@@ -13,7 +13,7 @@ use workspace_sdk::{
     checkpoint::{ApplyOptions, GitCheckpointEngine, ReconciliationStatus},
     infrastructure::FileStateRepository,
     ports::{IWorkflowLease, IWorkflowRepository},
-    providers::{LocalConfig, LocalOpenOptions, LocalProvider},
+    providers::{LocalAttachOptions, LocalConfig, LocalProvider},
     *,
 };
 
@@ -28,12 +28,8 @@ fn sdk(root: &Path, repository: Arc<FileStateRepository>) -> WorkspaceSdk {
         .build()
         .unwrap()
 }
-fn request(id: &str) -> OpenRequest {
-    OpenRequest {
-        workspace_id: WorkspaceId::new(id).unwrap(),
-        config: ProviderOptions::default(),
-        resources: ResourceRequirements::default(),
-    }
+fn request(id: &str) -> CreateRequest {
+    CreateRequest::new(WorkspaceId::new(id).unwrap())
 }
 fn run_request(id: &str, args: &[&str]) -> LaunchRequest {
     LaunchRequest {
@@ -51,7 +47,7 @@ async fn persistent_reconnect_and_creation_identity_survive_controller_replaceme
     let repo = Arc::new(FileStateRepository::new(temp.path().join("state")).unwrap());
     let first = sdk(temp.path(), repo.clone());
     let workspace = first
-        .open(&ProviderId::new("local").unwrap(), request("durable"))
+        .create(&ProviderId::new("local").unwrap(), request("durable"))
         .await
         .unwrap();
     let run = workspace
@@ -85,21 +81,41 @@ async fn persistent_reconnect_and_creation_identity_survive_controller_replaceme
         .unwrap();
     assert!(output.stdout.contains("completed"));
     let reopened = second
-        .open(&ProviderId::new("local").unwrap(), request("durable"))
+        .create(&ProviderId::new("local").unwrap(), request("durable"))
         .await
         .unwrap();
     assert_eq!(reopened.descriptor().root, reconnected.descriptor().root);
-    let mut changed = request("durable");
-    changed.config = ProviderOptions::from_options(&LocalOpenOptions {
-        attach: Some(temp.path().to_path_buf()),
-    })
+    // Attaching under an ID that a create already reserved is a different request.
+    let attach = AttachRequest::new(
+        WorkspaceId::new("durable").unwrap(),
+        &LocalAttachOptions {
+            path: temp.path().to_path_buf(),
+        },
+    )
     .unwrap();
     assert!(matches!(
         second
-            .open(&ProviderId::new("local").unwrap(), changed)
+            .attach(&ProviderId::new("local").unwrap(), attach)
             .await,
         Err(Error::Conflict(_))
     ));
+    // The local provider refuses resources before anything is reserved, so
+    // the saved record is untouched.
+    let saved = second
+        .record(&WorkspaceId::new("durable").unwrap())
+        .unwrap();
+    let mut changed = request("durable");
+    changed.resources.cpu = Some(1);
+    assert!(second
+        .create(&ProviderId::new("local").unwrap(), changed)
+        .await
+        .is_err());
+    assert_eq!(
+        second
+            .record(&WorkspaceId::new("durable").unwrap())
+            .unwrap(),
+        saved
+    );
 }
 
 #[tokio::test]
@@ -108,7 +124,7 @@ async fn launch_retry_does_not_repeat_side_effect_and_rejects_rebound_intent() {
     let repo = Arc::new(FileStateRepository::new(temp.path().join("state")).unwrap());
     let sdk = sdk(temp.path(), repo);
     let workspace = sdk
-        .open(&ProviderId::new("local").unwrap(), request("launch"))
+        .create(&ProviderId::new("local").unwrap(), request("launch"))
         .await
         .unwrap();
     let command = &["increment", "count", "1"];
@@ -149,7 +165,7 @@ async fn sync_stages_merge_preserves_secrets_and_applies_only_with_fingerprint()
     let repo = Arc::new(FileStateRepository::new(temp.path().join("state")).unwrap());
     let sdk = sdk(temp.path(), repo.clone());
     let target = sdk
-        .open(&ProviderId::new("local").unwrap(), request("sync"))
+        .create(&ProviderId::new("local").unwrap(), request("sync"))
         .await
         .unwrap();
     let engine = Arc::new(GitCheckpointEngine::new("git", temp.path().join("snapshots")).unwrap());
@@ -220,8 +236,8 @@ async fn handoff_refuses_active_source_and_resumes_once_across_controller_replac
     let repo = Arc::new(FileStateRepository::new(temp.path().join("state")).unwrap());
     let sdk = sdk(temp.path(), repo.clone());
     let provider = ProviderId::new("local").unwrap();
-    let source = sdk.open(&provider, request("source")).await.unwrap();
-    let destination = sdk.open(&provider, request("destination")).await.unwrap();
+    let source = sdk.create(&provider, request("source")).await.unwrap();
+    let destination = sdk.create(&provider, request("destination")).await.unwrap();
     let active = source
         .start(CommandSpec::new(support::workload_program()).args(["sleep", "30"]))
         .await
@@ -349,9 +365,12 @@ async fn handoff_recovers_phase_failure(phase: HandoffPhase, commit_before_error
     let repository = Arc::new(FileStateRepository::new(&state).unwrap());
     let controller = sdk(temporary.path(), repository.clone());
     let provider = ProviderId::new("local").unwrap();
-    let source = controller.open(&provider, request("source")).await.unwrap();
+    let source = controller
+        .create(&provider, request("source"))
+        .await
+        .unwrap();
     let destination = controller
-        .open(&provider, request("destination"))
+        .create(&provider, request("destination"))
         .await
         .unwrap();
     let source_run = source
@@ -554,7 +573,7 @@ async fn sync_recovers_receipt_failure_after_apply_without_overwriting_later_edi
     let repo = Arc::new(FileStateRepository::new(temporary.path().join("state")).unwrap());
     let sdk = sdk(temporary.path(), repo.clone());
     let workspace = sdk
-        .open(
+        .create(
             &ProviderId::new("local").unwrap(),
             request("receipt-recovery"),
         )
@@ -615,7 +634,7 @@ async fn caller_wait_timeout_does_not_cancel_the_detached_run() {
     let repo = Arc::new(FileStateRepository::new(temporary.path().join("state")).unwrap());
     let sdk = sdk(temporary.path(), repo);
     let workspace = sdk
-        .open(&ProviderId::new("local").unwrap(), request("wait-timeout"))
+        .create(&ProviderId::new("local").unwrap(), request("wait-timeout"))
         .await
         .unwrap();
     let run = workspace
@@ -651,7 +670,7 @@ async fn next_sync_recovers_previous_apply_before_processing_a_remote_revert() {
     let repo = Arc::new(FileStateRepository::new(temporary.path().join("state")).unwrap());
     let sdk = sdk(temporary.path(), repo.clone());
     let target = sdk
-        .open(&ProviderId::new("local").unwrap(), request("remote-revert"))
+        .create(&ProviderId::new("local").unwrap(), request("remote-revert"))
         .await
         .unwrap();
     let engine =

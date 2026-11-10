@@ -12,15 +12,15 @@ mod space;
 mod ssh;
 mod supervisor_deployment;
 mod system_command_runner;
-pub use container::{ContainerConfig, ContainerOpenOptions, ContainerProvider};
+pub use container::{ContainerAttachOptions, ContainerConfig, ContainerProvider};
 pub use i_command_runner::ICommandRunner;
-pub use local::{LocalConfig, LocalOpenOptions, LocalProvider};
+pub use local::{LocalAttachOptions, LocalConfig, LocalProvider};
 pub use native_command::NativeCommand;
 #[cfg(feature = "boat")]
-pub use sandbox::{SandboxOpenOptions, SandboxProvider};
+pub use sandbox::{SandboxAttachOptions, SandboxCreateOptions, SandboxProvider};
 #[cfg(feature = "space")]
-pub use space::{SpaceConfig, SpaceOpenOptions, SpaceProvider};
-pub use ssh::{SshConfig, SshOpenOptions, SshProvider};
+pub use space::{SpaceAttachOptions, SpaceConfig, SpaceProvider};
+pub use ssh::{SshAttachOptions, SshConfig, SshProvider};
 pub use supervisor_deployment::{SupervisorArtifact, SupervisorDeployment, TargetPlatform};
 pub use system_command_runner::SystemCommandRunner;
 
@@ -29,4 +29,7 @@ pub use system_command_runner::SystemCommandRunner;
 pub use sandbox::machines as boat_machines;
 /// Managed Boat workspaces and their creation options.
 #[cfg(feature = "boat")]
-pub use sandbox::{SandboxOpenOptions as BoatOpenOptions, SandboxProvider as BoatProvider};
+pub use sandbox::{
+    SandboxAttachOptions as BoatAttachOptions, SandboxCreateOptions as BoatCreateOptions,
+    SandboxProvider as BoatProvider,
+};

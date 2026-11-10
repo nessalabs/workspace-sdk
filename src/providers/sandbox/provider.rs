@@ -1,4 +1,4 @@
-use super::{error::error, target::SandboxTarget, SandboxOpenOptions};
+use super::{error::error, target::SandboxTarget, SandboxAttachOptions, SandboxCreateOptions};
 use crate::providers::managed::{self, Locator, ManagedBackend};
 use crate::providers::SupervisorDeployment;
 use crate::{
@@ -8,7 +8,6 @@ use crate::{
 };
 use async_trait::async_trait;
 use sandbox_client::{Api, CreateOptions, CreateSandboxRequest};
-use sha2::{Digest, Sha256};
 use std::sync::{atomic::AtomicBool, Arc};
 
 /// Uses an injected real Api. Construct its configuration explicitly; this
@@ -45,6 +44,51 @@ impl SandboxProvider {
             supervisor: SupervisorDeployment::default(),
         }
     }
+    fn create_options(&self, request: &CreateRequest) -> Result<SandboxCreateOptions> {
+        if request.resources != ResourceRequirements::default() {
+            return Err(Error::Unsupported(
+                "Boat generic resource provisioning; choose an explicit sandbox_type in SandboxCreateOptions"
+                    .into(),
+            ));
+        }
+        if request.config.is_empty() {
+            return Err(Error::InvalidInput(
+                "SandboxCreateOptions with an explicit root is required".into(),
+            ));
+        }
+        let options: SandboxCreateOptions = request.config.decode()?;
+        managed::validate_remote_path(&options.root)?;
+        self.supervisor.validate()?;
+        Ok(options)
+    }
+    async fn open(
+        &self,
+        workspace_id: WorkspaceId,
+        root: &str,
+        target: String,
+        ownership: Ownership,
+    ) -> Result<Arc<dyn IBackend>> {
+        let directory = format!("{}/{}", root.trim_end_matches('/'), workspace_id);
+        let locator = Locator {
+            root: format!("{directory}/project"),
+            control: format!("{directory}/control"),
+            ownership,
+            target,
+        };
+        let reference = WorkspaceRef {
+            version: 1,
+            id: workspace_id,
+            provider: self.id(),
+            locator: WorkspaceLocator::from_locator(&locator)?,
+        };
+        let creation_receipt = locator.ownership == Ownership::SdkOwned;
+        let backend = self.backend(reference, locator, creation_receipt);
+        // The stable create key makes a failed bootstrap retryable. Initialization
+        // is only permitted here: reconnect must not recreate vanished run claims.
+        backend.target.ensure().await?;
+        backend.initialize(true).await?;
+        Ok(Arc::new(backend))
+    }
     fn backend(
         &self,
         reference: WorkspaceRef,
@@ -67,6 +111,7 @@ impl SandboxProvider {
                     private_ports: false,
                     hosted_ports: true,
                 },
+                admission: None,
             },
             target: Arc::new(SandboxTarget {
                 api: self.api.clone(),
@@ -83,74 +128,54 @@ impl IProvider for SandboxProvider {
     fn id(&self) -> ProviderId {
         self.id.clone()
     }
-    async fn open(&self, request: OpenRequest) -> Result<Arc<dyn IBackend>> {
-        if request.resources != ResourceRequirements::default() {
-            return Err(Error::Unsupported(
-                "Boat generic resource provisioning; choose an explicit sandbox_type in SandboxOpenOptions"
-                    .into(),
-            ));
-        }
-        let options: SandboxOpenOptions = if request.config.is_empty() {
-            return Err(Error::InvalidInput(
-                "SandboxOpenOptions with an explicit root is required".into(),
-            ));
-        } else {
-            request.config.decode()?
-        };
+    fn check_create(&self, request: &CreateRequest) -> Result<()> {
+        self.create_options(request).map(drop)
+    }
+    fn check_attach(&self, request: &AttachRequest) -> Result<()> {
+        let options: SandboxAttachOptions = request.config.decode()?;
         managed::validate_remote_path(&options.root)?;
-        self.supervisor.validate()?;
-        let (target, ownership) = if let Some(id) = options.sandbox_id {
-            self.api.get(&id).await.map_err(error)?;
-            (id, Ownership::Attached)
-        } else {
-            let key = format!(
-                "workspace-sdk-{:x}",
-                Sha256::digest(request.workspace_id.as_str().as_bytes())
-            );
-            let no_env = options.environment.is_none().then_some(true);
-            let created = self
-                .api
-                .create(
-                    Some(CreateSandboxRequest {
-                        type_: options.sandbox_type,
-                        ttl_seconds: Some(options.ttl_seconds),
-                        environment: options.environment,
-                        no_env,
-                        ..CreateSandboxRequest::default()
-                    }),
-                    &CreateOptions {
-                        idempotency_key: Some(key),
-                        ..CreateOptions::default()
-                    },
-                )
-                .await
-                .map_err(error)?;
-            (created.sandbox.id, Ownership::SdkOwned)
-        };
-        let directory = format!(
-            "{}/{}",
-            options.root.trim_end_matches('/'),
-            request.workspace_id
-        );
-        let locator = Locator {
-            root: format!("{directory}/project"),
-            control: format!("{directory}/control"),
-            ownership,
-            target,
-        };
-        let reference = WorkspaceRef {
-            version: 1,
-            id: request.workspace_id,
-            provider: self.id(),
-            locator: WorkspaceLocator::from_locator(&locator)?,
-        };
-        let creation_receipt = locator.ownership == Ownership::SdkOwned;
-        let backend = self.backend(reference, locator, creation_receipt);
-        // The stable create key makes a failed bootstrap retryable. Initialization
-        // is only permitted here: reconnect must not recreate vanished run claims.
-        backend.target.ensure().await?;
-        backend.initialize(true).await?;
-        Ok(Arc::new(backend))
+        self.supervisor.validate()
+    }
+    async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
+        let key = request.provision_key();
+        let options = self.create_options(&request)?;
+        let no_env = options.environment.is_none().then_some(true);
+        let created = self
+            .api
+            .create(
+                Some(CreateSandboxRequest {
+                    type_: options.sandbox_type,
+                    ttl_seconds: Some(options.ttl_seconds),
+                    environment: options.environment,
+                    no_env,
+                    ..CreateSandboxRequest::default()
+                }),
+                &CreateOptions {
+                    idempotency_key: Some(key.as_str().to_owned()),
+                    ..CreateOptions::default()
+                },
+            )
+            .await
+            .map_err(error)?;
+        self.open(
+            request.workspace_id,
+            &options.root,
+            created.sandbox.id,
+            Ownership::SdkOwned,
+        )
+        .await
+    }
+    async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {
+        self.check_attach(&request)?;
+        let options: SandboxAttachOptions = request.config.decode()?;
+        self.api.get(&options.sandbox_id).await.map_err(error)?;
+        self.open(
+            request.workspace_id,
+            &options.root,
+            options.sandbox_id,
+            Ownership::Attached,
+        )
+        .await
     }
     async fn connect(&self, reference: &WorkspaceRef) -> Result<Arc<dyn IBackend>> {
         let locator = managed::decode(reference, &self.id())?;

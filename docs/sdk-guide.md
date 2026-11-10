@@ -6,16 +6,17 @@ Create a `WorkspaceSdk` with an injected `IWorkspaceRepository`, then register e
 
 The provider IDs default to `local`, `boat`, `ssh`, and `container`. Each adapter supports `with_id(ProviderId)` so one application can register multiple SSH hosts or cloud accounts. Credentials belong to configured providers and credential resolvers, never to `WorkspaceRef`. The pinned Boat client is reexported as `workspace_sdk::boat_client`, so consumers need no separate sibling dependency.
 
-| IProvider | Construction | Open configuration |
-| --- | --- | --- |
-| Local | `LocalProvider::new(LocalConfig::trusted_host(base_dir))` | `LocalOpenOptions { attach }`; otherwise creates an owned project. |
-| Boat | `BoatProvider::new(explicit_boat_api)` | `BoatOpenOptions::new(root)`: explicit target root, optional existing Boat ID, and new-Boat type/TTL/environment. |
-| SSH | `SshProvider::new(SshConfig::trusted_host(host, root))` | `SshOpenOptions { attach }`; existing host keys and SSH login must already work. |
-| Container | `ContainerProvider::new(ContainerConfig::new(engine, image, root))` | `ContainerOpenOptions { container_id }`; otherwise creates a labeled container/volume. |
+| IProvider | Construction | Create options | Attach options |
+| --- | --- | --- | --- |
+| Local | `LocalProvider::new(LocalConfig::trusted_host(base_dir))` | none; creates an owned project | `LocalAttachOptions { path }` |
+| Boat | `BoatProvider::new(explicit_boat_api)` | `BoatCreateOptions::new(root)`: target root and Boat type/TTL/environment | `BoatAttachOptions { root, sandbox_id }` |
+| SSH | `SshProvider::new(SshConfig::trusted_host(host, root))` | none; creates a project under the root | `SshAttachOptions { path }`; host keys and SSH login must already work |
+| Container | `ContainerProvider::new(ContainerConfig::new(engine, image, root))` | none; creates a labeled container/volume | `ContainerAttachOptions { container_id }` |
+| SPACE | `SpaceProvider::new(config)` (feature `space`) | create is refused | `SpaceAttachOptions::new(sandbox_id, root)` |
 
-Build `OpenRequest::new(workspace_id, &options)` from the provider’s named options struct. `ProviderOptions` erases the concrete type only for registry dispatch; the adapter decodes it immediately into its own schema. Resource requirements are validated or rejected; they are never silently treated as provisioned. Boat sizing currently uses an explicit Boat type. Runtime resource checks can verify the CPU, memory, disk, platform and GPU needs of an existing host.
+Create with `CreateRequest::new(workspace_id)` or `CreateRequest::with_options(workspace_id, &options)`, and attach with `AttachRequest::new(workspace_id, &options)`. `ProviderOptions` erases the concrete type only for registry dispatch; the adapter decodes it immediately into its own schema. Create refuses attach-shaped options rather than ignoring them. Resource requirements are validated or rejected; they are never silently treated as provisioned. Boat sizing currently uses an explicit Boat type. Runtime resource checks can verify the CPU, memory, disk, platform and GPU needs of an existing host.
 
-Local and SSH execution share the user's host permissions. Container isolation depends on the selected engine/image; the SDK does not claim a hardware security boundary. Attachments disable destructive target lifecycle operations.
+Local and SSH execution share the user's host permissions. Container isolation depends on the selected engine/image; the SDK does not claim a hardware security boundary. `create` returns an `OwnedWorkspace`, the only handle with `stop`, `destroy` and `inspect_delete`; `attach` returns a plain `Workspace`. Backends also refuse lifecycle calls on attachments.
 
 ## Deploy the Rust supervisor
 
@@ -27,7 +28,11 @@ The helper is Rust, so targets using a prebuilt artifact need no Python interpre
 
 ## Workspaces and runs
 
-`open` reserves a workspace ID for one creation request. Repeating that request reconnects its target; changing the request under the same ID returns a conflict. `workspace(id)` looks up a saved descriptor, and `connect(reference)` reconnects an externally saved reference without recreating missing state.
+Build a `CreateRequest` with `CreateRequest::new` or `with_options` and then set `resources`; the SDK fills in the saved provision key itself. Each workspace ID has one saved `MachineRecord`. The provider first checks the request with `check_create` or `check_attach`, which have no effect, so a request that can never succeed reserves nothing. Then `create` saves the record as `Provisioning` (with the provider's idempotency key, derived from the ID and the record's generation, so a create made after a forget never reuses an old key) and `attach` as `Attaching`, both before the provider does anything. The record then becomes `Ready` with the target's descriptor, or `Refused` with a typed `Refusal` when the provider rejects the target; records never move back, a Ready target never changes its reference, ownership or admission, and a Ready target can be refused only under the admission it was made Ready with. Repeating the same request continues from the saved state: a pending create asks the provider again with the same key, Ready reconnects, and Refused returns the saved refusal without calling the provider. When two callers race, the first outcome saved wins and the other caller gets it too. A different request under the same ID, including attaching where a create was reserved, returns a conflict. A record upgraded from an older state file (`RequestOrigin::Upgraded`) is adopted by the first create or attach that fits it. If a create never got an outcome and the provider confirms it holds nothing for it, `forget_unfinished(id, revision)` deletes the pending record read at that revision; revisions never repeat, so a request still in flight cannot land on a later record. `record(id)` reads it in any state; `workspace(id)` reconnects a Ready target and `connect(reference)` a saved reference, without recreating missing state. `owned_workspace(id)` and `connect_owned(reference)` return the stop and destroy operations only for a saved Ready target this SDK created; a target only reconnected here never qualifies, whatever its locator claims.
+
+`Machines` keeps SDK-owned machines awake while something uses them. `hold(id, name)` wakes a resting machine and returns a `MachineUse` guard; the machine is in use exactly while a guard is alive. `rest_idle()` is the one path that stops machines, once they have had no use for the idle time the caller chose; `rest_every(period, report)` runs it on a timer. Opening for use and resting take the same per-machine lock, so a rest never stops a machine a new use has just opened. A machine that is being opened is skipped by a rest pass. Keep one `Machines` per state store, because its lock lives in memory. A `MachineUse` gives the workspace's operations but not stop or destroy. A provider's own auto-stop lifetime is only a backstop for a process that dies.
+
+`MemoryStateRepository` is only built with the `testing` feature: it forgets every record on drop, so a restarted caller would create a second target.
 
 Use `CommandSpec::new(program).args(...)`. A shell is used only if you explicitly choose `sh`, `bash`, or another shell as the program. Working directories and file API paths are workspace-relative and validated; arbitrary program execution remains as powerful as the chosen target's permissions.
 
@@ -49,8 +54,8 @@ Bare and unborn repositories are represented explicitly.
 
 The inventory is an observation, not ownership or a portable worktree identity.
 Refresh it before acting. To run work in a selected checkout, explicitly open an
-attachment using the correct provider's existing options: `LocalOpenOptions`
-accepts a path, while `SshOpenOptions` accepts a target-host path string. Continue
+attachment using the correct provider's attach options: `LocalAttachOptions`
+takes a path, while `SshAttachOptions` takes a target-host path string. Continue
 through the returned workspace's normal `exec` or managed-run API. Discovery does
 not attach automatically, prune directories, grant deletion permission, or turn
 an ordinary SDK-created directory into a Git worktree.

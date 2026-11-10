@@ -21,16 +21,13 @@ use workspace_sdk::{
 
 async fn workspace(f: &Fixture) -> Workspace {
     f.sdk
-        .open(
+        .create(
             &host("laptop"),
-            OpenRequest {
-                workspace_id: WorkspaceId::new("pipe-project").unwrap(),
-                config: ProviderOptions::default(),
-                resources: ResourceRequirements::default(),
-            },
+            CreateRequest::new(WorkspaceId::new("pipe-project").unwrap()),
         )
         .await
         .unwrap()
+        .into()
 }
 fn request(id: &str, script: &str) -> LaunchRequest {
     LaunchRequest {
@@ -227,13 +224,9 @@ async fn piped_admission_bounds_and_wrong_targets_refuse_before_effects() {
         }
         let other = f
             .sdk
-            .open(
+            .create(
                 &host("devbox"),
-                OpenRequest {
-                    workspace_id: WorkspaceId::new("wrong-pipe-project").unwrap(),
-                    config: ProviderOptions::default(),
-                    resources: ResourceRequirements::default(),
-                },
+                CreateRequest::new(WorkspaceId::new("wrong-pipe-project").unwrap()),
             )
             .await
             .unwrap();

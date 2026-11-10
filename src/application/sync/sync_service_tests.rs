@@ -236,6 +236,7 @@ impl Fixture {
                     managed_runs: true,
                     ..Capabilities::default()
                 },
+                admission: None,
             },
             archive,
             corruption,

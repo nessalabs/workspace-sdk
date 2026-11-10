@@ -19,7 +19,8 @@ use tokio::time::{sleep, timeout};
 use workspace_sdk::{
     providers::{LocalConfig, LocalProvider},
     runtime::*,
-    BackendDescriptor, DeleteState, IProvider, OpenRequest, OutputCursor, SecretInput, WorkspaceId,
+    BackendDescriptor, CreateRequest, DeleteState, IProvider, OutputCursor, SecretInput,
+    WorkspaceId,
 };
 type ProbeResult<T> = Result<T, Box<dyn std::error::Error>>;
 const KEY: &str = "live-pty-probe";
@@ -287,11 +288,7 @@ async fn controller(phase: &str, root: &Path, supervisor: PathBuf) -> ProbeResul
     let mut state = if phase == "start" {
         let executable = fs::canonicalize(env::current_exe()?)?;
         let backend = provider
-            .open(OpenRequest {
-                workspace_id: WorkspaceId::generate(),
-                config: Default::default(),
-                resources: Default::default(),
-            })
+            .create(CreateRequest::new(WorkspaceId::generate()))
             .await?;
         let state = State {
             phase: "created".into(),

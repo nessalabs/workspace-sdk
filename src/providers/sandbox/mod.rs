@@ -6,5 +6,5 @@ mod error;
 pub mod machines;
 mod provider;
 mod target;
-pub use configuration::SandboxOpenOptions;
+pub use configuration::{SandboxAttachOptions, SandboxCreateOptions};
 pub use provider::SandboxProvider;

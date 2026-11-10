@@ -22,8 +22,8 @@ use tempfile::TempDir;
 use workspace_sdk::{
     boat_client::{Api, ClientConfig},
     infrastructure::MemoryStateRepository,
-    providers::{SandboxOpenOptions, SandboxProvider},
-    OpenRequest, ProviderId, WorkspaceId, WorkspaceSdk,
+    providers::{SandboxAttachOptions, SandboxProvider},
+    AttachRequest, ProviderId, WorkspaceId, WorkspaceSdk,
 };
 
 const FIRST: &str = "bx_23456789";
@@ -269,13 +269,15 @@ async fn raw_target_is_durable_before_failed_sdk_bootstrap_and_reopened_cleanup(
         .unwrap()
         .build()
         .unwrap();
-    let mut options = SandboxOpenOptions::new("/fixture");
-    options.sandbox_id = Some(target);
+    let options = SandboxAttachOptions {
+        root: "/fixture".into(),
+        sandbox_id: target,
+    };
     let bootstrap = tokio::time::timeout(
         Duration::from_secs(2),
-        sdk.open(
+        sdk.attach(
             &ProviderId::new("boat").unwrap(),
-            OpenRequest::new(WorkspaceId::new("bootstrap-failure").unwrap(), &options).unwrap(),
+            AttachRequest::new(WorkspaceId::new("bootstrap-failure").unwrap(), &options).unwrap(),
         ),
     )
     .await
