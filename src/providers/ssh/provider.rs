@@ -1,4 +1,4 @@
-use super::{target::SshTarget, SshConfig, SshOpenOptions};
+use super::{target::SshTarget, SshAttachOptions, SshConfig};
 use crate::providers::{
     managed::{self, Locator, ManagedBackend},
     ICommandRunner, SystemCommandRunner,
@@ -34,6 +34,41 @@ impl SshProvider {
             runner,
         })
     }
+    async fn open(
+        &self,
+        workspace_id: WorkspaceId,
+        attach: Option<String>,
+    ) -> Result<Arc<dyn IBackend>> {
+        let directory = format!(
+            "{}/{}",
+            self.config.root.trim_end_matches('/'),
+            workspace_id
+        );
+        let ownership = if attach.is_some() {
+            Ownership::Attached
+        } else {
+            Ownership::SdkOwned
+        };
+        let locator = Locator {
+            root: attach.unwrap_or_else(|| format!("{directory}/project")),
+            control: format!("{directory}/control"),
+            ownership,
+            target: self.config.host.clone(),
+        };
+        managed::validate_remote_path(&locator.root)?;
+        let reference = WorkspaceRef {
+            version: 1,
+            id: workspace_id,
+            provider: self.id(),
+            locator: WorkspaceLocator::from_locator(&locator)?,
+        };
+        let backend = self.backend(reference, locator);
+        backend.target.ensure().await?;
+        backend
+            .initialize(backend.descriptor.ownership == Ownership::SdkOwned)
+            .await?;
+        Ok(Arc::new(backend))
+    }
     fn backend(&self, reference: WorkspaceRef, locator: Locator) -> ManagedBackend {
         let owned = locator.ownership == Ownership::SdkOwned;
         ManagedBackend {
@@ -64,44 +99,14 @@ impl IProvider for SshProvider {
     fn id(&self) -> ProviderId {
         self.id.clone()
     }
-    async fn open(&self, request: OpenRequest) -> Result<Arc<dyn IBackend>> {
+    async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
         managed::require_no_resources(&request.resources)?;
-        let options: SshOpenOptions = if request.config.is_empty() {
-            SshOpenOptions::default()
-        } else {
-            request.config.decode()?
-        };
-        let directory = format!(
-            "{}/{}",
-            self.config.root.trim_end_matches('/'),
-            request.workspace_id
-        );
-        let ownership = if options.attach.is_some() {
-            Ownership::Attached
-        } else {
-            Ownership::SdkOwned
-        };
-        let locator = Locator {
-            root: options
-                .attach
-                .unwrap_or_else(|| format!("{directory}/project")),
-            control: format!("{directory}/control"),
-            ownership,
-            target: self.config.host.clone(),
-        };
-        managed::validate_remote_path(&locator.root)?;
-        let reference = WorkspaceRef {
-            version: 1,
-            id: request.workspace_id,
-            provider: self.id(),
-            locator: WorkspaceLocator::from_locator(&locator)?,
-        };
-        let backend = self.backend(reference, locator);
-        backend.target.ensure().await?;
-        backend
-            .initialize(backend.descriptor.ownership == Ownership::SdkOwned)
-            .await?;
-        Ok(Arc::new(backend))
+        managed::require_no_create_options(&request.config, "SSH")?;
+        self.open(request.workspace_id, None).await
+    }
+    async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {
+        let options: SshAttachOptions = request.config.decode()?;
+        self.open(request.workspace_id, Some(options.path)).await
     }
     async fn connect(&self, reference: &WorkspaceRef) -> Result<Arc<dyn IBackend>> {
         let locator = managed::decode(reference, &self.id())?;

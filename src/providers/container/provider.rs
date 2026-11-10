@@ -1,4 +1,4 @@
-use super::{engine::*, target::ContainerTarget, ContainerConfig, ContainerOpenOptions};
+use super::{engine::*, target::ContainerTarget, ContainerAttachOptions, ContainerConfig};
 use crate::providers::{
     managed::{self, Locator, ManagedBackend},
     ICommandRunner, SystemCommandRunner,
@@ -39,6 +39,123 @@ impl ContainerProvider {
     async fn command(&self, args: Vec<String>) -> Result<ExecResult> {
         engine(&self.config, self.runner.as_ref(), args).await
     }
+    async fn open(
+        &self,
+        workspace_id: WorkspaceId,
+        resources: ResourceRequirements,
+        attach: Option<String>,
+    ) -> Result<Arc<dyn IBackend>> {
+        if resources.disk_mib.is_some() {
+            return Err(Error::Unsupported("portable container disk quotas".into()));
+        }
+        let owned = attach.is_none();
+        let target = attach.unwrap_or_else(|| format!("workspace-sdk-{}", workspace_id));
+        name(&target)?;
+        succeeded(
+            self.command(vec!["info".into(), "--format".into(), "{{json .}}".into()])
+                .await?,
+            "preflight",
+        )?;
+        let inspected = self
+            .command(vec![
+                "inspect".into(),
+                "--format".into(),
+                "{{json .}}".into(),
+                target.clone(),
+            ])
+            .await?;
+        if inspected.success() {
+            let value = container_info(&inspected)?;
+            if owned {
+                check_owner(&value, &workspace_id)?;
+            }
+        } else if owned {
+            let volume = target.clone();
+            let inspected_volume = self
+                .command(vec![
+                    "volume".into(),
+                    "inspect".into(),
+                    "--format".into(),
+                    "{{json .}}".into(),
+                    volume.clone(),
+                ])
+                .await?;
+            if inspected_volume.success() {
+                let existing = volume_info(&inspected_volume)?;
+                check_volume_owner(&existing, &workspace_id)?;
+            } else {
+                succeeded(
+                    self.command(vec![
+                        "volume".into(),
+                        "create".into(),
+                        "--label".into(),
+                        format!("dev.workspace-sdk.workspace={}", workspace_id),
+                        volume.clone(),
+                    ])
+                    .await?,
+                    "create owned volume",
+                )?;
+            }
+            let mut args = vec![
+                "run".into(),
+                "--detach".into(),
+                "--name".into(),
+                target.clone(),
+                "--label".into(),
+                format!("dev.workspace-sdk.workspace={}", workspace_id),
+                "--mount".into(),
+                format!("type=volume,source={volume},target={}", self.config.root),
+                "--workdir".into(),
+                self.config.root.clone(),
+            ];
+            if let Some(cpu) = resources.cpu {
+                args.extend(["--cpus".into(), cpu.to_string()]);
+            }
+            if let Some(memory) = resources.memory_mib {
+                args.extend(["--memory".into(), format!("{memory}m")]);
+            }
+            if let Some(platform) = resources.platform {
+                args.extend(["--platform".into(), platform]);
+            }
+            if let Some(gpu) = resources.gpu {
+                args.extend(["--gpus".into(), gpu]);
+            }
+            args.extend([
+                self.config.image.clone(),
+                "sh".into(),
+                "-c".into(),
+                "trap 'exit 0' TERM INT; while :; do sleep 3600 & wait $!; done".into(),
+            ]);
+            succeeded(self.command(args).await?, "create")?;
+        } else {
+            return Err(Error::NotFound("attached container is unavailable".into()));
+        }
+        let directory = format!(
+            "{}/{}",
+            self.config.root.trim_end_matches('/'),
+            workspace_id
+        );
+        let locator = Locator {
+            root: format!("{directory}/project"),
+            control: format!("{directory}/control"),
+            ownership: if owned {
+                Ownership::SdkOwned
+            } else {
+                Ownership::Attached
+            },
+            target,
+        };
+        let reference = WorkspaceRef {
+            version: 1,
+            id: workspace_id,
+            provider: self.id(),
+            locator: WorkspaceLocator::from_locator(&locator)?,
+        };
+        let backend = self.backend(reference, locator);
+        backend.target.ensure().await?;
+        backend.initialize(true).await?;
+        Ok(Arc::new(backend))
+    }
     fn backend(&self, reference: WorkspaceRef, locator: Locator) -> ManagedBackend {
         let owned = locator.ownership == Ownership::SdkOwned;
         ManagedBackend {
@@ -70,127 +187,19 @@ impl IProvider for ContainerProvider {
     fn id(&self) -> ProviderId {
         self.id.clone()
     }
-    async fn open(&self, request: OpenRequest) -> Result<Arc<dyn IBackend>> {
-        let options: ContainerOpenOptions = if request.config.is_empty() {
-            ContainerOpenOptions::default()
-        } else {
-            request.config.decode()?
-        };
-        if request.resources.disk_mib.is_some() {
-            return Err(Error::Unsupported("portable container disk quotas".into()));
-        }
-        let owned = options.container_id.is_none();
-        if !owned {
-            managed::require_no_resources(&request.resources)?;
-        }
-        let target = options
-            .container_id
-            .unwrap_or_else(|| format!("workspace-sdk-{}", request.workspace_id));
-        name(&target)?;
-        succeeded(
-            self.command(vec!["info".into(), "--format".into(), "{{json .}}".into()])
-                .await?,
-            "preflight",
-        )?;
-        let inspected = self
-            .command(vec![
-                "inspect".into(),
-                "--format".into(),
-                "{{json .}}".into(),
-                target.clone(),
-            ])
-            .await?;
-        if inspected.success() {
-            let value = container_info(&inspected)?;
-            if owned {
-                check_owner(&value, &request.workspace_id)?;
-            }
-        } else if owned {
-            let volume = target.clone();
-            let inspected_volume = self
-                .command(vec![
-                    "volume".into(),
-                    "inspect".into(),
-                    "--format".into(),
-                    "{{json .}}".into(),
-                    volume.clone(),
-                ])
-                .await?;
-            if inspected_volume.success() {
-                let existing = volume_info(&inspected_volume)?;
-                check_volume_owner(&existing, &request.workspace_id)?;
-            } else {
-                succeeded(
-                    self.command(vec![
-                        "volume".into(),
-                        "create".into(),
-                        "--label".into(),
-                        format!("dev.workspace-sdk.workspace={}", request.workspace_id),
-                        volume.clone(),
-                    ])
-                    .await?,
-                    "create owned volume",
-                )?;
-            }
-            let mut args = vec![
-                "run".into(),
-                "--detach".into(),
-                "--name".into(),
-                target.clone(),
-                "--label".into(),
-                format!("dev.workspace-sdk.workspace={}", request.workspace_id),
-                "--mount".into(),
-                format!("type=volume,source={volume},target={}", self.config.root),
-                "--workdir".into(),
-                self.config.root.clone(),
-            ];
-            if let Some(cpu) = request.resources.cpu {
-                args.extend(["--cpus".into(), cpu.to_string()]);
-            }
-            if let Some(memory) = request.resources.memory_mib {
-                args.extend(["--memory".into(), format!("{memory}m")]);
-            }
-            if let Some(platform) = request.resources.platform {
-                args.extend(["--platform".into(), platform]);
-            }
-            if let Some(gpu) = request.resources.gpu {
-                args.extend(["--gpus".into(), gpu]);
-            }
-            args.extend([
-                self.config.image.clone(),
-                "sh".into(),
-                "-c".into(),
-                "trap 'exit 0' TERM INT; while :; do sleep 3600 & wait $!; done".into(),
-            ]);
-            succeeded(self.command(args).await?, "create")?;
-        } else {
-            return Err(Error::NotFound("attached container is unavailable".into()));
-        }
-        let directory = format!(
-            "{}/{}",
-            self.config.root.trim_end_matches('/'),
-            request.workspace_id
-        );
-        let locator = Locator {
-            root: format!("{directory}/project"),
-            control: format!("{directory}/control"),
-            ownership: if owned {
-                Ownership::SdkOwned
-            } else {
-                Ownership::Attached
-            },
-            target,
-        };
-        let reference = WorkspaceRef {
-            version: 1,
-            id: request.workspace_id,
-            provider: self.id(),
-            locator: WorkspaceLocator::from_locator(&locator)?,
-        };
-        let backend = self.backend(reference, locator);
-        backend.target.ensure().await?;
-        backend.initialize(true).await?;
-        Ok(Arc::new(backend))
+    async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
+        managed::require_no_create_options(&request.config, "container")?;
+        self.open(request.workspace_id, request.resources, None)
+            .await
+    }
+    async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {
+        let options: ContainerAttachOptions = request.config.decode()?;
+        self.open(
+            request.workspace_id,
+            ResourceRequirements::default(),
+            Some(options.container_id),
+        )
+        .await
     }
     async fn connect(&self, reference: &WorkspaceRef) -> Result<Arc<dyn IBackend>> {
         let locator = managed::decode(reference, &self.id())?;

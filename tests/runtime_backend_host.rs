@@ -10,7 +10,9 @@ use tokio::time::{sleep, timeout};
 use workspace_sdk::providers::{LocalConfig, LocalProvider};
 use workspace_sdk::runtime::*;
 use workspace_sdk::Error;
-use workspace_sdk::{IBackend, IProvider, OpenRequest, OutputCursor, RunId, RunState, WorkspaceId};
+use workspace_sdk::{
+    CreateRequest, IBackend, IProvider, OutputCursor, RunId, RunState, WorkspaceId,
+};
 
 mod support;
 
@@ -82,7 +84,7 @@ async fn backend(root: &Path) -> Arc<dyn IBackend> {
     config.supervisor = env!("CARGO_BIN_EXE_workspace-supervisor").into();
     LocalProvider::new(config)
         .unwrap()
-        .open(OpenRequest {
+        .create(CreateRequest {
             workspace_id: WorkspaceId::generate(),
             config: Default::default(),
             resources: Default::default(),

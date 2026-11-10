@@ -12,8 +12,8 @@ use serde::Serialize;
 use tokio::time::{sleep, timeout};
 use workspace_sdk::providers::{LocalConfig, LocalProvider};
 use workspace_sdk::{
-    CommandSpec, IBackend, IProvider, LaunchRequest, OpenRequest, OutputCursor, OutputPage, RunId,
-    RunRef, RunState, WorkspaceId,
+    CommandSpec, CreateRequest, IBackend, IProvider, LaunchRequest, OutputCursor, OutputPage,
+    RunId, RunRef, RunState, WorkspaceId,
 };
 
 const RETENTION_BYTES: u64 = 32 * 1024;
@@ -117,7 +117,7 @@ async fn await_output(backend: &dyn IBackend, run: &RunRef, minimum: u64) -> Out
 
 async fn sample(provider: &LocalProvider, executable: &Path) -> Sample {
     let backend = provider
-        .open(OpenRequest {
+        .create(CreateRequest {
             workspace_id: WorkspaceId::generate(),
             config: Default::default(),
             resources: Default::default(),

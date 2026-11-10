@@ -17,9 +17,9 @@ async fn setup(temp: &TempDir) -> Workspace {
     .unwrap()
     .build()
     .unwrap();
-    sdk.open(
+    sdk.create(
         &ProviderId::new("local").unwrap(),
-        OpenRequest {
+        CreateRequest {
             workspace_id: WorkspaceId::new("portable").unwrap(),
             config: ProviderOptions::default(),
             resources: ResourceRequirements::default(),
@@ -27,6 +27,7 @@ async fn setup(temp: &TempDir) -> Workspace {
     )
     .await
     .unwrap()
+    .into()
 }
 fn path(value: &str) -> WorkspacePath {
     WorkspacePath::new(value).unwrap()

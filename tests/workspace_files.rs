@@ -20,9 +20,9 @@ fn sdk(base: &Path) -> WorkspaceSdk {
     .unwrap()
 }
 async fn open(sdk: &WorkspaceSdk, id: &str) -> Workspace {
-    sdk.open(
+    sdk.create(
         &ProviderId::new("local").unwrap(),
-        OpenRequest {
+        CreateRequest {
             workspace_id: WorkspaceId::new(id).unwrap(),
             config: ProviderOptions::default(),
             resources: ResourceRequirements::default(),
@@ -30,6 +30,7 @@ async fn open(sdk: &WorkspaceSdk, id: &str) -> Workspace {
     )
     .await
     .unwrap()
+    .into()
 }
 fn path(value: &str) -> WorkspacePath {
     WorkspacePath::new(value).unwrap()

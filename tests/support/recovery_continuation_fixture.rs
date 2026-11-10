@@ -71,8 +71,11 @@ impl IProvider for ControlledProvider {
     fn id(&self) -> ProviderId {
         self.inner.id()
     }
-    async fn open(&self, request: OpenRequest) -> Result<Arc<dyn IBackend>> {
-        self.inner.open(request).await
+    async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
+        self.inner.create(request).await
+    }
+    async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {
+        self.inner.attach(request).await
     }
     async fn connect(&self, reference: &WorkspaceRef) -> Result<Arc<dyn IBackend>> {
         if !self.online.load(Ordering::Acquire) {

@@ -53,8 +53,8 @@ fn result(code: i32, stdout: &str) -> ExecResult {
         output_truncated: false,
     }
 }
-fn request(id: &str) -> OpenRequest {
-    OpenRequest {
+fn request(id: &str) -> CreateRequest {
+    CreateRequest {
         workspace_id: WorkspaceId::new(id).unwrap(),
         config: ProviderOptions::default(),
         resources: ResourceRequirements::default(),
@@ -68,7 +68,7 @@ async fn ssh_verifies_known_hosts_and_puts_secrets_on_stdin() {
         runner.clone(),
     )
     .unwrap();
-    let backend = provider.open(request("experiment")).await.unwrap();
+    let backend = provider.create(request("experiment")).await.unwrap();
     let mut secrets = SecretEnvironment::default();
     secrets
         .0
@@ -105,7 +105,7 @@ async fn container_preflight_does_not_create_when_engine_is_missing() {
     ))
     .unwrap();
     assert!(matches!(
-        provider.open(request("missing-engine")).await,
+        provider.create(request("missing-engine")).await,
         Err(Error::NotFound(_))
     ));
 }
@@ -125,7 +125,7 @@ async fn container_rejects_collision_with_unowned_existing_container() {
     )
     .unwrap();
     assert!(matches!(
-        provider.open(request("collision")).await,
+        provider.create(request("collision")).await,
         Err(Error::Conflict(_))
     ));
     assert_eq!(runner.requests.lock().unwrap().len(), 2);
@@ -143,12 +143,14 @@ async fn attached_container_lifecycle_is_not_mutated() {
         runner.clone(),
     )
     .unwrap();
-    let mut open = request("attached");
-    open.config = ProviderOptions::from_options(&ContainerOpenOptions {
-        container_id: Some("user-container".into()),
-    })
+    let attach = AttachRequest::new(
+        WorkspaceId::new("attached").unwrap(),
+        &ContainerAttachOptions {
+            container_id: "user-container".into(),
+        },
+    )
     .unwrap();
-    let backend = provider.open(open).await.unwrap();
+    let backend = provider.attach(attach).await.unwrap();
     assert!(matches!(backend.stop().await, Err(Error::Unsupported(_))));
     assert!(matches!(
         backend.destroy().await,
@@ -255,7 +257,7 @@ async fn container_creation_refuses_to_reuse_an_unowned_volume() {
     )
     .unwrap();
     assert!(matches!(
-        provider.open(request("volume-collision")).await,
+        provider.create(request("volume-collision")).await,
         Err(Error::Conflict(_))
     ));
     assert_eq!(runner.requests.lock().unwrap().len(), 3);
@@ -265,7 +267,7 @@ async fn browser_backend(runner: Arc<RecordingRunner>) -> Arc<dyn workspace_sdk:
     let provider =
         SshProvider::with_runner(SshConfig::trusted_host("worker", "/srv/workspaces"), runner)
             .unwrap();
-    provider.open(request("browser-contract")).await.unwrap()
+    provider.create(request("browser-contract")).await.unwrap()
 }
 fn browser_publish(bytes: Vec<u8>) -> PublishFile {
     PublishFile {

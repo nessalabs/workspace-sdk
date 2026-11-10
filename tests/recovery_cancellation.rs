@@ -35,8 +35,11 @@ impl IProvider for GatedProvider {
         self.inner.id()
     }
 
-    async fn open(&self, request: OpenRequest) -> Result<Arc<dyn IBackend>> {
-        let backend = self.inner.open(request).await?;
+    async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {
+        self.inner.attach(request).await
+    }
+    async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
+        let backend = self.inner.create(request).await?;
         if self.opens.fetch_add(1, Ordering::SeqCst) == 0 {
             self.entered.notify_one();
             self.release.acquire().await.unwrap().forget();

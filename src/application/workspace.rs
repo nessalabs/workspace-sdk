@@ -2,7 +2,7 @@ use super::Run;
 use crate::{
     domain::{
         BackendDescriptor, CommandSpec, DeleteOperation, ExecResult, ExecutionRequest, FileChunk,
-        LaunchRequest, OperationRef, PortAccess, PortRequest, ReadFile, RunId, RunRef,
+        LaunchRequest, OperationRef, Ownership, PortAccess, PortRequest, ReadFile, RunId, RunRef,
         WorkspaceRef, WorkspaceState, WriteFile,
     },
     ports::IBackend,
@@ -172,16 +172,55 @@ impl Workspace {
     pub async fn port(&self, request: PortRequest) -> Result<PortAccess> {
         self.backend.port(request).await
     }
+}
+
+/// A workspace this SDK created, so it may also stop and destroy the target.
+///
+/// Every workspace operation is available through `Deref`. Only
+/// [`crate::WorkspaceSdk::create`], [`crate::WorkspaceSdk::connect_owned`] and
+/// [`crate::WorkspaceSdk::owned_workspace`] return one; an attached target never
+/// becomes an `OwnedWorkspace`.
+#[derive(Clone)]
+pub struct OwnedWorkspace {
+    pub(crate) workspace: Workspace,
+}
+impl OwnedWorkspace {
     /// Request that this workspace stop; this does not imply deletion.
     pub async fn stop(&self) -> Result<()> {
-        self.backend.stop().await
+        self.workspace.backend.stop().await
     }
     /// Request deletion and return a receipt. Poll it until completion is confirmed.
     pub async fn destroy(&self) -> Result<DeleteOperation> {
-        self.backend.destroy().await
+        self.workspace.backend.destroy().await
     }
     /// Refresh a previously recorded deletion operation.
     pub async fn inspect_delete(&self, reference: &OperationRef) -> Result<DeleteOperation> {
-        self.backend.inspect_delete(reference).await
+        self.workspace.backend.inspect_delete(reference).await
+    }
+    /// Use the common workspace handle, for example to pass it to sync.
+    pub fn workspace(&self) -> &Workspace {
+        &self.workspace
+    }
+}
+impl std::ops::Deref for OwnedWorkspace {
+    type Target = Workspace;
+    fn deref(&self) -> &Workspace {
+        &self.workspace
+    }
+}
+impl From<OwnedWorkspace> for Workspace {
+    fn from(owned: OwnedWorkspace) -> Self {
+        owned.workspace
+    }
+}
+impl TryFrom<Workspace> for OwnedWorkspace {
+    type Error = Error;
+    fn try_from(workspace: Workspace) -> Result<Self> {
+        if workspace.descriptor().ownership != Ownership::SdkOwned {
+            return Err(Error::Conflict(
+                "an attached workspace cannot be stopped or destroyed by this SDK".into(),
+            ));
+        }
+        Ok(Self { workspace })
     }
 }

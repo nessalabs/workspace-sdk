@@ -16,7 +16,7 @@ use workspace_sdk::{
     checkpoint::{CaptureOptions, CheckpointRef, GitCheckpointEngine, ICheckpointEngine},
     infrastructure::FileStateRepository,
     ports::{IRecoveryRepository, IWorkflowLease},
-    providers::{LocalConfig, LocalOpenOptions, LocalProvider},
+    providers::{LocalAttachOptions, LocalConfig, LocalProvider},
     *,
 };
 
@@ -321,8 +321,10 @@ async fn attached_project_is_refused_before_checkpoint_restore_or_native_launch(
     let seed = checkpoint(temp.path(), &engine);
     let source = temp.path().join("seed-project");
     let mut locations = candidates();
-    locations[0].config = ProviderOptions::from_options(&LocalOpenOptions {
-        attach: Some(source.clone()),
+    // Attach options in a recovery location reach `create`, which refuses them
+    // before any target exists, so nothing is restored into the caller's project.
+    locations[0].config = ProviderOptions::from_options(&LocalAttachOptions {
+        path: source.clone(),
     })
     .unwrap();
     let recovery = service(sdk.clone(), engine, repository);
@@ -330,19 +332,16 @@ async fn attached_project_is_refused_before_checkpoint_restore_or_native_launch(
     recovery.create(id.clone(), locations, seed).await.unwrap();
     assert!(matches!(
         recovery.recover(&id, request("switch", 0, &["laptop"])).await,
-        Err(Error::Conflict(message)) if message.contains("SDK-owned workspace")
+        Err(Error::InvalidInput(message)) if message.contains("use attach")
     ));
     assert_eq!(fs::read_to_string(source.join("counter")).unwrap(), "3");
     let snapshot = recovery.session(&id).unwrap();
     let attempt = snapshot.current_attempt.as_ref().unwrap();
     assert!(matches!(attempt.phase, RecoveryPhase::Preparing));
-    let target = sdk.workspace(&attempt.workspace_id).await.unwrap();
-    assert_eq!(target.descriptor().ownership, Ownership::Attached);
-    assert_eq!(
-        PathBuf::from(target.descriptor().root),
-        source.canonicalize().unwrap()
-    );
-    assert_no_native_claim(&target);
+    assert!(matches!(
+        sdk.workspace(&attempt.workspace_id).await,
+        Err(Error::NotFound(_))
+    ));
     assert!(matches!(
         recovery.recover(&id, request("next", 1, &["devbox"])).await,
         Err(Error::Conflict(_))
@@ -376,17 +375,6 @@ fn launch_identity(session: &RecoverySession) -> &str {
         _ => panic!("expected started receipt"),
     }
 }
-fn assert_no_native_claim(workspace: &Workspace) {
-    let runs = Path::new(&workspace.descriptor().control_root).join("runs");
-    if runs.exists() {
-        assert!(fs::read_dir(runs).unwrap().all(|entry| !entry
-            .unwrap()
-            .path()
-            .join("claim.json")
-            .exists()));
-    }
-}
-
 #[tokio::test]
 async fn started_retry_does_not_require_old_transient_credentials_or_hash_them_in_authority() {
     let temp = TempDir::new().unwrap();

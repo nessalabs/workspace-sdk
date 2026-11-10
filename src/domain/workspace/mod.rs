@@ -4,7 +4,7 @@
 //! identity survives while the target’s state changes. [`WorkspaceId`] and
 //! [`WorkspaceRef`] are value objects used to identify and reconnect to it.
 //! [`BackendDescriptor`] and [`WorkspaceState`] are observations, not live entities.
-//! [`OpenRequest`], [`ReadFile`], and [`WriteFile`] describe requested actions.
+//! [`CreateRequest`], [`AttachRequest`], [`ReadFile`], and [`WriteFile`] describe requested actions.
 //!
 //! Value-object semantics mean that a value describes a fact and can be replaced;
 //! they do not mean that every public Rust field is immutable. Validated identity
@@ -31,7 +31,7 @@ pub use file_browser::*;
 pub use file_tree::{TreeExportReceipt, TreeImportReceipt, TreeTransfer};
 pub use files::{FileChunk, ReadFile, WriteFile};
 pub use identity::{ProviderId, WorkspaceId, WorkspaceRef};
-pub use open::{OpenRequest, ResourceRequirements};
+pub use open::{AttachRequest, CreateRequest, ResourceRequirements};
 pub use path::WorkspacePath;
 pub use ports::{PortAccess, PortPolicy, PortRequest};
 pub use provider_data::{ProviderOptions, WorkspaceLocator};

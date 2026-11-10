@@ -6,7 +6,7 @@ use std::fmt;
 
 /// Serializable provider options constructed from a provider’s named options type.
 ///
-/// Each provider owns its configuration schema (for example `SandboxOpenOptions`).
+/// Each provider owns its configuration schema (for example `SandboxCreateOptions`).
 /// This value erases that concrete type only at the registry boundary so custom
 /// providers can be injected without changing the core domain. Decode it back
 /// into the provider’s options immediately inside the adapter. Never put secrets

@@ -8,7 +8,7 @@ use std::{
 };
 use tempfile::TempDir;
 use workspace_sdk::{
-    providers::{LocalConfig, LocalOpenOptions, LocalProvider},
+    providers::{LocalAttachOptions, LocalConfig, LocalProvider},
     *,
 };
 
@@ -25,7 +25,7 @@ fn provider(base: &TempDir) -> LocalProvider {
 }
 async fn workspace(base: &TempDir) -> Arc<dyn IBackend> {
     provider(base)
-        .open(OpenRequest {
+        .create(CreateRequest {
             workspace_id: WorkspaceId::generate(),
             config: ProviderOptions::default(),
             resources: ResourceRequirements::default(),
@@ -268,14 +268,15 @@ async fn ownership_blocks_attached_deletion_and_owned_delete_has_receipt() {
     fs::create_dir(&project).unwrap();
     fs::write(project.join("precious"), "keep").unwrap();
     let backend = provider(&base)
-        .open(OpenRequest {
-            workspace_id: WorkspaceId::generate(),
-            config: ProviderOptions::from_options(&LocalOpenOptions {
-                attach: Some(project.clone()),
-            })
+        .attach(
+            AttachRequest::new(
+                WorkspaceId::generate(),
+                &LocalAttachOptions {
+                    path: project.clone(),
+                },
+            )
             .unwrap(),
-            resources: ResourceRequirements::default(),
-        })
+        )
         .await
         .unwrap();
     assert!(matches!(

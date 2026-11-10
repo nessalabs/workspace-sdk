@@ -15,6 +15,6 @@ pub use recovery_service::{
 };
 pub use run::Run;
 pub use sync::*;
-pub use workspace::Workspace;
+pub use workspace::{OwnedWorkspace, Workspace};
 pub use workspace_sdk::WorkspaceSdk;
 pub use workspace_sdk_builder::WorkspaceSdkBuilder;

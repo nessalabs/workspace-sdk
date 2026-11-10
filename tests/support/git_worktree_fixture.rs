@@ -18,7 +18,7 @@ use tempfile::TempDir;
 use workspace_sdk::{
     git::GitWorktreeCreateRequest,
     infrastructure::FileStateRepository,
-    providers::{LocalConfig, LocalOpenOptions, LocalProvider},
+    providers::{LocalAttachOptions, LocalConfig, LocalProvider},
     *,
 };
 
@@ -176,12 +176,12 @@ impl Fixture {
 
     pub(super) async fn attach(&self, path: &Path, id: &str) -> Workspace {
         self.sdk
-            .open(
+            .attach(
                 &ProviderId::new("local").unwrap(),
-                OpenRequest::new(
+                AttachRequest::new(
                     WorkspaceId::new(id).unwrap(),
-                    &LocalOpenOptions {
-                        attach: Some(path.to_owned()),
+                    &LocalAttachOptions {
+                        path: path.to_owned(),
                     },
                 )
                 .unwrap(),
@@ -324,9 +324,19 @@ impl IProvider for ReplyLossProvider {
     fn id(&self) -> ProviderId {
         self.inner.id()
     }
-    async fn open(&self, request: OpenRequest) -> Result<Arc<dyn IBackend>> {
+    async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
         Ok(Arc::new(ReplyLossBackend {
-            inner: self.inner.open(request).await?,
+            inner: self.inner.create(request).await?,
+            lose_next: self.lose_next.clone(),
+            simulated_lost: self.simulated_lost.clone(),
+            claims: self.claims.clone(),
+            uncertain: self.uncertain.clone(),
+            descriptor_override: self.descriptor_override.clone(),
+        }))
+    }
+    async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {
+        Ok(Arc::new(ReplyLossBackend {
+            inner: self.inner.attach(request).await?,
             lose_next: self.lose_next.clone(),
             simulated_lost: self.simulated_lost.clone(),
             claims: self.claims.clone(),

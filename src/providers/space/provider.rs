@@ -1,8 +1,8 @@
-use super::{configuration::SpaceOpenOptions, target::SpaceTarget, SpaceConfig};
+use super::{configuration::SpaceAttachOptions, target::SpaceTarget, SpaceConfig};
 use crate::{
     domain::*,
     ports::{IBackend, IProvider},
-    providers::managed::{self, ManagedBackend},
+    providers::managed::ManagedBackend,
     Error, Result,
 };
 use async_trait::async_trait;
@@ -39,7 +39,7 @@ impl SpaceProvider {
         self.id = id;
         self
     }
-    fn locator(&self, id: &WorkspaceId, options: SpaceOpenOptions) -> Result<Locator> {
+    fn locator(&self, id: &WorkspaceId, options: SpaceAttachOptions) -> Result<Locator> {
         options.validate()?;
         let parent = options
             .root
@@ -86,9 +86,13 @@ impl IProvider for SpaceProvider {
     fn id(&self) -> ProviderId {
         self.id.clone()
     }
-    async fn open(&self, request: OpenRequest) -> Result<Arc<dyn IBackend>> {
-        managed::require_no_resources(&request.resources)?;
-        let options: SpaceOpenOptions = request.config.decode()?;
+    async fn create(&self, _request: CreateRequest) -> Result<Arc<dyn IBackend>> {
+        Err(Error::Unsupported(
+            "SPACE resources are created outside this SDK; attach to an existing sandbox".into(),
+        ))
+    }
+    async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {
+        let options: SpaceAttachOptions = request.config.decode()?;
         let locator = self.locator(&request.workspace_id, options)?;
         let reference = WorkspaceRef {
             version: 1,
@@ -111,7 +115,7 @@ impl IProvider for SpaceProvider {
         let locator: Locator = reference.locator.decode()?;
         let expected = self.locator(
             &reference.id,
-            SpaceOpenOptions::new(&locator.sandbox_id, &locator.root),
+            SpaceAttachOptions::new(&locator.sandbox_id, &locator.root),
         )?;
         if locator != expected {
             return Err(Error::InvalidInput(

@@ -47,19 +47,16 @@ impl LocalConfig {
     }
 }
 
-/// Per-workspace options serialized into [`crate::OpenRequest`] `config`.
+/// Options serialized into [`crate::AttachRequest`] `config` for a local project.
 ///
-/// The default creates an SDK-owned project directory. Attachment uses an
-/// existing project while keeping supervisor state under [`LocalConfig::base_dir`].
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct LocalOpenOptions {
-    /// Existing local project directory to attach to, resolved to its canonical path.
-    ///
-    /// `None` creates a new project under the provider's task namespace.
-    /// Attached workspaces support file transfer and managed runs, but their
-    /// workspace-level `stop` and `destroy` operations are disabled.
-    pub attach: Option<PathBuf>,
+/// Creating a local workspace takes no options: it makes a project directory
+/// under the provider's task namespace. Attachment uses an existing project
+/// while keeping supervisor state under [`LocalConfig::base_dir`].
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LocalAttachOptions {
+    /// Existing local project directory, resolved to its canonical path.
+    pub path: PathBuf,
 }
 
 #[cfg(test)]

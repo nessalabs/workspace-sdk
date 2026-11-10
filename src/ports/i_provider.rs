@@ -12,8 +12,16 @@ use std::sync::Arc;
 pub trait IProvider: Send + Sync {
     /// Stable identity used to select this provider in the SDK registry.
     fn id(&self) -> ProviderId;
-    /// Create or attach using concrete provider options and the supplied stable ID.
-    async fn open(&self, request: OpenRequest) -> Result<Arc<dyn IBackend>>;
+    /// Create and initialise a new SDK-owned target under the supplied stable ID.
+    ///
+    /// The returned descriptor must report [`Ownership::SdkOwned`]. Providers that
+    /// cannot create targets refuse with `Unsupported`.
+    async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>>;
+    /// Use an existing target without provisioning it or changing its project files.
+    ///
+    /// The returned descriptor must report [`Ownership::Attached`]. Providers that
+    /// cannot attach refuse with `Unsupported`.
+    async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>>;
     /// Resolve a saved locator without silently recreating missing execution state.
     async fn connect(&self, reference: &WorkspaceRef) -> Result<Arc<dyn IBackend>>;
 }
