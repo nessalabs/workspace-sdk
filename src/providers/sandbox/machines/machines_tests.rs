@@ -1281,10 +1281,11 @@ mod provider {
         let server = server().await;
         let provider = provider(&server);
         let machines = server.machines.clone();
-        let (vm, admitted) = provider
+        let (vm, machine) = provider
             .create_machine(&machines, &options(), &key())
             .await
             .unwrap();
+        let admitted = machine.admission();
         assert_eq!(vm, VM);
         assert_eq!(
             admitted.environment_id,
@@ -1352,5 +1353,110 @@ mod provider {
             .is_err());
         let state = server.state.lock().unwrap();
         assert_eq!((state.deleted, state.commands), (0, 0));
+    }
+
+    /// A machine target as a reconnect builds it, already owned.
+    fn woken(
+        server: &Server,
+        machine: crate::providers::sandbox::locator::Machine,
+    ) -> crate::providers::sandbox::target::SandboxTarget {
+        crate::providers::sandbox::target::SandboxTarget {
+            api: server.machines.api().clone(),
+            supervisor: crate::providers::SupervisorDeployment::default(),
+            locator: crate::providers::managed::Locator {
+                root: "/work/fixture/project".into(),
+                control: "/work/fixture/control".into(),
+                ownership: crate::domain::Ownership::SdkOwned,
+                target: VM.into(),
+            },
+            workspace_id: WorkspaceId::new("fixture").unwrap(),
+            verified_owned: std::sync::atomic::AtomicBool::new(true),
+            wake: std::time::Duration::from_secs(5),
+            machine: Some((server.machines.clone(), machine)),
+        }
+    }
+    async fn made(server: &Server) -> crate::providers::sandbox::locator::Machine {
+        let machines = server.machines.clone();
+        provider(server)
+            .create_machine(&machines, &options(), &key())
+            .await
+            .unwrap()
+            .1
+    }
+
+    /// A stopped machine wakes through `ready`: resumed with its saved
+    /// lifetime and checked again before anything runs in it.
+    #[tokio::test]
+    async fn a_stopped_machine_is_checked_again_on_waking() {
+        use crate::providers::managed::ITarget;
+        let server = server().await;
+        let machine = made(&server).await;
+        {
+            let mut state = server.state.lock().unwrap();
+            state.receipt["sandbox"]["state"] = json!("archived");
+            state.drift_on_resume = true;
+        }
+        match woken(&server, machine).ensure().await {
+            Err(Error::Refused(refusal)) => {
+                assert_eq!(refusal.kind, RefusalKind::NotAdmitted);
+                assert_eq!(refusal.cleanup, RefusalCleanup::Kept);
+                assert_eq!(refusal.target.as_deref(), Some(VM));
+            }
+            Err(other) => panic!("not refused: {other}"),
+            Ok(()) => panic!("not refused"),
+        }
+        let state = server.state.lock().unwrap();
+        // Resumed (the fake checks its lifetime), then stopped again.
+        assert_eq!((state.resumed, state.commands), (1, 1));
+    }
+
+    /// An environment changed since admission refuses the machine before
+    /// it is woken.
+    #[tokio::test]
+    async fn a_machine_whose_environment_changed_is_not_woken() {
+        use crate::providers::managed::ITarget;
+        let server = server().await;
+        let machine = made(&server).await;
+        {
+            let mut state = server.state.lock().unwrap();
+            state.receipt["sandbox"]["state"] = json!("archived");
+            state.environment["id"] = json!("33333333-3333-4333-8333-333333333333");
+        }
+        let woke = woken(&server, machine).ensure().await;
+        assert!(
+            matches!(&woke, Err(Error::Refused(r)) if r.kind == RefusalKind::EnvironmentMismatch),
+            "{woke:?}"
+        );
+        assert_eq!(server.state.lock().unwrap().resumed, 0);
+    }
+
+    /// A machine's reference names it, and only a provider with machines
+    /// reconnects to it.
+    #[tokio::test]
+    async fn only_a_provider_with_machines_reconnects_to_a_machine() {
+        let server = server().await;
+        let machine = made(&server).await;
+        let locator = crate::providers::managed::Locator {
+            root: "/work/fixture/project".into(),
+            control: "/work/fixture/control".into(),
+            ownership: crate::domain::Ownership::SdkOwned,
+            target: VM.into(),
+        };
+        let with = provider(&server);
+        let reference = crate::domain::WorkspaceRef {
+            version: 1,
+            id: WorkspaceId::new("fixture").unwrap(),
+            provider: with.id(),
+            locator: crate::providers::sandbox::locator::encode(&locator, Some(&machine)).unwrap(),
+        };
+        let backend = with.connect(&reference).await.unwrap();
+        assert_eq!(backend.descriptor().admission, Some(machine.admission()));
+        let without = SandboxProvider::new(
+            Api::new(sandbox_client::ClientConfig::new("fixture-only").unwrap()).unwrap(),
+        );
+        assert!(matches!(
+            without.connect(&reference).await,
+            Err(Error::InvalidInput(_))
+        ));
     }
 }

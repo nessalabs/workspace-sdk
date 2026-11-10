@@ -39,6 +39,8 @@ pub(super) struct SandboxTarget {
     pub(super) locator: Locator,
     pub(super) workspace_id: WorkspaceId,
     pub(super) verified_owned: AtomicBool,
+    /// The Boat machine this is, checked on every wake through its machines.
+    pub(super) machine: Option<(super::machines::BoatMachines, super::locator::Machine)>,
     /// How long one wake may take: every request and wait before the
     /// supervisor is installed.
     pub(super) wake: std::time::Duration,
@@ -281,6 +283,18 @@ impl ITarget for SandboxTarget {
         result
     }
     async fn ensure(&self) -> Result<()> {
+        if let Some((machines, machine)) = &self.machine {
+            if !self.verified_owned.load(Ordering::Acquire) {
+                self.verify_ownership().await?;
+            }
+            machines
+                .ready(&machine.spec, &self.locator.target, &machine.admitted)
+                .await
+                .map_err(|failed| {
+                    super::provider::wake_failure(failed, &self.locator.target, machine)
+                })?;
+            return self.install_supervisor().await;
+        }
         // Every request and wait of the wake spends one deadline; installing
         // the supervisor afterwards has bounds of its own.
         let deadline = tokio::time::Instant::now() + self.wake;
@@ -489,6 +503,7 @@ mod tests {
             workspace_id: WorkspaceId::new("test").unwrap(),
             verified_owned: AtomicBool::new(false),
             wake: Duration::from_secs(5),
+            machine: None,
         };
         (target, worker)
     }

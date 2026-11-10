@@ -1,8 +1,13 @@
 use super::machines::{
     AdmissionRefusal, AdmissionRejection, BoatMachines, Budget, Created, Disposition,
-    EnvironmentIdentity, MachineFailure, MachineSpec, StopCause,
+    MachineFailure, MachineSpec, StopCause,
 };
-use super::{error::error, target::SandboxTarget, SandboxAttachOptions, SandboxCreateOptions};
+use super::{
+    error::error,
+    locator::{self, Machine},
+    target::SandboxTarget,
+    SandboxAttachOptions, SandboxCreateOptions,
+};
 use crate::providers::managed::{self, Locator, ManagedBackend};
 use crate::providers::SupervisorDeployment;
 use crate::{
@@ -68,11 +73,16 @@ impl SandboxProvider {
     /// then keeps it rather than deleting it; its lifetime bounds the cost.
     ///
     /// The environment's posture changing after a machine was made refuses
-    /// it for good; fixing the posture later does not save it. Admission
-    /// covers creation only: waking a stopped workspace later
-    /// resumes it without checking it again. Every call, attaching and
-    /// reconnecting included, uses the machines' account in its personal
-    /// scope.
+    /// it for good; fixing the posture later does not save it.
+    ///
+    /// Every wake checks the machine again, as [`BoatMachines::ready`] does,
+    /// with the spec and admission saved in its reference (not its
+    /// variables, which only creation uses). A cause that can never pass
+    /// refuses it ([`Error::Refused`]); the SDK's record stays Ready, so
+    /// each later wake refuses it the same way. A provider made without
+    /// machines refuses to reconnect to a machine. Every call, attaching
+    /// and reconnecting included, uses the machines' account in its
+    /// personal scope.
     pub fn from_machines(machines: BoatMachines) -> Self {
         let mut provider = Self::new(machines.api().clone());
         provider.machines = Some(machines);
@@ -80,7 +90,8 @@ impl SandboxProvider {
     }
 
     /// How long waking a stopped workspace may take: every request and wait
-    /// before its supervisor is installed. Five minutes by default.
+    /// before its supervisor is installed. Five minutes by default. A Boat
+    /// machine's wake is bounded by its machines' own budget instead.
     pub fn with_wake_budget(mut self, budget: Budget) -> Self {
         self.wake = budget;
         self
@@ -125,7 +136,7 @@ impl SandboxProvider {
         machines: &BoatMachines,
         options: &SandboxCreateOptions,
         key: &ProvisionKey,
-    ) -> Result<(String, Admission)> {
+    ) -> Result<(String, Machine)> {
         let spec = spec(options)?;
         machines.prepare(&spec).await.map_err(failure)?;
         let created = machines
@@ -143,7 +154,13 @@ impl SandboxProvider {
                 .ready(&spec, created.vm(), created.admission())
                 .await
             {
-                Ok(_) => return Ok((created.vm().to_owned(), admission(created.admission()))),
+                Ok(_) => {
+                    let machine = Machine {
+                        spec,
+                        admitted: created.admission().clone(),
+                    };
+                    return Ok((created.vm().to_owned(), machine));
+                }
                 Err(MachineFailure::AdmissionRejected(rejection)) => rejection,
                 // `ready` stops a VM it woke; a fresh one this creation made
                 // is stopped too, and the retry wakes it again.
@@ -175,7 +192,7 @@ impl SandboxProvider {
                 ),
             });
         };
-        Err(refuse(machines, &created, &rejected, kind).await)
+        Err(refuse(machines, &spec, &created, &rejected, kind).await)
     }
     async fn open(
         &self,
@@ -183,7 +200,7 @@ impl SandboxProvider {
         root: &str,
         target: String,
         ownership: Ownership,
-        admission: Option<Admission>,
+        machine: Option<Machine>,
     ) -> Result<Arc<dyn IBackend>> {
         let directory = format!("{}/{}", root.trim_end_matches('/'), workspace_id);
         let locator = Locator {
@@ -196,11 +213,10 @@ impl SandboxProvider {
             version: 1,
             id: workspace_id,
             provider: self.id(),
-            locator: WorkspaceLocator::from_locator(&locator)?,
+            locator: locator::encode(&locator, machine.as_ref())?,
         };
         let creation_receipt = locator.ownership == Ownership::SdkOwned;
-        let mut backend = self.backend(reference, locator, creation_receipt);
-        backend.descriptor.admission = admission;
+        let backend = self.backend(reference, locator, machine, creation_receipt)?;
         // The stable create key makes a failed bootstrap retryable. Initialization
         // is only permitted here: reconnect must not recreate vanished run claims.
         backend.target.ensure().await?;
@@ -211,10 +227,22 @@ impl SandboxProvider {
         &self,
         reference: WorkspaceRef,
         locator: Locator,
+        machine: Option<Machine>,
         creation_receipt: bool,
-    ) -> ManagedBackend {
+    ) -> Result<ManagedBackend> {
         let owned = locator.ownership == Ownership::SdkOwned;
-        ManagedBackend {
+        let machine = match (machine, &self.machines) {
+            (None, _) => None,
+            (Some(machine), Some(machines)) => Some((machines.clone(), machine)),
+            (Some(_), None) => {
+                return Err(Error::InvalidInput(
+                    "this workspace is a Boat machine, checked on every wake; \
+                     reconnect through SandboxProvider::from_machines"
+                        .into(),
+                ))
+            }
+        };
+        Ok(ManagedBackend {
             descriptor: BackendDescriptor {
                 reference: reference.clone(),
                 root: locator.root.clone(),
@@ -229,7 +257,7 @@ impl SandboxProvider {
                     private_ports: false,
                     hosted_ports: true,
                 },
-                admission: None,
+                admission: machine.as_ref().map(|(_, machine)| machine.admission()),
             },
             target: Arc::new(SandboxTarget {
                 api: self.api.clone(),
@@ -238,8 +266,9 @@ impl SandboxProvider {
                 workspace_id: reference.id,
                 verified_owned: AtomicBool::new(creation_receipt),
                 wake: self.wake.duration(),
+                machine,
             }),
-        }
+        })
     }
 }
 #[async_trait]
@@ -259,14 +288,14 @@ impl IProvider for SandboxProvider {
         let key = request.provision_key();
         let options = self.create_options(&request)?;
         if let Some(machines) = &self.machines {
-            let (vm, admission) = self.create_machine(machines, &options, &key).await?;
+            let (vm, machine) = self.create_machine(machines, &options, &key).await?;
             return self
                 .open(
                     request.workspace_id,
                     &options.root,
                     vm,
                     Ownership::SdkOwned,
-                    Some(admission),
+                    Some(machine),
                 )
                 .await;
         }
@@ -311,7 +340,7 @@ impl IProvider for SandboxProvider {
         .await
     }
     async fn connect(&self, reference: &WorkspaceRef) -> Result<Arc<dyn IBackend>> {
-        let locator = managed::decode(reference, &self.id())?;
+        let (locator, machine) = locator::decode(reference, &self.id())?;
         let suffix = format!("/{}/project", reference.id);
         if !locator.root.ends_with(&suffix)
             || locator.control != format!("{}/control", locator.root.trim_end_matches("/project"))
@@ -320,7 +349,12 @@ impl IProvider for SandboxProvider {
                 "Sandbox locator is outside the workspace namespace".into(),
             ));
         }
-        Ok(Arc::new(self.backend(reference.clone(), locator, false)))
+        Ok(Arc::new(self.backend(
+            reference.clone(),
+            locator,
+            machine,
+            false,
+        )?))
     }
 }
 
@@ -349,16 +383,6 @@ fn spec(options: &SandboxCreateOptions) -> Result<MachineSpec> {
     })
 }
 
-/// What the SDK saves of the environment a machine was admitted under.
-fn admission(identity: &EnvironmentIdentity) -> Admission {
-    Admission {
-        environment_id: identity.id().into(),
-        version_id: identity.version_id().into(),
-        version: identity.version().to_string(),
-        name: identity.name().into(),
-    }
-}
-
 /// The refusal a cause is, when it is certain from the receipt and can never
 /// pass later; `None` for a check that may pass when asked again.
 fn final_kind(cause: AdmissionRefusal) -> Option<RefusalKind> {
@@ -381,6 +405,7 @@ fn final_kind(cause: AdmissionRefusal) -> Option<RefusalKind> {
 /// found when Boat replayed it, since it may be in use elsewhere.
 async fn refuse(
     machines: &BoatMachines,
+    spec: &MachineSpec,
     created: &Created,
     rejection: &AdmissionRejection,
     kind: RefusalKind,
@@ -399,7 +424,13 @@ async fn refuse(
         message: rejection.to_string(),
         cleanup,
         target: Some(created.vm().to_owned()),
-        admission: Some(admission(created.admission())),
+        admission: Some(
+            Machine {
+                spec: spec.clone(),
+                admitted: created.admission().clone(),
+            }
+            .admission(),
+        ),
     }))
 }
 
@@ -430,5 +461,26 @@ fn failure(failure: MachineFailure) -> Error {
         MachineFailure::CleanupUncertain => provider("Boat did not confirm a deletion"),
         MachineFailure::AdmissionRejected(rejection) => provider(&rejection.to_string()),
         MachineFailure::Provider => provider("Boat failed, refused or timed out"),
+    }
+}
+
+/// A machine that failed its check on waking: refused when the cause is
+/// final, left for the next wake otherwise. `ready` stopped it if it woke it.
+pub(super) fn wake_failure(failed: MachineFailure, vm: &str, machine: &Machine) -> Error {
+    let MachineFailure::AdmissionRejected(rejection) = failed else {
+        return failure(failed);
+    };
+    match final_kind(rejection.cause()) {
+        Some(kind) => Error::Refused(Box::new(Refusal {
+            kind,
+            message: rejection.to_string(),
+            cleanup: RefusalCleanup::Kept,
+            target: Some(vm.to_owned()),
+            admission: Some(machine.admission()),
+        })),
+        None => Error::Provider {
+            provider: super::branding::NAME.into(),
+            message: format!("{rejection}; waking it again checks it again"),
+        },
     }
 }

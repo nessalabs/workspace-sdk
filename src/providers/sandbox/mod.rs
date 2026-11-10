@@ -3,6 +3,7 @@ mod configuration;
 mod connection;
 mod deletion;
 mod error;
+mod locator;
 pub mod machines;
 mod provider;
 mod target;
