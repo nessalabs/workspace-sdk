@@ -16,20 +16,20 @@ pub struct SandboxCreateOptions {
     #[serde(default = "default_ttl")]
     pub ttl_seconds: Option<u32>,
     /// Explicit provider environment at creation. None disables implicit environment injection.
-    /// A provider with [Boat machines](super::SandboxProvider::with_machines)
+    /// A provider with [Boat machines](super::SandboxProvider::from_machines)
     /// requires one and admits the machine only under it.
     #[serde(default)]
     pub environment: Option<String>,
     /// The snapshot a machine is made from, a snapshot id `bsh_…` or a
     /// named snapshot. Only a provider with
-    /// [Boat machines](super::SandboxProvider::with_machines) takes one, and
+    /// [Boat machines](super::SandboxProvider::from_machines) takes one, and
     /// it requires one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
     /// Variables set in a machine when it is made; only a provider with
-    /// [Boat machines](super::SandboxProvider::with_machines) takes them.
-    /// They are part of the request and are saved and compared with it, so
-    /// none may be a secret.
+    /// [Boat machines](super::SandboxProvider::from_machines) takes them.
+    /// They are sent to Boat, hashed into the saved record's identity, and
+    /// printed by the request's `Debug`, so none may be a secret.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub variables: BTreeMap<String, String>,
 }

@@ -39,10 +39,47 @@ pub(super) struct SandboxTarget {
     pub(super) locator: Locator,
     pub(super) workspace_id: WorkspaceId,
     pub(super) verified_owned: AtomicBool,
-    /// How long one wake may take, every wait in it included.
+    /// How long one wake may take: every request and wait before the
+    /// supervisor is installed.
     pub(super) wake: std::time::Duration,
 }
 impl SandboxTarget {
+    async fn wake_by(&self, deadline: tokio::time::Instant) -> Result<()> {
+        // A stop returns once Boat accepts it, while the sandbox may still be
+        // archiving; it can only be resumed once archived.
+        let mut info = self.api.get(&self.locator.target).await.map_err(error)?;
+        while info.sandbox.state == SandboxState::Archiving {
+            tokio::time::sleep(ARCHIVE_POLL).await;
+            info = self.api.get(&self.locator.target).await.map_err(error)?;
+        }
+        if info.sandbox.state == SandboxState::Archived {
+            if self.locator.ownership == Ownership::Attached {
+                return Err(Error::State(
+                    "attached Sandbox is archived; its owner must resume it".into(),
+                ));
+            }
+            self.verify_ownership().await?;
+            self.api
+                .resume(&self.locator.target, None)
+                .await
+                .map_err(error)?;
+        }
+        // The client reads a zero wait as none at all, so a spent budget
+        // ends here.
+        let left = deadline.saturating_duration_since(tokio::time::Instant::now());
+        let left = u64::try_from(left.as_millis()).unwrap_or(u64::MAX);
+        if left == 0 {
+            return Err(Error::Timeout("the Sandbox did not wake in time".into()));
+        }
+        wait_until_ready_with(
+            &self.api,
+            &self.locator.target,
+            WaitOptions::from_millis(left, 1_000),
+        )
+        .await
+        .map_err(error)?;
+        Ok(())
+    }
     async fn native(&self, command: String) -> Result<CommandResponse> {
         let result = self
             .api
@@ -244,47 +281,12 @@ impl ITarget for SandboxTarget {
         result
     }
     async fn ensure(&self) -> Result<()> {
-        // A stop returns once Boat accepts it, while the sandbox may still be
-        // archiving; it can only be resumed once archived.
+        // Every request and wait of the wake spends one deadline; installing
+        // the supervisor afterwards has bounds of its own.
         let deadline = tokio::time::Instant::now() + self.wake;
-        let mut info = self.api.get(&self.locator.target).await.map_err(error)?;
-        while info.sandbox.state == SandboxState::Archiving {
-            if tokio::time::Instant::now() >= deadline {
-                return Err(Error::State(
-                    "Sandbox is still archiving; try again once it has stopped".into(),
-                ));
-            }
-            tokio::time::sleep(ARCHIVE_POLL).await;
-            info = self.api.get(&self.locator.target).await.map_err(error)?;
-        }
-        if info.sandbox.state == SandboxState::Archived {
-            if self.locator.ownership == Ownership::Attached {
-                return Err(Error::State(
-                    "attached Sandbox is archived; its owner must resume it".into(),
-                ));
-            }
-            self.verify_ownership().await?;
-            self.api
-                .resume(&self.locator.target, None)
-                .await
-                .map_err(error)?;
-        }
-        // The client reads a zero wait as none at all, so a spent budget
-        // ends here.
-        let left = deadline.saturating_duration_since(tokio::time::Instant::now());
-        let left = u64::try_from(left.as_millis()).unwrap_or(u64::MAX);
-        if left == 0 {
-            return Err(Error::Timeout(
-                "the Sandbox did not become ready in time".into(),
-            ));
-        }
-        wait_until_ready_with(
-            &self.api,
-            &self.locator.target,
-            WaitOptions::from_millis(left, 1_000),
-        )
-        .await
-        .map_err(error)?;
+        tokio::time::timeout_at(deadline, self.wake_by(deadline))
+            .await
+            .map_err(|_| Error::Timeout("the Sandbox did not wake in time".into()))??;
         self.install_supervisor().await
     }
     async fn state(&self) -> Result<WorkspaceState> {
@@ -528,10 +530,10 @@ mod tests {
             serde_json::from_str(include_str!("machines/fixtures/boat-v1-sandbox.json")).unwrap();
         archiving["sandbox"]["id"] = "bx_23456789".into();
         archiving["sandbox"]["state"] = "archiving".into();
-        let (mut target, worker) = server(vec![archiving.to_string(); 3]);
+        let (mut target, worker) = server(vec![archiving.to_string(); 2]);
         target.wake = Duration::from_millis(1_500);
         let started = std::time::Instant::now();
-        assert!(matches!(target.ensure().await, Err(Error::State(_))));
+        assert!(matches!(target.ensure().await, Err(Error::Timeout(_))));
         assert!(started.elapsed() < Duration::from_secs(5));
         let requests = worker.join().unwrap();
         assert!(requests.iter().all(|r| r.method == "GET"));

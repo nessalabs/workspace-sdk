@@ -1,6 +1,6 @@
 use super::machines::{
     AdmissionRefusal, AdmissionRejection, BoatMachines, Budget, Created, Disposition,
-    EnvironmentIdentity, MachineFailure, MachineSpec,
+    EnvironmentIdentity, MachineFailure, MachineSpec, StopCause,
 };
 use super::{error::error, target::SandboxTarget, SandboxAttachOptions, SandboxCreateOptions};
 use crate::providers::managed::{self, Locator, ManagedBackend};
@@ -30,7 +30,7 @@ const WAKE: Duration = Duration::from_secs(300);
 /// Connections need `ssh` and `ssh-keygen` on this machine, and Linux with
 /// `/proc` on the workspace's.
 ///
-/// With [`SandboxProvider::with_machines`], every workspace it creates is a
+/// With [`SandboxProvider::from_machines`], every workspace it creates is a
 /// Boat machine admitted in full, and a machine that fails admission is
 /// refused with its reason.
 #[derive(Clone)]
@@ -54,23 +54,30 @@ impl SandboxProvider {
         self
     }
 
-    /// Create every workspace as one of `machines`, admitted in full: its
-    /// account's environment, its creation and its receipt are checked, and
-    /// a machine that fails is refused ([`Error::Refused`]) with the reason,
-    /// and deleted when this creation made it. Creating then takes an
-    /// `image` and an `environment` in [`SandboxCreateOptions`], and a
-    /// `sandbox_type`.
+    /// A provider that creates every workspace as one of `machines`,
+    /// admitted when it is made: the account's environment, the creation and
+    /// the machine's receipt are checked. Creating takes an `image`, an
+    /// `environment` and a `sandbox_type` in [`SandboxCreateOptions`].
     ///
-    /// Every call then uses the machines' account, in its personal scope:
-    /// it replaces the client this provider was made with.
-    pub fn with_machines(mut self, machines: BoatMachines) -> Self {
-        self.api = machines.api().clone();
-        self.machines = Some(machines);
-        self
+    /// A machine whose receipt shows it can never be used is refused
+    /// ([`Error::Refused`]) with the reason, and deleted when this creation
+    /// made it. A check that may pass later (a receipt that did not arrive,
+    /// a wipe still pending, an environment changed meanwhile) fails without
+    /// an outcome: the machine is stopped, and asking again with the same
+    /// record checks it again.
+    ///
+    /// Admission covers creation only: waking a stopped workspace later
+    /// resumes it without checking it again. Every call, attaching and
+    /// reconnecting included, uses the machines' account in its personal
+    /// scope.
+    pub fn from_machines(machines: BoatMachines) -> Self {
+        let mut provider = Self::new(machines.api().clone());
+        provider.machines = Some(machines);
+        provider
     }
 
-    /// How long waking a stopped workspace may take, waiting out an archive,
-    /// resuming and becoming ready included. Five minutes by default.
+    /// How long waking a stopped workspace may take: every request and wait
+    /// before its supervisor is installed. Five minutes by default.
     pub fn with_wake_budget(mut self, budget: Budget) -> Self {
         self.wake = budget;
         self
@@ -122,19 +129,31 @@ impl SandboxProvider {
             .create(&spec, key.as_str())
             .await
             .map_err(failure)?;
-        if let Some(rejection) = created.refusal() {
-            return Err(refuse(machines, &created, rejection).await);
-        }
-        match machines
-            .ready(&spec, created.vm(), created.admission())
-            .await
-        {
-            Ok(_) => Ok((created.vm().to_owned(), admission(created.admission()))),
-            Err(MachineFailure::AdmissionRejected(rejection)) => {
-                Err(refuse(machines, &created, &rejection).await)
-            }
-            Err(other) => Err(failure(other)),
-        }
+        let rejected = match created.refusal() {
+            Some(rejection) => rejection.clone(),
+            None => match machines
+                .ready(&spec, created.vm(), created.admission())
+                .await
+            {
+                Ok(_) => return Ok((created.vm().to_owned(), admission(created.admission()))),
+                Err(MachineFailure::AdmissionRejected(rejection)) => rejection,
+                Err(other) => {
+                    // `ready` may have resumed it; the retry resumes it again.
+                    let _ = machines.stop(created.vm(), StopCause::Closed).await;
+                    return Err(failure(other));
+                }
+            },
+        };
+        let Some(kind) = final_kind(rejected.cause()) else {
+            // Deleting it would leave the same key naming a machine that is
+            // gone, so it is kept, stopped, for the retry to check again.
+            let _ = machines.stop(created.vm(), StopCause::Closed).await;
+            return Err(Error::Provider {
+                provider: super::branding::NAME.into(),
+                message: format!("{rejected}; asking again checks the machine again"),
+            });
+        };
+        Err(refuse(machines, &created, &rejected, kind).await)
     }
     async fn open(
         &self,
@@ -318,32 +337,42 @@ fn admission(identity: &EnvironmentIdentity) -> Admission {
     }
 }
 
-/// A refused machine, deleted first when this creation made it.
+/// The refusal a cause is, when it is certain from the receipt and can never
+/// pass later; `None` for a check that may pass when asked again.
+fn final_kind(cause: AdmissionRefusal) -> Option<RefusalKind> {
+    match cause {
+        AdmissionRefusal::MissingEnvironment
+        | AdmissionRefusal::WrongEnvironment
+        | AdmissionRefusal::MissingVersion
+        | AdmissionRefusal::WrongVersion => Some(RefusalKind::EnvironmentMismatch),
+        AdmissionRefusal::EnvironmentUnavailable
+        | AdmissionRefusal::InvalidReceipt
+        | AdmissionRefusal::LifetimeNotEnforced => Some(RefusalKind::NotAdmitted),
+        AdmissionRefusal::EnvironmentChanged
+        | AdmissionRefusal::ReceiptUnavailable
+        | AdmissionRefusal::WipePending => None,
+    }
+}
+
+/// A refused machine: deleted first when this creation made it, and only
+/// stopped when Boat replayed it, since it may be in use elsewhere.
 async fn refuse(
     machines: &BoatMachines,
     created: &Created,
     rejection: &AdmissionRejection,
+    kind: RefusalKind,
 ) -> Error {
     let cleanup = match created.disposition() {
-        Disposition::RetainTarget => RefusalCleanup::Kept,
+        Disposition::RetainTarget => {
+            let _ = machines.stop(created.vm(), StopCause::Closed).await;
+            RefusalCleanup::Kept
+        }
         // Boat never confirms a deletion, and an answer that cannot be read
         // may follow one it made, so any deletion asked ends uncertain.
         Disposition::RollbackNewVm => {
             let _ = machines.roll_back(created).await;
             RefusalCleanup::Unknown
         }
-    };
-    let kind = match rejection.cause() {
-        AdmissionRefusal::MissingEnvironment
-        | AdmissionRefusal::WrongEnvironment
-        | AdmissionRefusal::MissingVersion
-        | AdmissionRefusal::WrongVersion
-        | AdmissionRefusal::EnvironmentChanged
-        | AdmissionRefusal::EnvironmentUnavailable => RefusalKind::EnvironmentMismatch,
-        AdmissionRefusal::WipePending => RefusalKind::PendingWipe,
-        AdmissionRefusal::InvalidReceipt
-        | AdmissionRefusal::ReceiptUnavailable
-        | AdmissionRefusal::LifetimeNotEnforced => RefusalKind::NotAdmitted,
     };
     Error::Refused(Box::new(Refusal {
         kind,
@@ -365,7 +394,11 @@ fn failure(failure: MachineFailure) -> Error {
         MachineFailure::InvalidInput => {
             Error::InvalidInput("Boat could not take the machine's spec or key".into())
         }
-        MachineFailure::Missing => Error::NotFound("Boat does not know the image".into()),
+        MachineFailure::Missing => Error::NotFound(
+            "Boat does not know the image, or the machine its key names is gone; \
+             forget the unfinished workspace to start again"
+                .into(),
+        ),
         MachineFailure::EnvironmentUnavailable => Error::State(
             "the account's environment is ambiguous or passes more than agent credentials; \
              fix or delete it"

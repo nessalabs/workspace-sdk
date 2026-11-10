@@ -1048,12 +1048,11 @@ mod provider {
         CreateRequest::with_options(WorkspaceId::new("fixture").unwrap(), options).unwrap()
     }
     fn provider(server: &Server) -> SandboxProvider {
-        let unused = sandbox_client::ClientConfig::new("other-account").unwrap();
         server.state.lock().unwrap().expected_key =
             ProvisionKey::for_workspace(&WorkspaceId::new("fixture").unwrap())
                 .as_str()
                 .into();
-        SandboxProvider::new(Api::new(unused).unwrap()).with_machines(server.machines.clone())
+        SandboxProvider::from_machines(server.machines.clone())
     }
     async fn refusal(server: &Server) -> crate::domain::Refusal {
         match provider(server).create(request(&options())).await {
@@ -1118,7 +1117,7 @@ mod provider {
         assert_eq!(refusal.cleanup, RefusalCleanup::Unknown);
         assert!(
             refusal.message.contains("another environment")
-                && refusal.message.contains("`elsewhere`"),
+                && refusal.message.contains("\"elsewhere\""),
             "{}",
             refusal.message
         );
@@ -1129,15 +1128,52 @@ mod provider {
         assert_eq!((state.created, state.deleted, state.commands), (1, 1, 0));
     }
 
+    /// A wipe may finish once the machine restarts, so it is no outcome:
+    /// the machine is stopped, not deleted, and the record stays pending so
+    /// the same key checks the same machine again.
     #[tokio::test]
-    async fn a_pending_wipe_is_its_own_reason_and_its_deletion_stays_uncertain() {
+    async fn a_pending_wipe_stops_the_machine_and_leaves_the_record_pending() {
         let server = server().await;
         server.state.lock().unwrap().receipt["sandbox"]["wipePendingUntilRestart"] = json!(true);
+        let provider = Arc::new(provider(&server));
+        let id = provider.id();
+        let sdk = WorkspaceSdk::builder(Arc::new(MemoryStateRepository::default()))
+            .provider(provider)
+            .unwrap()
+            .build()
+            .unwrap();
+        match sdk.create(&id, request(&options())).await {
+            Err(Error::Provider { message, .. }) => {
+                assert!(message.contains("credentials from its image"), "{message}")
+            }
+            _ => panic!("not a retryable failure"),
+        }
+        let record = sdk
+            .record(&WorkspaceId::new("fixture").unwrap())
+            .unwrap()
+            .unwrap();
+        assert!(matches!(record.state, MachineState::Provisioning { .. }));
+        let state = server.state.lock().unwrap();
+        // The one other request is the stop.
+        assert_eq!((state.deleted, state.commands), (0, 1));
+    }
+
+    /// A replayed machine that `ready` resumed and then refused is stopped,
+    /// never deleted.
+    #[tokio::test]
+    async fn a_replayed_machine_refused_after_resuming_is_stopped_and_kept() {
+        let server = server().await;
+        {
+            let mut state = server.state.lock().unwrap();
+            state.creation_ack["status"] = json!("ready");
+            state.receipt["sandbox"]["state"] = json!("archived");
+            state.drift_on_resume = true;
+        }
         let refusal = refusal(&server).await;
-        assert_eq!(refusal.kind, RefusalKind::PendingWipe);
-        // Even a refused deletion may have been made before its answer.
-        assert_eq!(refusal.cleanup, RefusalCleanup::Unknown);
-        assert_eq!(server.state.lock().unwrap().deleted, 1);
+        assert_eq!(refusal.kind, RefusalKind::NotAdmitted);
+        assert_eq!(refusal.cleanup, RefusalCleanup::Kept);
+        let state = server.state.lock().unwrap();
+        assert_eq!((state.resumed, state.deleted, state.commands), (1, 0, 1));
     }
 
     #[tokio::test]
@@ -1152,7 +1188,9 @@ mod provider {
         assert_eq!(refusal.kind, RefusalKind::EnvironmentMismatch);
         assert_eq!(refusal.cleanup, RefusalCleanup::Kept);
         assert!(refusal.message.contains("version 9"), "{}", refusal.message);
-        assert_eq!(server.state.lock().unwrap().deleted, 0);
+        let state = server.state.lock().unwrap();
+        // Stopped, since it may be in use elsewhere; never deleted.
+        assert_eq!((state.deleted, state.commands), (0, 1));
     }
 
     #[tokio::test]

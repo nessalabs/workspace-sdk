@@ -214,8 +214,8 @@ impl std::fmt::Display for AdmissionRejection {
         f.write_str(self.cause.describe())?;
         if let Some(observed) = &self.observed {
             match (&observed.name, observed.version) {
-                (Some(name), Some(version)) => write!(f, " (it names `{name}` version {version})"),
-                (Some(name), None) => write!(f, " (it names `{name}`)"),
+                (Some(name), Some(version)) => write!(f, " (it names {name:?} version {version})"),
+                (Some(name), None) => write!(f, " (it names {name:?})"),
                 (None, Some(version)) => write!(f, " (it names version {version})"),
                 (None, None) => Ok(()),
             }?;
