@@ -1,5 +1,5 @@
 //! Isolated Linux SDK -> provider -> subprocess supervisor -> synthetic filesystem E2E.
-#![cfg(target_os = "linux")]
+#![cfg(all(feature = "portability", target_os = "linux"))]
 use std::{fs, path::Path, sync::Arc};
 use tempfile::TempDir;
 use workspace_sdk::{

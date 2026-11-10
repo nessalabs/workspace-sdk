@@ -1,7 +1,8 @@
 //! Synchronization workflow context: durable progress and retry identity.
 //!
 //! [`SyncSession`] and [`HandoffReceipt`] have stable identities and changing
-//! progress. They are persisted entity snapshots; [`crate::SyncService`] is the
+//! progress. They are persisted entity snapshots, compiled in every build so
+//! the state file has one format; `SyncService` (`portability` feature) is the
 //! application service that enforces transitions under an exclusive workflow
 //! lease. Their checkpoint references point to immutable artifacts owned by
 //! [`crate::checkpoint`]. The workspace and execution contexts own target and

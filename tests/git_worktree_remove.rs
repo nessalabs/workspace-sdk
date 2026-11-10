@@ -1,6 +1,6 @@
 //! Explicit non-force Git removal on disposable native workspaces. Ignored files
 //! may be deleted by Git; refusal is not a transactional rollback guarantee.
-#![cfg(unix)]
+#![cfg(all(feature = "portability", unix))]
 #[path = "support/git_worktree_fixture.rs"]
 mod fixture;
 

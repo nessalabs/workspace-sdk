@@ -12,6 +12,13 @@ publish = false
 default = ["boat"]
 boat = ["dep:sandbox_client", "dep:reqwest", "dep:serde_path_to_error"]
 space = ["dep:reqwest"]
+# Docker/Podman-compatible container provider.
+container = []
+# Workspace portability: checkpoints, sync, handoff, recovery, Git worktree
+# helpers, directory observation and the file-browser and tree-transfer
+# backend operations. Shipped supervisors are built with it so they serve
+# clients built with or without it.
+portability = ["dep:ignore", "dep:flate2"]
 # In-memory state repository for tests; never for production callers.
 testing = []
 
@@ -21,7 +28,7 @@ async-trait = "0.1"
 base64 = "0.22"
 sandbox_client = { package = "boat_client", path = "vendor/sandbox-client", optional = true }
 fs2 = "0.4"
-ignore = "0.4"
+ignore = { version = "0.4", optional = true }
 reqwest = { version = "0.12.28", default-features = false, features = ["json", "rustls-tls"], optional = true }
 libc = "0.2"
 semver = "1"
@@ -30,7 +37,7 @@ serde_json = "1"
 serde_path_to_error = { version = "0.1", optional = true }
 socket2 = "0.6"
 sha2 = "0.10"
-flate2 = "1"
+flate2 = { version = "1", optional = true }
 tempfile = "3"
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "process", "time", "io-util", "fs", "sync", "signal"] }
@@ -44,3 +51,7 @@ path = "src/bin/workspace-supervisor.rs"
 workspace_sdk = { path = ".", features = ["testing"] }
 axum = "0.8"
 tokio = { version = "1", features = ["test-util"] }
+
+[[example]]
+name = "local_workflow"
+required-features = ["portability"]

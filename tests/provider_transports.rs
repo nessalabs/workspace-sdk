@@ -8,6 +8,7 @@ use workspace_sdk::supervisor::protocol::{
 };
 use workspace_sdk::{providers::*, *};
 
+#[cfg(feature = "container")]
 #[derive(serde::Serialize)]
 struct TestLocator<'a> {
     root: &'a str,
@@ -92,6 +93,7 @@ async fn ssh_verifies_known_hosts_and_puts_secrets_on_stdin() {
     assert!(String::from_utf8_lossy(&calls[1].stdin).contains("secret-must-not-be-an-argument"));
     assert_eq!(backend.descriptor().isolation, Isolation::TrustedHost);
 }
+#[cfg(feature = "container")]
 #[tokio::test]
 async fn container_preflight_does_not_create_when_engine_is_missing() {
     let provider = ContainerProvider::new(ContainerConfig::new(
@@ -105,6 +107,7 @@ async fn container_preflight_does_not_create_when_engine_is_missing() {
         Err(Error::NotFound(_))
     ));
 }
+#[cfg(feature = "container")]
 #[tokio::test]
 async fn container_rejects_collision_with_unowned_existing_container() {
     let runner = Arc::new(RecordingRunner::default());
@@ -126,6 +129,7 @@ async fn container_rejects_collision_with_unowned_existing_container() {
     ));
     assert_eq!(runner.requests.lock().unwrap().len(), 2);
 }
+#[cfg(feature = "container")]
 #[tokio::test]
 async fn attached_container_lifecycle_is_not_mutated() {
     let runner = Arc::new(RecordingRunner::default());
@@ -160,6 +164,7 @@ async fn attached_container_lifecycle_is_not_mutated() {
         .is_some_and(|arg| ["run", "start", "stop", "rm"].contains(&arg.as_str()))));
 }
 
+#[cfg(feature = "container")]
 #[tokio::test]
 async fn container_deletion_receipt_reconnects_and_finishes_a_remaining_volume() {
     let runner = Arc::new(RecordingRunner::default());
@@ -239,6 +244,7 @@ async fn container_deletion_receipt_reconnects_and_finishes_a_remaining_volume()
     assert!(runner.responses.lock().unwrap().is_empty());
 }
 
+#[cfg(feature = "container")]
 #[tokio::test]
 async fn container_creation_refuses_to_reuse_an_unowned_volume() {
     let runner = Arc::new(RecordingRunner::default());
@@ -259,12 +265,14 @@ async fn container_creation_refuses_to_reuse_an_unowned_volume() {
     assert_eq!(runner.requests.lock().unwrap().len(), 3);
 }
 
+#[cfg(feature = "portability")]
 async fn browser_backend(runner: Arc<RecordingRunner>) -> Arc<dyn workspace_sdk::ports::IBackend> {
     let provider =
         SshProvider::with_runner(SshConfig::trusted_host("worker", "/srv/workspaces"), runner)
             .unwrap();
     provider.create(request("browser-contract")).await.unwrap()
 }
+#[cfg(feature = "portability")]
 fn browser_publish(bytes: Vec<u8>) -> PublishFile {
     PublishFile {
         path: WorkspacePath::new("file").unwrap(),
@@ -273,6 +281,7 @@ fn browser_publish(bytes: Vec<u8>) -> PublishFile {
         executable: false,
     }
 }
+#[cfg(feature = "portability")]
 #[tokio::test]
 async fn browser_invalid_requests_are_rejected_before_transport() {
     let runner = Arc::new(RecordingRunner::default());
@@ -301,6 +310,7 @@ async fn browser_invalid_requests_are_rejected_before_transport() {
         .is_err());
     assert_eq!(runner.requests.lock().unwrap().len(), count);
 }
+#[cfg(feature = "portability")]
 #[tokio::test]
 async fn browser_lost_malformed_and_failed_acknowledgements_are_unknown_without_replay() {
     let runner = Arc::new(RecordingRunner::default());
@@ -351,6 +361,7 @@ async fn browser_lost_malformed_and_failed_acknowledgements_are_unknown_without_
         Err(Error::Unsupported(_))
     ));
 }
+#[cfg(feature = "portability")]
 #[tokio::test]
 async fn browser_malformed_directory_pages_are_rejected() {
     let runner = Arc::new(RecordingRunner::default());
@@ -412,4 +423,69 @@ async fn browser_malformed_directory_pages_are_rejected() {
             Err(Error::State(_))
         ));
     }
+}
+/// A supervisor built without `portability` answers these operations with an
+/// Unsupported failure (see the supervisor's unknown-operation tests). The
+/// client must surface that refusal as `Unsupported`, and a publish it refused
+/// before dispatch is not an unknown outcome.
+#[cfg(feature = "portability")]
+#[tokio::test]
+async fn operations_a_supervisor_build_lacks_come_back_unsupported() {
+    let runner = Arc::new(RecordingRunner::default());
+    let backend = browser_backend(runner.clone()).await;
+    let refusal = || {
+        result(
+            0,
+            &serde_json::to_string(&SupervisorResponse::Failure(
+                workspace_sdk::supervisor::protocol::SupervisorFault::from_error(
+                    Error::Unsupported("supervisor operation `publish_file`".into()),
+                ),
+            ))
+            .unwrap(),
+        )
+    };
+    let transfer = TreeTransfer::new();
+    for _ in 0..6 {
+        runner.responses.lock().unwrap().push_back(refusal());
+    }
+    assert!(matches!(
+        backend
+            .publish_file(browser_publish(b"value".to_vec()))
+            .await,
+        Err(Error::Unsupported(_))
+    ));
+    assert!(matches!(
+        backend
+            .list_directory(ListDirectory {
+                path: WorkspacePath::root(),
+                limit: 256,
+                cursor: None
+            })
+            .await,
+        Err(Error::Unsupported(_))
+    ));
+    assert!(matches!(
+        backend
+            .read_versioned_file(ReadVersionedFile {
+                path: WorkspacePath::new("file").unwrap(),
+                offset: 0,
+                limit: 16,
+                expected: None
+            })
+            .await,
+        Err(Error::Unsupported(_))
+    ));
+    assert!(matches!(
+        backend.export_tree(&transfer).await,
+        Err(Error::Unsupported(_))
+    ));
+    assert!(matches!(
+        backend.import_tree(&transfer).await,
+        Err(Error::Unsupported(_))
+    ));
+    assert!(matches!(
+        backend.remove_transfer(&transfer).await,
+        Err(Error::Unsupported(_))
+    ));
+    assert!(runner.responses.lock().unwrap().is_empty());
 }

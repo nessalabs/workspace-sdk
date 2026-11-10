@@ -5,7 +5,7 @@ The current deliverables are the Rust library source and `workspace-supervisor`.
 ## Local build
 
 ```sh
-cargo build --locked --no-default-features --bin workspace-supervisor
+cargo build --locked --no-default-features --features portability --bin workspace-supervisor
 cargo test --locked --all-features --all-targets
 cargo clippy --locked --all-features --all-targets -- -D warnings
 cargo fmt --check
@@ -17,10 +17,10 @@ Generated API documentation is in `target/doc/workspace_sdk/index.html`. Domain 
 Install the supervisor into a caller-chosen prefix:
 
 ```sh
-cargo install --locked --path . --no-default-features --bin workspace-supervisor --root "$INSTALL_PREFIX"
+cargo install --locked --path . --no-default-features --features portability --bin workspace-supervisor --root "$INSTALL_PREFIX"
 ```
 
-Set `INSTALL_PREFIX` to an application-owned directory first. Configure `LocalConfig.supervisor` with the resulting executable path, or install it on the target and use `SupervisorDeployment::Preinstalled`.
+Build supervisors with `portability`: a supervisor built without it refuses the checkpoint, sync and file-browser operations with `Unsupported`. Supervisors from this release on no longer serve managed pipe input. Before replacing an older supervisor, cancel any run started with `start_piped` or `start_piped_with_clean_environment`: the new supervisor refuses its input and EOF requests, so a child that reads stdin until EOF would otherwise only end by its timeout or a cancel. Set `INSTALL_PREFIX` to an application-owned directory first. Configure `LocalConfig.supervisor` with the resulting executable path, or install it on the target and use `SupervisorDeployment::Preinstalled`.
 
 ## Remote artifacts
 

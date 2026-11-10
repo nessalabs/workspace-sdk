@@ -19,6 +19,8 @@ diagramLinks: {}
 
 This update adds focused identity, handoff, directory-observation and edit-review models plus provider/persistence contracts and a feature map. Existing broad owner pages keep their prior source scope. The [historical verification page](verification.md) describes earlier deployment work; it is not evidence that those suites ran for this update.
 
+The edit-review model and its page were removed on 2026-11-10 together with `ManagedEditSession`. Its entries in the saved receipts under `verification/state-models` are historical.
+
 ## Reproduce the document and model checks
 
 Use Node 24 and a built Nessa Docs checkout with its canonical TLC cache already installed. From this repository:

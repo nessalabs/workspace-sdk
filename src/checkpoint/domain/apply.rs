@@ -5,6 +5,7 @@
 
 use super::{CheckpointRef, ReconciliationRef};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "portability")]
 use std::path::PathBuf;
 
 /// Preconditions supplied when applying a staged reconciliation to local files.
@@ -97,6 +98,7 @@ pub struct RecoveryRef(
 ///
 /// Persisted before mutation; public callers inspect it through [`ApplyState`]
 /// rather than interpreting this storage representation directly.
+#[cfg(feature = "portability")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct RecoveryJournal {
     /// Storage schema version, currently one.

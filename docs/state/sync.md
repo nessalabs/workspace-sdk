@@ -10,7 +10,6 @@ sources:
   - src/application/sync/sync_service.rs
   - src/checkpoint/infrastructure/apply.rs
   - src/checkpoint/infrastructure/apply_preflight.rs
-  - tests/managed_edit_sessions.rs
   - src/checkpoint/domain/apply.rs
   - src/domain/synchronization/handoff.rs
   - tests/sdk_workflow.rs
@@ -78,6 +77,6 @@ Runtime shutdown, process death, and cleanup transport failure can still leave a
 
 ## Uncaptured destination data
 
-Apply preflights result paths before recovery intent or mutation. Unselected files, symlinks and empty directories are preserved by refusing collisions. A selected directory cannot be replaced if uncaptured children remain. This prevents failed publication and automatic rollback from deleting data absent from the captured backup. Checks are bounded and still depend on actual caller-established quiescence. [Managed local sessions](managed-editing.md) compose this same owner with staged candidates and cooperative SDK leases.
+Apply preflights result paths before recovery intent or mutation. Unselected files, symlinks and empty directories are preserved by refusing collisions. A selected directory cannot be replaced if uncaptured children remain. This prevents failed publication and automatic rollback from deleting data absent from the captured backup. Checks are bounded and still depend on actual caller-established quiescence.
 
 The source checkpoint above covers the existing sync flow plus this preflight hardening. Execution, review closure and render validation are in the [managed-edit review](../reviews/2026-10-23-managed-editing.md).

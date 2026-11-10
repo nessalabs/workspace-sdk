@@ -1,3 +1,4 @@
+#![cfg(feature = "portability")]
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::Path;

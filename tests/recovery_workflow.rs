@@ -1,3 +1,4 @@
+#![cfg(feature = "portability")]
 //! Real local native processes and checkpoint transfers; availability and provider
 //! names simulate placement only. This does not qualify physical host loss or Boat.
 mod support;

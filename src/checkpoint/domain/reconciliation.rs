@@ -22,7 +22,7 @@ pub struct ReconciliationRef(
 
 /// Review/apply status recorded on a [`Reconciliation`].
 ///
-/// Use [`crate::checkpoint::ICheckpointEngine::inspect_apply`] for authoritative
+/// Use `ICheckpointEngine::inspect_apply` for authoritative
 /// apply/recovery progress, particularly after interruption or explicit rollback.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

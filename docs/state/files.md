@@ -99,11 +99,11 @@ Unknown means creation may have happened. Read/list and reconcile the destinatio
 
 ## Existing file editing
 
-Native live revision replacement is Unsupported. Provider delete/rename mutations are not added; those external changes are observed. The separate [managed local edit session](managed-editing.md) stages create/replace/delete/rename candidates and publishes through checkpoint review at an explicit quiescent boundary. The existing low-level chunk write remains non-atomic transfer and must not be used as an editor save operation.
+Native live revision replacement is Unsupported. Provider delete/rename mutations are not added; those external changes are observed. The existing low-level chunk write remains non-atomic transfer and must not be used as an editor save operation.
 
 The existing [checkpoint workflow](sync.md) owns three-way detection, preserved base/local/remote conflict sides, explicit resolution acknowledgement, expected local fingerprints and apply recovery. Review does not mutate the destination. Apply requires every writer to stop and an explicit caller quiescence assertion. SDK leases coordinate SDK callers, not arbitrary editors. This is deliberate conflict resolution, not automatic collaborative text or CRDT merging.
 
-The implemented [managed local editing workflow](managed-editing.md) captures a baseline, stages revision-checked candidates, reconciles current contents and accepts explicit resolutions. It reuses checkpoint publication, a root-qualified cooperative SDK lease and a caller quiescence assertion. The lease cannot fence arbitrary editors. Hash-then-replace remains insufficient for unattended live saves; an enforceable writer authority or provider-native conditional publication is still needed for that broader capability.
+The SDK has no managed edit session. Hash-then-replace remains insufficient for unattended live saves; an enforceable writer authority or provider-native conditional publication is still needed for that capability.
 
 ## Boundaries and provider qualification
 

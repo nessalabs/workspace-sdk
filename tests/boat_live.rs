@@ -1,5 +1,5 @@
 //! Explicitly opted-in, billable native Boat conformance test. Never runs by default.
-#![cfg(all(feature = "boat", unix))]
+#![cfg(all(feature = "boat", feature = "portability", unix))]
 #[path = "support/boat_live_fixture.rs"]
 mod boat_live_fixture;
 

@@ -407,10 +407,11 @@ fn conflict<T>(message: &str) -> Result<T> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
-    fn seed() -> RecoverySession {
+    /// A valid first recovery record, also used by the state-file tests.
+    pub(crate) fn seed() -> RecoverySession {
         RecoverySession {
             id: OperationId::new("portable-project").unwrap(),
             identity: "recipe-v1".into(),
