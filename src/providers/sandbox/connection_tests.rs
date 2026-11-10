@@ -590,3 +590,33 @@ async fn with_its_master_gone_a_connection_refuses_new_commands_and_files() {
     alone.arg(connection.target()).arg("true");
     assert_eq!(alone.status().await.unwrap().code(), Some(255));
 }
+
+/// A file sent through `run`, such as a build, is compressed on the way;
+/// a stream, whose bytes are small and live, is not.
+#[tokio::test]
+async fn only_a_run_with_input_is_compressed() {
+    let connection = SshConnection {
+        master: Mutex::new(Some(
+            tokio::process::Command::new("sleep")
+                .arg("30")
+                .kill_on_drop(true)
+                .spawn()
+                .unwrap(),
+        )),
+        keeper: Mutex::new(None),
+        directory: tempfile::tempdir().unwrap(),
+        endpoint: "127.0.0.1:22".parse().unwrap(),
+        forwarded: None,
+    };
+    let compressed = |on: bool| {
+        let command = connection.session_bound_command("true", on).unwrap();
+        let arguments: Vec<_> = command
+            .as_std()
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        arguments.windows(2).any(|w| w == ["-o", "Compression=yes"])
+    };
+    assert!(compressed(true));
+    assert!(!compressed(false));
+}
