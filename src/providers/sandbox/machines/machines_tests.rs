@@ -622,7 +622,10 @@ async fn resume_rechecks_environment_before_it_is_used() {
     );
     let state = server.state.lock().unwrap();
     assert_eq!(state.resumed, 1);
-    assert_eq!(state.commands, 0);
+    assert_eq!(
+        state.commands, 1,
+        "its one other request stops the VM it woke"
+    );
 }
 
 /// A VM still stopping from its thread's last rest is waited out, then
@@ -648,7 +651,19 @@ async fn a_vm_still_stopping_is_resumed_once_it_has_stopped() {
     let state = server.state.lock().unwrap();
     assert_eq!(state.archiving_reads, 0, "it waited while the VM stopped");
     assert_eq!(state.resumed, 1, "then resumed it");
-    assert_eq!(state.commands, 0);
+    assert_eq!(
+        state.commands, 1,
+        "its one other request stops the VM it woke"
+    );
+    assert!(server
+        .events
+        .0
+        .lock()
+        .unwrap()
+        .contains(&MachineEvent::StopRequested {
+            vm: VM.into(),
+            cause: StopCause::NotReady
+        }));
 }
 
 #[tokio::test]
@@ -694,7 +709,10 @@ async fn archived_resume_refuses_an_unenforced_finite_lifetime_before_it_is_used
     ));
     let state = server.state.lock().unwrap();
     assert_eq!(state.resumed, 1);
-    assert_eq!(state.commands, 0);
+    assert_eq!(
+        state.commands, 1,
+        "its one other request stops the VM it woke"
+    );
 }
 
 #[tokio::test]
@@ -1158,8 +1176,8 @@ mod provider {
         assert_eq!((state.deleted, state.commands), (0, 1));
     }
 
-    /// A replayed machine that `ready` resumed and then refused is stopped,
-    /// never deleted.
+    /// A replayed machine that `ready` resumed and then refused is stopped
+    /// again, never deleted.
     #[tokio::test]
     async fn a_replayed_machine_refused_after_resuming_is_stopped_and_kept() {
         let server = server().await;
@@ -1189,8 +1207,8 @@ mod provider {
         assert_eq!(refusal.cleanup, RefusalCleanup::Kept);
         assert!(refusal.message.contains("version 9"), "{}", refusal.message);
         let state = server.state.lock().unwrap();
-        // Stopped, since it may be in use elsewhere; never deleted.
-        assert_eq!((state.deleted, state.commands), (0, 1));
+        // Found running, so left as it was: it may be in use elsewhere.
+        assert_eq!((state.deleted, state.commands), (0, 0));
     }
 
     #[tokio::test]
@@ -1251,5 +1269,88 @@ mod provider {
             .unwrap()
             .unwrap();
         assert!(matches!(record.state, MachineState::Provisioning { .. }));
+    }
+
+    fn key() -> ProvisionKey {
+        ProvisionKey::for_workspace(&WorkspaceId::new("fixture").unwrap())
+    }
+
+    /// An admitted machine is named with what it was admitted under, which
+    /// the SDK saves in the Ready record.
+    #[tokio::test]
+    async fn an_admitted_machine_carries_its_admission() {
+        let server = server().await;
+        let provider = provider(&server);
+        let machines = server.machines.clone();
+        let (vm, admitted) = provider
+            .create_machine(&machines, &options(), &key())
+            .await
+            .unwrap();
+        assert_eq!(vm, VM);
+        assert_eq!(
+            admitted.environment_id,
+            "11111111-1111-4111-8111-111111111111"
+        );
+        assert_eq!(admitted.version_id, "22222222-2222-4222-8222-222222222222");
+        assert_eq!(
+            (admitted.name.as_str(), admitted.version.as_str()),
+            ("agents", "2")
+        );
+        let state = server.state.lock().unwrap();
+        assert_eq!((state.created, state.deleted, state.commands), (1, 0, 0));
+    }
+
+    /// A check that may pass later is asked again with the same key: Boat
+    /// replays the same machine, and once its wipe is done it is admitted.
+    #[tokio::test]
+    async fn a_retry_after_a_pending_wipe_admits_the_same_machine() {
+        let server = server().await;
+        let provider = provider(&server);
+        let machines = server.machines.clone();
+        server.state.lock().unwrap().receipt["sandbox"]["wipePendingUntilRestart"] = json!(true);
+        assert!(matches!(
+            provider.create_machine(&machines, &options(), &key()).await,
+            Err(Error::Provider { .. })
+        ));
+        assert!(server
+            .events
+            .0
+            .lock()
+            .unwrap()
+            .contains(&MachineEvent::StopRequested {
+                vm: VM.into(),
+                cause: StopCause::NotAdmitted
+            }));
+        {
+            let mut state = server.state.lock().unwrap();
+            state.receipt["sandbox"]["wipePendingUntilRestart"] = json!(false);
+            state.creation_ack["status"] = json!("ready");
+        }
+        let (vm, _) = provider
+            .create_machine(&machines, &options(), &key())
+            .await
+            .unwrap();
+        assert_eq!(vm, VM);
+        let state = server.state.lock().unwrap();
+        assert_eq!((state.created, state.deleted), (2, 0));
+    }
+
+    /// A replayed machine whose check may pass later is left as found: it
+    /// may be another caller's, in use.
+    #[tokio::test]
+    async fn a_replayed_machine_with_a_pending_wipe_is_left_running() {
+        let server = server().await;
+        {
+            let mut state = server.state.lock().unwrap();
+            state.creation_ack["status"] = json!("ready");
+            state.receipt["sandbox"]["wipePendingUntilRestart"] = json!(true);
+        }
+        let machines = server.machines.clone();
+        assert!(provider(&server)
+            .create_machine(&machines, &options(), &key())
+            .await
+            .is_err());
+        let state = server.state.lock().unwrap();
+        assert_eq!((state.deleted, state.commands), (0, 0));
     }
 }

@@ -10,6 +10,10 @@ pub enum StopCause {
     Idle,
     /// Its work was closed.
     Closed,
+    /// It was woken to be checked or used and could not be.
+    NotReady,
+    /// It was refused, or its check did not finish.
+    NotAdmitted,
 }
 impl StopCause {
     /// Its name in a record.
@@ -17,6 +21,8 @@ impl StopCause {
         match self {
             Self::Idle => "idle",
             Self::Closed => "closed",
+            Self::NotReady => "not_ready",
+            Self::NotAdmitted => "not_admitted",
         }
     }
 }

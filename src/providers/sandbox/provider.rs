@@ -31,8 +31,8 @@ const WAKE: Duration = Duration::from_secs(300);
 /// `/proc` on the workspace's.
 ///
 /// With [`SandboxProvider::from_machines`], every workspace it creates is a
-/// Boat machine admitted in full, and a machine that fails admission is
-/// refused with its reason.
+/// Boat machine admitted when it is made, and a machine that fails
+/// admission is refused with its reason.
 #[derive(Clone)]
 pub struct SandboxProvider {
     id: ProviderId,
@@ -62,11 +62,14 @@ impl SandboxProvider {
     /// A machine whose receipt shows it can never be used is refused
     /// ([`Error::Refused`]) with the reason, and deleted when this creation
     /// made it. A check that may pass later (a receipt that did not arrive,
-    /// a wipe still pending, an environment changed meanwhile) fails without
-    /// an outcome: the machine is stopped, and asking again with the same
-    /// record checks it again.
+    /// a wipe still pending) fails without an outcome: a machine this
+    /// creation made is stopped, and asking again with the same record
+    /// checks it again. That retry finds the machine replayed, so a refusal
+    /// then keeps it rather than deleting it; its lifetime bounds the cost.
     ///
-    /// Admission covers creation only: waking a stopped workspace later
+    /// The environment's posture changing after a machine was made refuses
+    /// it for good; fixing the posture later does not save it. Admission
+    /// covers creation only: waking a stopped workspace later
     /// resumes it without checking it again. Every call, attaching and
     /// reconnecting included, uses the machines' account in its personal
     /// scope.
@@ -117,7 +120,7 @@ impl SandboxProvider {
         Ok(options)
     }
     /// Make, admit and ready one machine; refuse it with its reason.
-    async fn create_machine(
+    pub(super) async fn create_machine(
         &self,
         machines: &BoatMachines,
         options: &SandboxCreateOptions,
@@ -137,20 +140,28 @@ impl SandboxProvider {
             {
                 Ok(_) => return Ok((created.vm().to_owned(), admission(created.admission()))),
                 Err(MachineFailure::AdmissionRejected(rejection)) => rejection,
-                Err(other) => {
-                    // `ready` may have resumed it; the retry resumes it again.
-                    let _ = machines.stop(created.vm(), StopCause::Closed).await;
-                    return Err(failure(other));
-                }
+                // `ready` stops a VM it woke and could not make ready.
+                Err(other) => return Err(failure(other)),
             },
         };
         let Some(kind) = final_kind(rejected.cause()) else {
             // Deleting it would leave the same key naming a machine that is
-            // gone, so it is kept, stopped, for the retry to check again.
-            let _ = machines.stop(created.vm(), StopCause::Closed).await;
+            // gone, so it is kept for the retry to check again: stopped when
+            // this creation made it, left as found when Boat replayed it.
+            let left = match created.disposition() {
+                Disposition::RetainTarget => "left as it was",
+                Disposition::RollbackNewVm => {
+                    match machines.stop(created.vm(), StopCause::NotAdmitted).await {
+                        Ok(()) => "stopped",
+                        Err(_) => "asked to stop, without an answer",
+                    }
+                }
+            };
             return Err(Error::Provider {
                 provider: super::branding::NAME.into(),
-                message: format!("{rejected}; asking again checks the machine again"),
+                message: format!(
+                    "{rejected}; the machine was {left}, and asking again checks it again"
+                ),
             });
         };
         Err(refuse(machines, &created, &rejected, kind).await)
@@ -344,18 +355,19 @@ fn final_kind(cause: AdmissionRefusal) -> Option<RefusalKind> {
         AdmissionRefusal::MissingEnvironment
         | AdmissionRefusal::WrongEnvironment
         | AdmissionRefusal::MissingVersion
-        | AdmissionRefusal::WrongVersion => Some(RefusalKind::EnvironmentMismatch),
+        | AdmissionRefusal::WrongVersion
+        // A retry would read the new environment and find the VM's receipt
+        // naming the old version, so this never passes either.
+        | AdmissionRefusal::EnvironmentChanged => Some(RefusalKind::EnvironmentMismatch),
         AdmissionRefusal::EnvironmentUnavailable
         | AdmissionRefusal::InvalidReceipt
         | AdmissionRefusal::LifetimeNotEnforced => Some(RefusalKind::NotAdmitted),
-        AdmissionRefusal::EnvironmentChanged
-        | AdmissionRefusal::ReceiptUnavailable
-        | AdmissionRefusal::WipePending => None,
+        AdmissionRefusal::ReceiptUnavailable | AdmissionRefusal::WipePending => None,
     }
 }
 
-/// A refused machine: deleted first when this creation made it, and only
-/// stopped when Boat replayed it, since it may be in use elsewhere.
+/// A refused machine: deleted first when this creation made it, and left as
+/// found when Boat replayed it, since it may be in use elsewhere.
 async fn refuse(
     machines: &BoatMachines,
     created: &Created,
@@ -363,10 +375,7 @@ async fn refuse(
     kind: RefusalKind,
 ) -> Error {
     let cleanup = match created.disposition() {
-        Disposition::RetainTarget => {
-            let _ = machines.stop(created.vm(), StopCause::Closed).await;
-            RefusalCleanup::Kept
-        }
+        Disposition::RetainTarget => RefusalCleanup::Kept,
         // Boat never confirms a deletion, and an answer that cannot be read
         // may follow one it made, so any deletion asked ends uncertain.
         Disposition::RollbackNewVm => {

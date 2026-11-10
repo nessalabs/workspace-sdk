@@ -261,8 +261,9 @@ impl BoatMachines {
     /// [`MachineFailure::InvalidInput`] for a malformed `vm`;
     /// [`MachineFailure::AdmissionRejected`] when the VM or its environment
     /// changed since admission; [`MachineFailure::Provider`] when Boat fails,
-    /// the VM does not become ready, or the budget runs out. A VM resumed
-    /// before that may still run: the caller stops it if it will not use it.
+    /// the VM does not become ready, or the budget runs out. A VM this call
+    /// resumed is stopped again on any failure ([`StopCause::NotReady`]); one
+    /// it found running is left as it was.
     pub async fn ready(
         &self,
         spec: &MachineSpec,
@@ -273,9 +274,20 @@ impl BoatMachines {
             return Err(MachineFailure::InvalidInput);
         }
         let deadline = self.deadline()?;
-        tokio::time::timeout_at(deadline, self.ready_by(spec, vm, admitted, deadline))
-            .await
-            .map_err(|_| MachineFailure::Provider)?
+        let mut resumed = false;
+        let ready = tokio::time::timeout_at(
+            deadline,
+            self.ready_by(spec, vm, admitted, deadline, &mut resumed),
+        )
+        .await
+        .map_err(|_| MachineFailure::Provider)
+        .and_then(|ready| ready);
+        if ready.is_err() && resumed {
+            // Only a VM this call woke is put back; one found running may be
+            // in use elsewhere.
+            let _ = self.stop(vm, StopCause::NotReady).await;
+        }
+        ready
     }
 
     async fn ready_by(
@@ -284,6 +296,7 @@ impl BoatMachines {
         vm: &str,
         admitted: &EnvironmentIdentity,
         deadline: Instant,
+        resumed_it: &mut bool,
     ) -> Result<SandboxInfoResponse, MachineFailure> {
         let boat = &self.boat;
         let mut found = admission::check(boat, spec, vm, admitted, None).await?;
@@ -293,6 +306,7 @@ impl BoatMachines {
         }
         let resumed = found.sandbox.state == SandboxState::Archived;
         if resumed {
+            *resumed_it = true;
             boat.api
                 .resume(
                     vm,
