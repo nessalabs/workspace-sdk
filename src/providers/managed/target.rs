@@ -1,6 +1,8 @@
+use crate::ports::{IConnection, SocketForward};
 use crate::supervisor::protocol::{SupervisorRequest, SupervisorValue};
 use crate::{domain::*, Error, Result};
 use async_trait::async_trait;
+use std::sync::Arc;
 
 #[async_trait]
 pub(in crate::providers) trait ITarget: Send + Sync {
@@ -22,5 +24,8 @@ pub(in crate::providers) trait ITarget: Send + Sync {
     }
     async fn inspect_delete(&self, _reference: &OperationRef) -> Result<DeleteOperation> {
         Err(Error::Unsupported("delete status".into()))
+    }
+    async fn connection(&self, _forward: Option<SocketForward>) -> Result<Arc<dyn IConnection>> {
+        Err(Error::Unsupported("live connections".into()))
     }
 }

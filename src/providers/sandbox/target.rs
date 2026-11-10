@@ -311,6 +311,15 @@ impl ITarget for SandboxTarget {
             policy: PortPolicy::Authenticated,
         })
     }
+    async fn connection(
+        &self,
+        forward: Option<crate::ports::SocketForward>,
+    ) -> Result<std::sync::Arc<dyn crate::ports::IConnection>> {
+        let connection =
+            super::connection::SshConnection::connect(&self.api, &self.locator.target, forward)
+                .await?;
+        Ok(connection)
+    }
     async fn stop(&self) -> Result<()> {
         self.verify_ownership().await?;
         self.api

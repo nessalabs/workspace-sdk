@@ -1,5 +1,6 @@
 //! Ports implemented by infrastructure and injected into application services.
 mod i_backend;
+mod i_connection;
 mod i_edit_coordinator;
 mod i_provider;
 mod i_recovery_repository;
@@ -8,6 +9,10 @@ mod i_workflow_repository;
 mod i_workspace_repository;
 
 pub use i_backend::IBackend;
+pub use i_connection::{
+    ConnectionInput, ConnectionOutput, ConnectionStream, FileChannel, IConnection, SocketForward,
+    MAX_RUN_OUTPUT,
+};
 pub use i_edit_coordinator::IEditCoordinator;
 pub use i_provider::IProvider;
 pub use i_recovery_repository::IRecoveryRepository;

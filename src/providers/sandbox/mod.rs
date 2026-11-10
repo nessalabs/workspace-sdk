@@ -1,5 +1,6 @@
 mod branding;
 mod configuration;
+mod connection;
 mod deletion;
 mod error;
 pub mod machines;
