@@ -249,6 +249,10 @@ pub(super) async fn create(
             snapshots: Some(true),
             ..Default::default()
         });
+    // Nothing is sent once the budget is spent, so that answer is certain.
+    if Instant::now() >= deadline {
+        return Err(MachineFailure::Provider);
+    }
     // Once the request may have been sent, only an answer that names no VM
     // for certain is anything but uncertain.
     let value = tokio::time::timeout_at(deadline, async {
@@ -256,15 +260,9 @@ pub(super) async fn create(
             .send()
             .await
             .map_err(|_| MachineFailure::ProvisioningUncertain)?;
-        let status = response.status();
-        if status.is_client_error() && !matches!(status.as_u16(), 408 | 409 | 425 | 429) {
-            return Err(if status == reqwest::StatusCode::NOT_FOUND {
-                MachineFailure::Missing
-            } else {
-                MachineFailure::Provider
-            });
-        }
-        if !status.is_success() {
+        // Even a 4xx says only that this request made nothing: an earlier
+        // attempt with the same key may have, so no answer here is certain.
+        if !response.status().is_success() {
             return Err(MachineFailure::ProvisioningUncertain);
         }
         bounded_json(boat, response, Stage::CreateBody)

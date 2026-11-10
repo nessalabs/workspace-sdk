@@ -880,10 +880,10 @@ async fn a_replayed_vm_is_never_rolled_back() {
     assert_eq!(server.state.lock().unwrap().commands, 0);
 }
 
-/// A spent budget fails; the client's readiness wait would read a zero
-/// timeout as no deadline at all.
+/// A tiny budget ends the whole readiness, whichever step it falls in; the
+/// client's readiness wait alone would read a zero timeout as no deadline.
 #[tokio::test]
-async fn a_spent_budget_fails_instead_of_waiting_without_end() {
+async fn a_tiny_budget_ends_readiness_instead_of_waiting_without_end() {
     let mut server = server().await;
     let receipt = server.machines.create(&spec(), KEY).await.unwrap();
     server.state.lock().unwrap().receipt["sandbox"]["state"] = json!("archived");
@@ -960,27 +960,54 @@ async fn a_key_or_vm_boat_could_never_use_is_refused_before_asking() {
         .any(|e| matches!(e, MachineEvent::StopRequested { .. })));
 }
 
-/// A definite refusal made no VM, so asking again with the key cannot help;
-/// a busy, conflicting or failing answer may have made one.
+/// No answer that fails to name a VM is certain: a refusal of a retry may
+/// follow an earlier attempt with the same key that did make one.
 #[tokio::test]
-async fn only_an_answer_that_may_have_made_a_vm_is_uncertain() {
+async fn every_answer_without_a_vm_stays_uncertain() {
     let server = server().await;
-    for (status, failure) in [
-        (400, MachineFailure::Provider),
-        (403, MachineFailure::Provider),
-        (404, MachineFailure::Missing),
-        (422, MachineFailure::Provider),
-        (408, MachineFailure::ProvisioningUncertain),
-        (409, MachineFailure::ProvisioningUncertain),
-        (429, MachineFailure::ProvisioningUncertain),
-        (500, MachineFailure::ProvisioningUncertain),
-        (503, MachineFailure::ProvisioningUncertain),
-    ] {
+    for status in [400, 401, 403, 404, 408, 409, 422, 429, 500, 503] {
         server.state.lock().unwrap().create_status = status;
         assert_eq!(
             server.machines.create(&spec(), KEY).await.err(),
-            Some(failure),
+            Some(MachineFailure::ProvisioningUncertain),
             "{status}"
         );
     }
+}
+
+/// A caller that restarted rolls back the VM it saved, and still never one
+/// Boat replayed.
+#[tokio::test]
+async fn a_saved_creation_can_still_be_rolled_back_after_a_restart() {
+    let server = server().await;
+    let created = server.machines.create(&spec(), KEY).await.unwrap();
+    let saved = Created::restore(
+        created.vm().into(),
+        created.admission().clone(),
+        Disposition::RollbackNewVm,
+    )
+    .unwrap();
+    assert_eq!(
+        server.machines.roll_back(&saved).await,
+        Err(MachineFailure::Provider)
+    );
+    let replayed = Created::restore(
+        VM.into(),
+        created.admission().clone(),
+        Disposition::RetainTarget,
+    )
+    .unwrap();
+    assert_eq!(
+        server.machines.roll_back(&replayed).await,
+        Err(MachineFailure::InvalidInput)
+    );
+    assert_eq!(
+        Created::restore(
+            "../x".into(),
+            created.admission().clone(),
+            Disposition::RollbackNewVm
+        )
+        .err(),
+        Some(MachineFailure::InvalidInput)
+    );
 }

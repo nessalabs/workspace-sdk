@@ -50,6 +50,27 @@ pub struct Created {
     pub(super) disposition: Disposition,
 }
 impl Created {
+    /// A creation the caller saved and loads again, such as after a restart,
+    /// so it can still roll back a VM it made. It holds no refusal: the
+    /// caller kept whatever it decided.
+    ///
+    /// # Errors
+    /// [`MachineFailure::InvalidInput`] for a malformed `vm`.
+    pub fn restore(
+        vm: String,
+        admission: EnvironmentIdentity,
+        disposition: Disposition,
+    ) -> Result<Self, MachineFailure> {
+        if !admission::vm_id(&vm) {
+            return Err(MachineFailure::InvalidInput);
+        }
+        Ok(Self {
+            vm,
+            admission,
+            refusal: None,
+            disposition,
+        })
+    }
     /// The VM Boat named.
     pub fn vm(&self) -> &str {
         &self.vm
@@ -212,11 +233,10 @@ impl BoatMachines {
     ///
     /// # Errors
     /// [`MachineFailure::InvalidInput`] unless `key` is 1 to 255 visible
-    /// ASCII bytes; [`MachineFailure::ProvisioningUncertain`] when Boat's
-    /// answer, or the budget, leaves it unknown whether a VM was made;
-    /// [`MachineFailure::Provider`] or [`MachineFailure::Missing`] when Boat
-    /// refused the request outright; the environment's own failures before
-    /// any request.
+    /// ASCII bytes; [`MachineFailure::ProvisioningUncertain`] for any answer
+    /// that does not name a VM, a refusal included, since an earlier attempt
+    /// with the same key may have made one, or when the budget ran out after
+    /// the request; the environment's own failures before any request.
     pub async fn create(&self, spec: &MachineSpec, key: &str) -> Result<Created, MachineFailure> {
         if key.is_empty() || key.len() > 255 || !key.bytes().all(|b| b.is_ascii_graphic()) {
             return Err(MachineFailure::InvalidInput);
@@ -236,7 +256,8 @@ impl BoatMachines {
     /// [`MachineFailure::InvalidInput`] for a malformed `vm`;
     /// [`MachineFailure::AdmissionRejected`] when the VM or its environment
     /// changed since admission; [`MachineFailure::Provider`] when Boat fails,
-    /// the VM does not become ready, or the budget runs out.
+    /// the VM does not become ready, or the budget runs out. A VM resumed
+    /// before that may still run: the caller stops it if it will not use it.
     pub async fn ready(
         &self,
         spec: &MachineSpec,
