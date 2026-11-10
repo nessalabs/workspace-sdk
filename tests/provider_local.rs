@@ -41,7 +41,7 @@ fn launch(id: RunId, args: &[&str], limit: u64) -> LaunchRequest {
 async fn terminal(backend: &dyn IBackend, run: &RunRef) -> RunState {
     tokio::time::timeout(Duration::from_secs(15), async {
         loop {
-            let state = backend.inspect_run(run).await.unwrap();
+            let state = backend.runs().unwrap().inspect_run(run).await.unwrap();
             if !state.is_active() {
                 return state;
             }
@@ -59,6 +59,8 @@ async fn reconnect_survives_client_drop_and_prevents_duplicate_execution() {
     let id = RunId::generate();
     let source = &["append", "launched", "once\n", "0.3", "0", "done"];
     let run = backend
+        .runs()
+        .unwrap()
         .start(launch(id.clone(), source, 4096))
         .await
         .unwrap();
@@ -68,6 +70,8 @@ async fn reconnect_survives_client_drop_and_prevents_duplicate_execution() {
         .await
         .unwrap();
     backend
+        .runs()
+        .unwrap()
         .start(launch(id.clone(), source, 4096))
         .await
         .unwrap();
@@ -76,6 +80,8 @@ async fn reconnect_survives_client_drop_and_prevents_duplicate_execution() {
         RunState::Exited { exit_code: 0 }
     ));
     backend
+        .runs()
+        .unwrap()
         .start(launch(id.clone(), source, 4096))
         .await
         .unwrap();
@@ -85,11 +91,15 @@ async fn reconnect_survives_client_drop_and_prevents_duplicate_execution() {
     );
     assert!(matches!(
         backend
+            .runs()
+            .unwrap()
             .start(launch(id, &["echo", "different"], 4096))
             .await,
         Err(Error::Conflict(_))
     ));
     let page = backend
+        .runs()
+        .unwrap()
         .read_output(&run, OutputCursor::default(), 1024)
         .await
         .unwrap();
@@ -102,6 +112,8 @@ async fn output_is_bounded_and_cursors_report_retention_gaps() {
     let base = tempfile::tempdir().unwrap();
     let backend = workspace(&base).await;
     let run = backend
+        .runs()
+        .unwrap()
         .start(launch(
             RunId::generate(),
             &["largeoutput", "20000", "tail", "err"],
@@ -117,7 +129,12 @@ async fn output_is_bounded_and_cursors_report_retention_gaps() {
     let mut stdout = String::new();
     let mut first = true;
     loop {
-        let page = backend.read_output(&run, cursor, 128).await.unwrap();
+        let page = backend
+            .runs()
+            .unwrap()
+            .read_output(&run, cursor, 128)
+            .await
+            .unwrap();
         if first {
             assert!(page.gap);
             first = false;
@@ -147,9 +164,11 @@ async fn deadline_and_cancellation_stop_owned_process_groups() {
     let backend = workspace(&base).await;
     let mut request = launch(RunId::generate(), &["sleep", "30"], 4096);
     request.execution.command.timeout_seconds = Some(1);
-    let run = backend.start(request).await.unwrap();
+    let run = backend.runs().unwrap().start(request).await.unwrap();
     assert_eq!(terminal(backend.as_ref(), &run).await, RunState::TimedOut);
     let run = backend
+        .runs()
+        .unwrap()
         .start(launch(
             RunId::generate(),
             &["spawn-descendant", "escaped", "2", "30"],
@@ -159,6 +178,8 @@ async fn deadline_and_cancellation_stop_owned_process_groups() {
         .unwrap();
     loop {
         if backend
+            .runs()
+            .unwrap()
             .read_output(&run, OutputCursor::default(), 1024)
             .await
             .unwrap()
@@ -169,7 +190,10 @@ async fn deadline_and_cancellation_stop_owned_process_groups() {
         }
         tokio::time::sleep(Duration::from_millis(30)).await;
     }
-    assert_eq!(backend.cancel(&run).await.unwrap(), RunState::Canceled);
+    assert_eq!(
+        backend.runs().unwrap().cancel(&run).await.unwrap(),
+        RunState::Canceled
+    );
     tokio::time::sleep(Duration::from_millis(2200)).await;
     assert!(!Path::new(&backend.descriptor().root)
         .join("escaped")
@@ -275,19 +299,17 @@ async fn ownership_blocks_attached_deletion_and_owned_delete_has_receipt() {
         )
         .await
         .unwrap();
-    assert!(matches!(
-        backend.destroy().await,
-        Err(Error::Unsupported(_))
-    ));
-    assert!(backend.stop().await.is_err());
+    assert!(backend.lifecycle().is_none() && backend.deletion().is_none());
     assert!(project.join("precious").exists());
     let owned = workspace(&base).await;
     let root = owned.descriptor().root;
-    let deleted = owned.destroy().await.unwrap();
+    let deleted = owned.deletion().unwrap().destroy().await.unwrap();
     assert_eq!(deleted.state, DeleteState::Completed);
     assert!(!Path::new(&root).exists());
     assert_eq!(
         owned
+            .deletion()
+            .unwrap()
             .inspect_delete(&deleted.reference)
             .await
             .unwrap()
@@ -295,7 +317,14 @@ async fn ownership_blocks_attached_deletion_and_owned_delete_has_receipt() {
         DeleteState::Completed
     );
     assert_eq!(
-        owned.destroy().await.unwrap().reference.id,
+        owned
+            .deletion()
+            .unwrap()
+            .destroy()
+            .await
+            .unwrap()
+            .reference
+            .id,
         deleted.reference.id
     );
 }
@@ -306,6 +335,8 @@ async fn killed_supervisor_is_lost_and_same_id_never_relaunches() {
     let id = RunId::generate();
     let source = &["append", "count", "one\n", "0", "10"];
     let run = backend
+        .runs()
+        .unwrap()
         .start(launch(id.clone(), source, 4096))
         .await
         .unwrap();
@@ -327,15 +358,20 @@ async fn killed_supervisor_is_lost_and_same_id_never_relaunches() {
     }
     tokio::time::sleep(Duration::from_millis(30)).await;
     assert!(matches!(
-        backend.inspect_run(&run).await.unwrap(),
+        backend.runs().unwrap().inspect_run(&run).await.unwrap(),
         RunState::Lost { .. }
     ));
-    backend.start(launch(id, source, 4096)).await.unwrap();
+    backend
+        .runs()
+        .unwrap()
+        .start(launch(id, source, 4096))
+        .await
+        .unwrap();
     assert_eq!(
         fs::read_to_string(format!("{}/count", backend.descriptor().root)).unwrap(),
         "one\n"
     );
-    let deletion = backend.destroy().await.unwrap();
+    let deletion = backend.deletion().unwrap().destroy().await.unwrap();
     assert_eq!(deletion.state, DeleteState::Blocked);
     let reconnected = provider(&base)
         .connect(&backend.descriptor().reference)
@@ -343,6 +379,8 @@ async fn killed_supervisor_is_lost_and_same_id_never_relaunches() {
         .unwrap();
     assert_eq!(
         reconnected
+            .deletion()
+            .unwrap()
             .inspect_delete(&deletion.reference)
             .await
             .unwrap()
@@ -369,7 +407,7 @@ async fn credentials_are_transient_and_missing_state_is_not_reinitialized() {
         .secrets
         .0
         .insert("SDK_TEST_KEY".into(), "do-not-persist-me".into());
-    let run = backend.start(request).await.unwrap();
+    let run = backend.runs().unwrap().start(request).await.unwrap();
     assert_eq!(
         terminal(backend.as_ref(), &run).await,
         RunState::Exited { exit_code: 0 }
@@ -481,7 +519,12 @@ async fn ordinary_claims_keep_their_fingerprint_and_old_piped_claims_never_match
     let backend = workspace(&base).await;
     let control = backend.descriptor().control_root;
     let ordinary = launch(RunId::new("ordinary").unwrap(), &["exit", "0"], 4096);
-    let run = backend.start(ordinary.clone()).await.unwrap();
+    let run = backend
+        .runs()
+        .unwrap()
+        .start(ordinary.clone())
+        .await
+        .unwrap();
     terminal(backend.as_ref(), &run).await;
     let claim_path = format!("{control}/runs/ordinary/claim.json");
     let claim: serde_json::Value = serde_json::from_slice(&fs::read(&claim_path).unwrap()).unwrap();
@@ -490,10 +533,18 @@ async fn ordinary_claims_keep_their_fingerprint_and_old_piped_claims_never_match
         salted_fingerprint(&control, None, &ordinary)
     );
     assert!(claim.get("piped").is_none());
-    assert_eq!(backend.start(ordinary.clone()).await.unwrap(), run);
+    assert_eq!(
+        backend
+            .runs()
+            .unwrap()
+            .start(ordinary.clone())
+            .await
+            .unwrap(),
+        run
+    );
 
     let old = launch(RunId::new("old-piped").unwrap(), &["exit", "0"], 4096);
-    let old_run = backend.start(old.clone()).await.unwrap();
+    let old_run = backend.runs().unwrap().start(old.clone()).await.unwrap();
     terminal(backend.as_ref(), &old_run).await;
     let old_claim = serde_json::json!({
         "version": 1,
@@ -505,5 +556,8 @@ async fn ordinary_claims_keep_their_fingerprint_and_old_piped_claims_never_match
         serde_json::to_vec(&old_claim).unwrap(),
     )
     .unwrap();
-    assert!(matches!(backend.start(old).await, Err(Error::Conflict(_))));
+    assert!(matches!(
+        backend.runs().unwrap().start(old).await,
+        Err(Error::Conflict(_))
+    ));
 }

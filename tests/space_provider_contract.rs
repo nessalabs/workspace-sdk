@@ -53,7 +53,7 @@ fn launch(id: RunId, arguments: &[&str]) -> LaunchRequest {
 async fn terminal(backend: &dyn IBackend, run: &RunRef) -> RunState {
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
-            let state = backend.inspect_run(run).await.unwrap();
+            let state = backend.runs().unwrap().inspect_run(run).await.unwrap();
             if !state.is_active() {
                 return state;
             }
@@ -158,14 +158,15 @@ async fn native_claim_reconnect_output_files_tree_and_attached_lifecycle() {
     assert!(!descriptor.capabilities.stop && !descriptor.capabilities.destroy);
     let serialized = serde_json::to_string(&descriptor.reference).unwrap();
     assert!(!serialized.contains(MANAGEMENT) && !serialized.contains(ATTACH));
-    assert!(matches!(backend.stop().await, Err(Error::Unsupported(_))));
-    assert!(matches!(
-        backend.destroy().await,
-        Err(Error::Unsupported(_))
-    ));
+    assert!(backend.lifecycle().is_none() && backend.deletion().is_none());
     let id = RunId::generate();
     let arguments = ["append", "launched", "once\n", "0.1", "0", "done"];
-    let run = backend.start(launch(id.clone(), &arguments)).await.unwrap();
+    let run = backend
+        .runs()
+        .unwrap()
+        .start(launch(id.clone(), &arguments))
+        .await
+        .unwrap();
     assert_eq!(
         terminal(backend.as_ref(), &run).await,
         RunState::Exited { exit_code: 0 }
@@ -176,17 +177,28 @@ async fn native_claim_reconnect_output_files_tree_and_attached_lifecycle() {
         .connect(&descriptor.reference)
         .await
         .unwrap();
-    backend.start(launch(id.clone(), &arguments)).await.unwrap();
+    backend
+        .runs()
+        .unwrap()
+        .start(launch(id.clone(), &arguments))
+        .await
+        .unwrap();
     assert_eq!(
         fs::read_to_string(directory.path().join("project/launched")).unwrap(),
         "once\n"
     );
     assert!(matches!(
-        backend.start(launch(id, &["echo", "different"])).await,
+        backend
+            .runs()
+            .unwrap()
+            .start(launch(id, &["echo", "different"]))
+            .await,
         Err(Error::Conflict(_))
     ));
     assert_eq!(
         backend
+            .runs()
+            .unwrap()
             .read_output(&run, OutputCursor::default(), 1024)
             .await
             .unwrap()
@@ -253,9 +265,19 @@ async fn native_claim_reconnect_output_files_tree_and_attached_lifecycle() {
     #[cfg(feature = "portability")]
     {
         let transfer = TreeTransfer::new();
-        let exported = backend.export_tree(&transfer).await.unwrap();
+        let exported = backend
+            .tree_transfers()
+            .unwrap()
+            .export_tree(&transfer)
+            .await
+            .unwrap();
         assert!(exported.bytes > 0 && exported.files >= 2);
-        backend.remove_transfer(&transfer).await.unwrap();
+        backend
+            .tree_transfers()
+            .unwrap()
+            .remove_transfer(&transfer)
+            .await
+            .unwrap();
     }
     // The reconnect sequence must probe existing identity, never initialize it.
     let requests = fixture.requests();
@@ -280,8 +302,18 @@ async fn lost_launch_ack_reconciles_same_native_claim_without_duplicate_work() {
     let id = RunId::generate();
     let arguments = ["append", "launched", "once\n", "0.1", "0", "done"];
     fixture.fault(Fault::LaunchAckLoss);
-    assert!(backend.start(launch(id.clone(), &arguments)).await.is_err());
-    let run = backend.start(launch(id, &arguments)).await.unwrap();
+    assert!(backend
+        .runs()
+        .unwrap()
+        .start(launch(id.clone(), &arguments))
+        .await
+        .is_err());
+    let run = backend
+        .runs()
+        .unwrap()
+        .start(launch(id, &arguments))
+        .await
+        .unwrap();
     assert_eq!(
         terminal(backend.as_ref(), &run).await,
         RunState::Exited { exit_code: 0 }
@@ -460,11 +492,19 @@ async fn native_cancel_is_confirmed_and_rpc_deadline_does_not_restart_on_frames(
     let fixture = Fixture::new();
     let backend = open(&fixture, &directory.path().join("project")).await;
     let run = backend
+        .runs()
+        .unwrap()
         .start(launch(RunId::generate(), &["sleep", "5"]))
         .await
         .unwrap();
-    assert_eq!(backend.cancel(&run).await.unwrap(), RunState::Canceled);
-    assert_eq!(backend.inspect_run(&run).await.unwrap(), RunState::Canceled);
+    assert_eq!(
+        backend.runs().unwrap().cancel(&run).await.unwrap(),
+        RunState::Canceled
+    );
+    assert_eq!(
+        backend.runs().unwrap().inspect_run(&run).await.unwrap(),
+        RunState::Canceled
+    );
     let short = SpaceProvider::new(
         SpaceConfig::new(
             &fixture.api_url,
@@ -585,6 +625,8 @@ async fn parallel_same_claim_starts_execute_one_native_workload() {
         tasks.push(tokio::spawn(async move {
             barrier.wait().await;
             backend
+                .runs()
+                .unwrap()
                 .start(launch(
                     id,
                     &[
@@ -618,6 +660,8 @@ async fn parallel_same_claim_starts_execute_one_native_workload() {
     );
     assert_eq!(
         backend
+            .runs()
+            .unwrap()
             .read_output(&runs[0], OutputCursor::default(), 1024)
             .await
             .unwrap()

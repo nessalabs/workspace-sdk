@@ -30,7 +30,7 @@ const WAKE: Duration = Duration::from_secs(300);
 /// Uses an injected real Api. Construct its configuration explicitly; this
 /// adapter never reads API credentials from the process environment.
 ///
-/// Each [`IBackend::connection`](crate::ports::IBackend::connection) to one
+/// Each [`Connections::connection`](crate::ports::Connections::connection) to one
 /// of its workspaces authorizes a new SSH key on the machine, which Boat
 /// cannot revoke; the key's private half is deleted with the connection.
 /// Connections need `ssh` and `ssh-keygen` on this machine, and Linux with
@@ -235,7 +235,6 @@ impl SandboxProvider {
         machine: Option<Machine>,
         creation_receipt: bool,
     ) -> Result<ManagedBackend> {
-        let owned = locator.ownership == Ownership::SdkOwned;
         let machine = match (machine, &self.machines) {
             // A provider with machines made every workspace it owns as one;
             // a reference that names none would wake unchecked.
@@ -263,14 +262,8 @@ impl SandboxProvider {
                 control_root: locator.control.clone(),
                 isolation: Isolation::ProviderSandbox,
                 ownership: locator.ownership.clone(),
-                capabilities: Capabilities {
-                    managed_runs: true,
-                    file_transfer: true,
-                    stop: owned,
-                    destroy: owned,
-                    private_ports: false,
-                    hosted_ports: true,
-                },
+                // Derived from the backend's accessors when read.
+                capabilities: Capabilities::default(),
                 admission: machine.as_ref().map(|(_, machine)| machine.admission()),
             },
             target: Arc::new(SandboxTarget {

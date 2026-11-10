@@ -67,11 +67,8 @@ impl SpaceProvider {
                 control_root: locator.control.clone(),
                 isolation: Isolation::ProviderSandbox,
                 ownership: Ownership::Attached,
-                capabilities: Capabilities {
-                    managed_runs: true,
-                    file_transfer: true,
-                    ..Capabilities::default()
-                },
+                // Derived from the backend's accessors when read.
+                capabilities: Capabilities::default(),
                 admission: None,
             },
             target: Arc::new(SpaceTarget {

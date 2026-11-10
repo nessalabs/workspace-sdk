@@ -157,7 +157,6 @@ impl ContainerProvider {
         Ok(Arc::new(backend))
     }
     fn backend(&self, reference: WorkspaceRef, locator: Locator) -> ManagedBackend {
-        let owned = locator.ownership == Ownership::SdkOwned;
         ManagedBackend {
             descriptor: BackendDescriptor {
                 reference: reference.clone(),
@@ -165,13 +164,8 @@ impl ContainerProvider {
                 control_root: locator.control.clone(),
                 isolation: Isolation::Container,
                 ownership: locator.ownership.clone(),
-                capabilities: Capabilities {
-                    managed_runs: true,
-                    file_transfer: true,
-                    stop: owned,
-                    destroy: owned,
-                    ..Capabilities::default()
-                },
+                // Derived from the backend's accessors when read.
+                capabilities: Capabilities::default(),
                 admission: None,
             },
             target: Arc::new(ContainerTarget {

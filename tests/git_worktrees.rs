@@ -352,14 +352,6 @@ async fn discovered_existing_and_explicitly_created_worktrees_execute_independen
         sdk.connect_owned(&first.reference()).await,
         Err(Error::Conflict(_))
     ));
-    assert!(matches!(
-        first.backend().destroy().await,
-        Err(Error::Unsupported(_))
-    ));
-    assert!(matches!(
-        second.backend().destroy().await,
-        Err(Error::Unsupported(_))
-    ));
     assert!(repository.is_dir() && preexisting.is_dir() && created.is_dir());
     assert_eq!(
         sdk.list().unwrap().len(),

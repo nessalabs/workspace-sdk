@@ -71,6 +71,8 @@ async fn ssh_verifies_known_hosts_and_puts_secrets_on_stdin() {
         .0
         .insert("KEY".into(), "secret-must-not-be-an-argument".into());
     backend
+        .runs()
+        .unwrap()
         .start(LaunchRequest {
             id: RunId::generate(),
             execution: ExecutionRequest {
@@ -151,11 +153,16 @@ async fn attached_container_lifecycle_is_not_mutated() {
     )
     .unwrap();
     let backend = provider.attach(attach).await.unwrap();
-    assert!(matches!(backend.stop().await, Err(Error::Unsupported(_))));
-    assert!(matches!(
-        backend.destroy().await,
-        Err(Error::Unsupported(_))
-    ));
+    assert!(backend.lifecycle().is_none() && backend.deletion().is_none());
+    assert!(backend.ports().is_none() && backend.connections().is_none());
+    assert_eq!(
+        backend.descriptor().capabilities,
+        Capabilities {
+            managed_runs: true,
+            file_transfer: true,
+            ..Capabilities::default()
+        }
+    );
     assert_eq!(backend.descriptor().isolation, Isolation::Container);
     let calls = runner.requests.lock().unwrap();
     assert!(!calls.iter().any(|call| call
@@ -206,7 +213,17 @@ async fn container_deletion_receipt_reconnects_and_finishes_a_remaining_volume()
     )
     .unwrap();
     let backend = provider.connect(&reference).await.unwrap();
-    let partial = backend.destroy().await.unwrap();
+    assert_eq!(
+        backend.descriptor().capabilities,
+        Capabilities {
+            managed_runs: true,
+            file_transfer: true,
+            stop: true,
+            destroy: true,
+            ..Capabilities::default()
+        }
+    );
+    let partial = backend.deletion().unwrap().destroy().await.unwrap();
     assert_eq!(partial.state, DeleteState::Blocked);
     assert!(partial
         .detail
@@ -217,13 +234,15 @@ async fn container_deletion_receipt_reconnects_and_finishes_a_remaining_volume()
     let reconnected = provider.connect(&reference).await.unwrap();
     assert_eq!(
         reconnected
+            .deletion()
+            .unwrap()
             .inspect_delete(&partial.reference)
             .await
             .unwrap()
             .state,
         DeleteState::Blocked
     );
-    let finished = reconnected.destroy().await.unwrap();
+    let finished = reconnected.deletion().unwrap().destroy().await.unwrap();
     assert_eq!(finished.state, DeleteState::Completed);
     assert_eq!(finished.reference.id, partial.reference.id);
     let calls = runner.requests.lock().unwrap();
@@ -288,10 +307,14 @@ async fn browser_invalid_requests_are_rejected_before_transport() {
     let backend = browser_backend(runner.clone()).await;
     let count = runner.requests.lock().unwrap().len();
     assert!(backend
+        .file_browsing()
+        .unwrap()
         .publish_file(browser_publish(vec![0; 262145]))
         .await
         .is_err());
     assert!(backend
+        .file_browsing()
+        .unwrap()
         .read_versioned_file(ReadVersionedFile {
             path: WorkspacePath::new("file").unwrap(),
             offset: 0,
@@ -301,6 +324,8 @@ async fn browser_invalid_requests_are_rejected_before_transport() {
         .await
         .is_err());
     assert!(backend
+        .file_browsing()
+        .unwrap()
         .list_directory(ListDirectory {
             path: WorkspacePath::root(),
             limit: 257,
@@ -327,6 +352,8 @@ async fn browser_lost_malformed_and_failed_acknowledgements_are_unknown_without_
         let before = runner.requests.lock().unwrap().len();
         assert!(matches!(
             backend
+                .file_browsing()
+                .unwrap()
                 .publish_file(browser_publish(b"value".to_vec()))
                 .await
                 .unwrap(),
@@ -344,7 +371,12 @@ async fn browser_lost_malformed_and_failed_acknowledgements_are_unknown_without_
         .unwrap(),
     ));
     assert!(matches!(
-        backend.publish_file(browser_publish(vec![])).await.unwrap(),
+        backend
+            .file_browsing()
+            .unwrap()
+            .publish_file(browser_publish(vec![]))
+            .await
+            .unwrap(),
         PublishOutcome::Unknown
     ));
     let rejection = SupervisorValue::PublishRejected(
@@ -357,7 +389,11 @@ async fn browser_lost_malformed_and_failed_acknowledgements_are_unknown_without_
         &serde_json::to_string(&SupervisorResponse::Success(rejection)).unwrap(),
     ));
     assert!(matches!(
-        backend.publish_file(browser_publish(vec![])).await,
+        backend
+            .file_browsing()
+            .unwrap()
+            .publish_file(browser_publish(vec![]))
+            .await,
         Err(Error::Unsupported(_))
     ));
 }
@@ -414,6 +450,8 @@ async fn browser_malformed_directory_pages_are_rejected() {
         ));
         assert!(matches!(
             backend
+                .file_browsing()
+                .unwrap()
                 .list_directory(ListDirectory {
                     path: WorkspacePath::root(),
                     limit: 256,
@@ -450,12 +488,16 @@ async fn operations_a_supervisor_build_lacks_come_back_unsupported() {
     }
     assert!(matches!(
         backend
+            .file_browsing()
+            .unwrap()
             .publish_file(browser_publish(b"value".to_vec()))
             .await,
         Err(Error::Unsupported(_))
     ));
     assert!(matches!(
         backend
+            .file_browsing()
+            .unwrap()
             .list_directory(ListDirectory {
                 path: WorkspacePath::root(),
                 limit: 256,
@@ -466,6 +508,8 @@ async fn operations_a_supervisor_build_lacks_come_back_unsupported() {
     ));
     assert!(matches!(
         backend
+            .file_browsing()
+            .unwrap()
             .read_versioned_file(ReadVersionedFile {
                 path: WorkspacePath::new("file").unwrap(),
                 offset: 0,
@@ -476,15 +520,27 @@ async fn operations_a_supervisor_build_lacks_come_back_unsupported() {
         Err(Error::Unsupported(_))
     ));
     assert!(matches!(
-        backend.export_tree(&transfer).await,
+        backend
+            .tree_transfers()
+            .unwrap()
+            .export_tree(&transfer)
+            .await,
         Err(Error::Unsupported(_))
     ));
     assert!(matches!(
-        backend.import_tree(&transfer).await,
+        backend
+            .tree_transfers()
+            .unwrap()
+            .import_tree(&transfer)
+            .await,
         Err(Error::Unsupported(_))
     ));
     assert!(matches!(
-        backend.remove_transfer(&transfer).await,
+        backend
+            .tree_transfers()
+            .unwrap()
+            .remove_transfer(&transfer)
+            .await,
         Err(Error::Unsupported(_))
     ));
     assert!(runner.responses.lock().unwrap().is_empty());

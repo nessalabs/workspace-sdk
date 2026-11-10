@@ -1,7 +1,12 @@
 //! File sync and resumable, single-controller handoff orchestration.
 use super::{HandoffPhase, HandoffReceipt, SyncSession};
 use crate::application::{Run, Workspace};
-use crate::{checkpoint::*, domain::*, ports::IWorkflowRepository, Error, Result};
+use crate::{
+    checkpoint::*,
+    domain::*,
+    ports::{require, IWorkflowRepository},
+    Error, Result,
+};
 use sha2::{Digest, Sha256};
 use std::{fs, future::Future};
 use std::{path::Path, sync::Arc};
@@ -288,9 +293,10 @@ impl SyncService {
         blocking(move || engine.fingerprint_archive(&bytes)).await
     }
     async fn workspace_archive(&self, source: &Workspace) -> Result<Vec<u8>> {
+        let transfers = require(source.backend.tree_transfers(), "file-tree transfer")?;
         let transfer = TreeTransfer::new();
         let outcome = async {
-            let metadata = source.backend().export_tree(&transfer).await?;
+            let metadata = transfers.export_tree(&transfer).await?;
             let expected = metadata.bytes;
             if expected as u128 > MAX_ARCHIVE as u128 {
                 return Err(Error::InvalidInput(
@@ -366,6 +372,7 @@ impl SyncService {
                 "checkpoint exceeds transfer limit".into(),
             ));
         }
+        let transfers = require(destination.backend.tree_transfers(), "file-tree transfer")?;
         let transfer = TreeTransfer::new();
         let outcome = async {
             for (index, chunk) in bytes.chunks(CHUNK).enumerate() {
@@ -379,7 +386,7 @@ impl SyncService {
                     })
                     .await?;
             }
-            destination.backend().import_tree(&transfer).await?;
+            transfers.import_tree(&transfer).await?;
             Ok(())
         }
         .await;
@@ -507,7 +514,9 @@ impl SyncService {
     }
     async fn cleanup(&self, workspace: &Workspace, transfer: &TreeTransfer) {
         // The backend derives the only removable directory from the validated ID.
-        let _ = workspace.backend().remove_transfer(transfer).await;
+        if let Some(transfers) = workspace.backend.tree_transfers() {
+            let _ = transfers.remove_transfer(transfer).await;
+        }
     }
 }
 

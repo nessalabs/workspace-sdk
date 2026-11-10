@@ -1,7 +1,10 @@
 use super::{ITarget, MAX_CHUNK};
 use crate::{
     domain::*,
-    ports::IBackend,
+    ports::{
+        Connections, Deletion, IBackend, IConnection, Lifecycle, ManagedRuns, Ports, PrivateState,
+        SocketForward, Terminals,
+    },
     supervisor::protocol::{
         SupervisorContext, SupervisorExecution, SupervisorOperation, SupervisorRequest,
         SupervisorValue, WorkingDirectory,
@@ -42,14 +45,9 @@ impl ManagedBackend {
         }
         Ok(())
     }
-    fn owned(&self) -> Result<()> {
-        if self.descriptor.ownership == Ownership::Attached {
-            Err(Error::Unsupported(
-                "lifecycle mutation of an attached workspace".into(),
-            ))
-        } else {
-            Ok(())
-        }
+    /// Stopping and deleting are offered only for a workspace this SDK owns.
+    fn owned(&self) -> bool {
+        self.descriptor.ownership == Ownership::SdkOwned
     }
     async fn launch(&self, request: LaunchRequest, directory: WorkingDirectory) -> Result<RunRef> {
         request.execution.command.validate()?;
@@ -151,10 +149,14 @@ impl ManagedBackend {
         }
     }
 }
+
 #[async_trait]
 impl IBackend for ManagedBackend {
     fn descriptor(&self) -> BackendDescriptor {
-        self.descriptor.clone()
+        BackendDescriptor {
+            capabilities: (self as &dyn IBackend).capabilities(),
+            ..self.descriptor.clone()
+        }
     }
     async fn ensure_ready(&self) -> Result<()> {
         self.target.ensure().await?;
@@ -185,20 +187,155 @@ impl IBackend for ManagedBackend {
         let cwd = request.command.cwd.clone();
         self.execute(request, WorkingDirectory::Project(cwd)).await
     }
-    async fn exec_private(
-        &self,
-        request: ExecutionRequest,
-        cwd: WorkspacePath,
-    ) -> Result<ExecResult> {
-        self.execute(request, WorkingDirectory::Control(cwd)).await
+    async fn read_file(&self, request: ReadFile) -> Result<FileChunk> {
+        if request.limit == 0 || request.limit as usize > MAX_CHUNK {
+            return Err(Error::InvalidInput(
+                "file read limit must be 1..=262144 bytes".into(),
+            ));
+        }
+        let chunk = self
+            .target
+            .invoke(self.protocol_request(SupervisorOperation::ReadFile {
+                path: request.path,
+                offset: request.offset,
+                limit: request.limit,
+            }))
+            .await?
+            .file_chunk()?;
+        if chunk.bytes.len() > request.limit as usize
+            || request.offset.checked_add(chunk.bytes.len() as u64) != Some(chunk.next_offset)
+        {
+            return Err(Error::State(
+                "target returned an invalid file chunk or offset".into(),
+            ));
+        }
+        Ok(FileChunk {
+            bytes: chunk.bytes,
+            next_offset: chunk.next_offset,
+            eof: chunk.eof,
+        })
     }
+    async fn write_file(&self, request: WriteFile) -> Result<()> {
+        if request.bytes.len() > MAX_CHUNK {
+            return Err(Error::InvalidInput(
+                "file write chunk exceeds 256 KiB".into(),
+            ));
+        }
+        self.target
+            .invoke(self.protocol_request(SupervisorOperation::WriteFile {
+                path: request.path,
+                offset: request.offset,
+                bytes: request.bytes,
+                truncate: request.truncate,
+                executable: request.executable,
+            }))
+            .await?
+            .empty()
+    }
+    fn runs(&self) -> Option<&dyn ManagedRuns> {
+        Some(self)
+    }
+    fn terminals(&self) -> Option<&dyn Terminals> {
+        Some(self)
+    }
+    fn private_state(&self) -> Option<&dyn PrivateState> {
+        Some(self)
+    }
+    fn ports(&self) -> Option<&dyn Ports> {
+        (!self.target.port_policies().is_empty()).then_some(self as &dyn Ports)
+    }
+    fn lifecycle(&self) -> Option<&dyn Lifecycle> {
+        (self.owned() && self.target.stops()).then_some(self as &dyn Lifecycle)
+    }
+    fn deletion(&self) -> Option<&dyn Deletion> {
+        (self.owned() && self.target.deletes()).then_some(self as &dyn Deletion)
+    }
+    fn connections(&self) -> Option<&dyn Connections> {
+        self.target.connects().then_some(self as &dyn Connections)
+    }
+    #[cfg(feature = "portability")]
+    fn file_browsing(&self) -> Option<&dyn crate::ports::FileBrowsing> {
+        Some(self)
+    }
+    #[cfg(feature = "portability")]
+    fn tree_transfers(&self) -> Option<&dyn crate::ports::TreeTransfers> {
+        Some(self)
+    }
+}
+#[async_trait]
+impl ManagedRuns for ManagedBackend {
     async fn start(&self, request: LaunchRequest) -> Result<RunRef> {
         let cwd = request.execution.command.cwd.clone();
         self.launch(request, WorkingDirectory::Project(cwd)).await
     }
-    async fn start_private(&self, request: LaunchRequest, cwd: WorkspacePath) -> Result<RunRef> {
-        self.launch(request, WorkingDirectory::Control(cwd)).await
+    async fn inspect_run(&self, run: &RunRef) -> Result<RunState> {
+        self.validate_run(run)?;
+        self.target
+            .invoke(self.protocol_request(SupervisorOperation::Inspect { id: run.id.clone() }))
+            .await?
+            .run()
     }
+    async fn read_output(
+        &self,
+        run: &RunRef,
+        cursor: OutputCursor,
+        limit: u32,
+    ) -> Result<OutputPage> {
+        self.validate_run(run)?;
+        if !(2..=MAX_CHUNK as u32).contains(&limit) {
+            return Err(Error::InvalidInput(
+                "output page limit must be 2..=262144 bytes".into(),
+            ));
+        }
+        self.target
+            .invoke(self.protocol_request(SupervisorOperation::Output {
+                id: run.id.clone(),
+                cursor,
+                limit,
+            }))
+            .await?
+            .output()
+    }
+    async fn read_output_bytes(
+        &self,
+        run: &RunRef,
+        cursor: OutputCursor,
+        limit: u32,
+    ) -> Result<OutputBytesPage> {
+        self.validate_run(run)?;
+        if !(2..=MAX_CHUNK as u32).contains(&limit) {
+            return Err(Error::InvalidInput(
+                "output page limit must be 2..=262144 bytes".into(),
+            ));
+        }
+        let page = self
+            .target
+            .invoke(self.protocol_request(SupervisorOperation::OutputBytes {
+                id: run.id.clone(),
+                cursor,
+                limit,
+            }))
+            .await?
+            .output_bytes()?;
+        let stdout_budget = limit as usize / 2;
+        let stderr_budget = limit as usize - stdout_budget;
+        if page.stdout.len() > stdout_budget || page.stderr.len() > stderr_budget {
+            return Err(Error::State(
+                "supervisor byte output exceeds requested stream budgets".into(),
+            ));
+        }
+        Ok(page)
+    }
+    async fn cancel(&self, run: &RunRef) -> Result<RunState> {
+        self.validate_run(run)?;
+        self.target
+            .invoke(self.protocol_request(SupervisorOperation::Cancel { id: run.id.clone() }))
+            .await?
+            .run()
+    }
+}
+#[async_trait]
+impl Terminals for ManagedBackend {
     async fn start_terminal(
         &self,
         request: LaunchRequest,
@@ -267,203 +404,18 @@ impl IBackend for ManagedBackend {
             .await?
             .empty()
     }
-    async fn read_file(&self, request: ReadFile) -> Result<FileChunk> {
-        if request.limit == 0 || request.limit as usize > MAX_CHUNK {
-            return Err(Error::InvalidInput(
-                "file read limit must be 1..=262144 bytes".into(),
-            ));
-        }
-        let chunk = self
-            .target
-            .invoke(self.protocol_request(SupervisorOperation::ReadFile {
-                path: request.path,
-                offset: request.offset,
-                limit: request.limit,
-            }))
-            .await?
-            .file_chunk()?;
-        if chunk.bytes.len() > request.limit as usize
-            || request.offset.checked_add(chunk.bytes.len() as u64) != Some(chunk.next_offset)
-        {
-            return Err(Error::State(
-                "target returned an invalid file chunk or offset".into(),
-            ));
-        }
-        Ok(FileChunk {
-            bytes: chunk.bytes,
-            next_offset: chunk.next_offset,
-            eof: chunk.eof,
-        })
-    }
-    async fn write_file(&self, request: WriteFile) -> Result<()> {
-        if request.bytes.len() > MAX_CHUNK {
-            return Err(Error::InvalidInput(
-                "file write chunk exceeds 256 KiB".into(),
-            ));
-        }
-        self.target
-            .invoke(self.protocol_request(SupervisorOperation::WriteFile {
-                path: request.path,
-                offset: request.offset,
-                bytes: request.bytes,
-                truncate: request.truncate,
-                executable: request.executable,
-            }))
-            .await?
-            .empty()
-    }
-    #[cfg(feature = "portability")]
-    async fn list_directory(&self, request: ListDirectory) -> Result<DirectoryPage> {
-        request.validate()?;
-        let expected_request = request.clone();
-        match self
-            .target
-            .invoke(self.protocol_request(SupervisorOperation::ListDirectory(request)))
-            .await?
-        {
-            SupervisorValue::DirectoryPage(page) => {
-                page.validate_for(&expected_request)?;
-                Ok(page)
-            }
-            _ => Err(Error::State("invalid directory response".into())),
-        }
-    }
-    #[cfg(feature = "portability")]
-    async fn read_versioned_file(&self, request: ReadVersionedFile) -> Result<VersionedFileChunk> {
-        request.validate()?;
-        let offset = request.offset;
-        let limit = request.limit;
-        let expected = request.expected.clone();
-        match self
-            .target
-            .invoke(self.protocol_request(SupervisorOperation::ReadVersionedFile(request)))
-            .await?
-        {
-            SupervisorValue::VersionedFileChunk(chunk)
-                if crate::domain::workspace::file_browser::valid_revision(&chunk.revision)
-                    && chunk.bytes.len() <= limit as usize
-                    && offset.checked_add(chunk.bytes.len() as u64) == Some(chunk.next_offset)
-                    && (!chunk.bytes.is_empty() || chunk.eof)
-                    && expected.is_none_or(|revision| revision == chunk.revision) =>
-            {
-                Ok(chunk)
-            }
-            _ => Err(Error::State("invalid versioned file response".into())),
-        }
-    }
-    #[cfg(feature = "portability")]
-    async fn publish_file(&self, request: PublishFile) -> Result<PublishOutcome> {
-        request.validate()?;
-        match self
-            .target
-            .invoke(self.protocol_request(SupervisorOperation::PublishFile(request)))
-            .await
-        {
-            Ok(SupervisorValue::PublishOutcome(PublishOutcome::Created { revision }))
-                if !crate::domain::workspace::file_browser::valid_revision(&revision) =>
-            {
-                Ok(PublishOutcome::Unknown)
-            }
-            Ok(SupervisorValue::PublishOutcome(outcome)) => Ok(outcome),
-            Ok(SupervisorValue::PublishRejected(fault)) => Err(fault.into_error()),
-            // Only a supervisor refusing the request before dispatch reports
-            // Unsupported (an unknown operation or protocol version), so nothing
-            // was published. Every other failure leaves the outcome unknown.
-            Err(Error::Unsupported(message)) => Err(Error::Unsupported(message)),
-            Ok(_) | Err(_) => Ok(PublishOutcome::Unknown),
-        }
-    }
-    async fn inspect_run(&self, run: &RunRef) -> Result<RunState> {
-        self.validate_run(run)?;
-        self.target
-            .invoke(self.protocol_request(SupervisorOperation::Inspect { id: run.id.clone() }))
-            .await?
-            .run()
-    }
-    async fn read_output(
+}
+#[async_trait]
+impl PrivateState for ManagedBackend {
+    async fn exec_private(
         &self,
-        run: &RunRef,
-        cursor: OutputCursor,
-        limit: u32,
-    ) -> Result<OutputPage> {
-        self.validate_run(run)?;
-        if !(2..=MAX_CHUNK as u32).contains(&limit) {
-            return Err(Error::InvalidInput(
-                "output page limit must be 2..=262144 bytes".into(),
-            ));
-        }
-        self.target
-            .invoke(self.protocol_request(SupervisorOperation::Output {
-                id: run.id.clone(),
-                cursor,
-                limit,
-            }))
-            .await?
-            .output()
+        request: ExecutionRequest,
+        cwd: WorkspacePath,
+    ) -> Result<ExecResult> {
+        self.execute(request, WorkingDirectory::Control(cwd)).await
     }
-    async fn read_output_bytes(
-        &self,
-        run: &RunRef,
-        cursor: OutputCursor,
-        limit: u32,
-    ) -> Result<OutputBytesPage> {
-        self.validate_run(run)?;
-        if !(2..=MAX_CHUNK as u32).contains(&limit) {
-            return Err(Error::InvalidInput(
-                "output page limit must be 2..=262144 bytes".into(),
-            ));
-        }
-        let page = self
-            .target
-            .invoke(self.protocol_request(SupervisorOperation::OutputBytes {
-                id: run.id.clone(),
-                cursor,
-                limit,
-            }))
-            .await?
-            .output_bytes()?;
-        let stdout_budget = limit as usize / 2;
-        let stderr_budget = limit as usize - stdout_budget;
-        if page.stdout.len() > stdout_budget || page.stderr.len() > stderr_budget {
-            return Err(Error::State(
-                "supervisor byte output exceeds requested stream budgets".into(),
-            ));
-        }
-        Ok(page)
-    }
-    async fn cancel(&self, run: &RunRef) -> Result<RunState> {
-        self.validate_run(run)?;
-        self.target
-            .invoke(self.protocol_request(SupervisorOperation::Cancel { id: run.id.clone() }))
-            .await?
-            .run()
-    }
-    #[cfg(feature = "portability")]
-    async fn export_tree(&self, transfer: &TreeTransfer) -> Result<TreeExportReceipt> {
-        self.target
-            .invoke(self.protocol_request(SupervisorOperation::ExportTree {
-                transfer: transfer.clone(),
-            }))
-            .await?
-            .tree_export()
-    }
-    #[cfg(feature = "portability")]
-    async fn import_tree(&self, transfer: &TreeTransfer) -> Result<TreeImportReceipt> {
-        self.target
-            .invoke(self.protocol_request(SupervisorOperation::ImportTree {
-                transfer: transfer.clone(),
-            }))
-            .await?
-            .tree_import()
-    }
-    #[cfg(feature = "portability")]
-    async fn remove_transfer(&self, transfer: &TreeTransfer) -> Result<()> {
-        self.target
-            .invoke(self.protocol_request(SupervisorOperation::RemoveTransfer {
-                transfer: transfer.clone(),
-            }))
-            .await?
-            .empty()
+    async fn start_private(&self, request: LaunchRequest, cwd: WorkspacePath) -> Result<RunRef> {
+        self.launch(request, WorkingDirectory::Control(cwd)).await
     }
     async fn ensure_private_directory(&self, path: WorkspacePath) -> Result<()> {
         self.target
@@ -488,25 +440,36 @@ impl IBackend for ManagedBackend {
             .await?
             .resources()
     }
+}
+#[async_trait]
+impl Ports for ManagedBackend {
+    fn policies(&self) -> &[PortPolicy] {
+        self.target.port_policies()
+    }
     async fn port(&self, request: PortRequest) -> Result<PortAccess> {
         if request.port == 0 {
             return Err(Error::InvalidInput("port must be nonzero".into()));
         }
+        if !self.policies().contains(&request.policy) {
+            return Err(Error::Unsupported(format!(
+                "{:?} port access on this target; it offers {:?}",
+                request.policy,
+                self.policies()
+            )));
+        }
         self.target.port(request).await
     }
+}
+#[async_trait]
+impl Lifecycle for ManagedBackend {
     async fn stop(&self) -> Result<()> {
-        self.owned()?;
         self.target.stop().await
     }
+}
+#[async_trait]
+impl Deletion for ManagedBackend {
     async fn destroy(&self) -> Result<DeleteOperation> {
-        self.owned()?;
         self.target.destroy(&self.descriptor.reference).await
-    }
-    async fn connection(
-        &self,
-        forward: Option<crate::ports::SocketForward>,
-    ) -> Result<Arc<dyn crate::ports::IConnection>> {
-        self.target.connection(forward).await
     }
     async fn inspect_delete(&self, operation: &OperationRef) -> Result<DeleteOperation> {
         if operation.workspace != self.descriptor.reference {
@@ -515,5 +478,101 @@ impl IBackend for ManagedBackend {
             ));
         }
         self.target.inspect_delete(operation).await
+    }
+}
+#[async_trait]
+impl Connections for ManagedBackend {
+    async fn connection(&self, forward: Option<SocketForward>) -> Result<Arc<dyn IConnection>> {
+        self.target.connection(forward).await
+    }
+}
+#[cfg(feature = "portability")]
+#[async_trait]
+impl crate::ports::FileBrowsing for ManagedBackend {
+    async fn list_directory(&self, request: ListDirectory) -> Result<DirectoryPage> {
+        request.validate()?;
+        let expected_request = request.clone();
+        match self
+            .target
+            .invoke(self.protocol_request(SupervisorOperation::ListDirectory(request)))
+            .await?
+        {
+            SupervisorValue::DirectoryPage(page) => {
+                page.validate_for(&expected_request)?;
+                Ok(page)
+            }
+            _ => Err(Error::State("invalid directory response".into())),
+        }
+    }
+    async fn read_versioned_file(&self, request: ReadVersionedFile) -> Result<VersionedFileChunk> {
+        request.validate()?;
+        let offset = request.offset;
+        let limit = request.limit;
+        let expected = request.expected.clone();
+        match self
+            .target
+            .invoke(self.protocol_request(SupervisorOperation::ReadVersionedFile(request)))
+            .await?
+        {
+            SupervisorValue::VersionedFileChunk(chunk)
+                if crate::domain::workspace::file_browser::valid_revision(&chunk.revision)
+                    && chunk.bytes.len() <= limit as usize
+                    && offset.checked_add(chunk.bytes.len() as u64) == Some(chunk.next_offset)
+                    && (!chunk.bytes.is_empty() || chunk.eof)
+                    && expected.is_none_or(|revision| revision == chunk.revision) =>
+            {
+                Ok(chunk)
+            }
+            _ => Err(Error::State("invalid versioned file response".into())),
+        }
+    }
+    async fn publish_file(&self, request: PublishFile) -> Result<PublishOutcome> {
+        request.validate()?;
+        match self
+            .target
+            .invoke(self.protocol_request(SupervisorOperation::PublishFile(request)))
+            .await
+        {
+            Ok(SupervisorValue::PublishOutcome(PublishOutcome::Created { revision }))
+                if !crate::domain::workspace::file_browser::valid_revision(&revision) =>
+            {
+                Ok(PublishOutcome::Unknown)
+            }
+            Ok(SupervisorValue::PublishOutcome(outcome)) => Ok(outcome),
+            Ok(SupervisorValue::PublishRejected(fault)) => Err(fault.into_error()),
+            // Only a supervisor refusing the request before dispatch reports
+            // Unsupported (an unknown operation or protocol version), so nothing
+            // was published. Every other failure leaves the outcome unknown.
+            Err(Error::Unsupported(message)) => Err(Error::Unsupported(message)),
+            Ok(_) | Err(_) => Ok(PublishOutcome::Unknown),
+        }
+    }
+}
+#[cfg(feature = "portability")]
+#[async_trait]
+impl crate::ports::TreeTransfers for ManagedBackend {
+    async fn export_tree(&self, transfer: &TreeTransfer) -> Result<TreeExportReceipt> {
+        self.target
+            .invoke(self.protocol_request(SupervisorOperation::ExportTree {
+                transfer: transfer.clone(),
+            }))
+            .await?
+            .tree_export()
+    }
+    async fn import_tree(&self, transfer: &TreeTransfer) -> Result<TreeImportReceipt> {
+        self.target
+            .invoke(self.protocol_request(SupervisorOperation::ImportTree {
+                transfer: transfer.clone(),
+            }))
+            .await?
+            .tree_import()
+    }
+    async fn remove_transfer(&self, transfer: &TreeTransfer) -> Result<()> {
+        self.target
+            .invoke(self.protocol_request(SupervisorOperation::RemoveTransfer {
+                transfer: transfer.clone(),
+            }))
+            .await?
+            .empty()
     }
 }

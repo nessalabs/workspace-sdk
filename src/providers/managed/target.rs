@@ -7,6 +7,23 @@ use std::sync::Arc;
 #[async_trait]
 pub(in crate::providers) trait ITarget: Send + Sync {
     async fn invoke(&self, request: SupervisorRequest) -> Result<SupervisorValue>;
+    /// The port policies [`Self::port`] serves; empty when it serves none.
+    fn port_policies(&self) -> &'static [PortPolicy] {
+        &[]
+    }
+    /// Whether [`Self::stop`] is implemented. Offered only for owned workspaces.
+    fn stops(&self) -> bool {
+        false
+    }
+    /// Whether [`Self::destroy`] and [`Self::inspect_delete`] are implemented.
+    /// Offered only for owned workspaces.
+    fn deletes(&self) -> bool {
+        false
+    }
+    /// Whether [`Self::connection`] is implemented.
+    fn connects(&self) -> bool {
+        false
+    }
     async fn ensure(&self) -> Result<()> {
         Ok(())
     }

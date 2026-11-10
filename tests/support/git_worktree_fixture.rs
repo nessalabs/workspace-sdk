@@ -158,9 +158,15 @@ impl Fixture {
         }
         for (backend, run) in claims {
             let cleanup = async {
-                backend.cancel(&run).await?;
+                backend.runs().unwrap().cancel(&run).await?;
                 loop {
-                    if backend.inspect_run(&run).await?.is_terminal() {
+                    if backend
+                        .runs()
+                        .unwrap()
+                        .inspect_run(&run)
+                        .await?
+                        .is_terminal()
+                    {
                         return Ok::<(), Error>(());
                     }
                     tokio::time::sleep(Duration::from_millis(20)).await;
@@ -393,6 +399,12 @@ impl IBackend for ReplyLossBackend {
     async fn write_file(&self, request: WriteFile) -> Result<()> {
         self.inner.write_file(request).await
     }
+    fn runs(&self) -> Option<&dyn ports::ManagedRuns> {
+        Some(self)
+    }
+}
+#[async_trait]
+impl ports::ManagedRuns for ReplyLossBackend {
     async fn start(&self, request: LaunchRequest) -> Result<RunRef> {
         let intended = RunRef {
             workspace: self.inner.descriptor().reference,
@@ -407,7 +419,7 @@ impl IBackend for ReplyLossBackend {
                 claims.push((self.inner.clone(), intended.clone()));
             }
         }
-        let run = self.inner.start(request).await?;
+        let run = self.inner.runs().unwrap().start(request).await?;
         if run.workspace != intended.workspace || run.id != intended.id {
             // An unexpected target is not ours to cancel. Preserve control state
             // and report uncertainty instead of guessing cleanup authority.
@@ -422,7 +434,7 @@ impl IBackend for ReplyLossBackend {
         Ok(run)
     }
     async fn inspect_run(&self, run: &RunRef) -> Result<RunState> {
-        let actual = self.inner.inspect_run(run).await?;
+        let actual = self.inner.runs().unwrap().inspect_run(run).await?;
         if self.simulated_lost.load(Ordering::SeqCst) {
             Ok(RunState::Lost {
                 reason: "injected uncertain observation over a native claim".into(),
@@ -437,9 +449,25 @@ impl IBackend for ReplyLossBackend {
         cursor: OutputCursor,
         limit: u32,
     ) -> Result<OutputPage> {
-        self.inner.read_output(run, cursor, limit).await
+        self.inner
+            .runs()
+            .unwrap()
+            .read_output(run, cursor, limit)
+            .await
+    }
+    async fn read_output_bytes(
+        &self,
+        run: &RunRef,
+        cursor: OutputCursor,
+        limit: u32,
+    ) -> Result<OutputBytesPage> {
+        self.inner
+            .runs()
+            .unwrap()
+            .read_output_bytes(run, cursor, limit)
+            .await
     }
     async fn cancel(&self, run: &RunRef) -> Result<RunState> {
-        self.inner.cancel(run).await
+        self.inner.runs().unwrap().cancel(run).await
     }
 }

@@ -27,9 +27,39 @@ pub struct Machines {
 /// One named use of a machine. Dropping it ends the use.
 ///
 /// It gives the workspace's operations through `Deref`, but not the owned
-/// handle's stop or destroy: resting is [`Machines::rest_idle`]'s alone. Until
-/// lifecycle becomes its own capability, `Workspace::backend()` still reaches
-/// the backend's `stop`; a holder must not call it.
+/// handle's stop or destroy: resting is [`Machines::rest_idle`]'s alone.
+/// The handle gives no path to the backend's stop or delete, and the compiler
+/// checks that (code that also holds the provider can still connect and stop
+/// the target itself). A connection opened through the handle can outlive the
+/// use; once the use is dropped the machine may be rested under it. A holder
+/// can use the workspace:
+///
+/// ```no_run
+/// async fn work(holder: workspace_sdk::MachineUse) {
+///     let _ = holder.state().await;
+///     let _ = holder.runtime_host();
+/// }
+/// ```
+///
+/// but none of these compile:
+///
+/// ```compile_fail,E0599
+/// async fn rest(holder: workspace_sdk::MachineUse) {
+///     holder.stop().await.unwrap();
+/// }
+/// ```
+///
+/// ```compile_fail,E0599
+/// fn reach(holder: &workspace_sdk::MachineUse) {
+///     let _ = holder.backend();
+/// }
+/// ```
+///
+/// ```compile_fail,E0599
+/// fn reach(holder: &workspace_sdk::MachineUse) {
+///     let _ = holder.runtime_host().backend();
+/// }
+/// ```
 #[must_use = "the machine may rest as soon as its use is dropped"]
 pub struct MachineUse {
     entry: Arc<Entry>,

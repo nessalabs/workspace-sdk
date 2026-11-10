@@ -91,6 +91,12 @@ impl Created {
 }
 
 /// The VMs of one Boat account, in its personal scope.
+///
+/// `stop` and `roll_back` act for the whole account: they do not check that
+/// this process created the VM. Hand a `BoatMachines` only to code that owns
+/// the account, never to code that only attached a workspace; applications
+/// should stop and delete through [`crate::Machines`] or
+/// [`crate::OwnedWorkspace`].
 #[derive(Clone)]
 pub struct BoatMachines {
     boat: Arc<Boat>,

@@ -1,5 +1,8 @@
 use super::*;
-use crate::{infrastructure::MemoryStateRepository, ports::IBackend};
+use crate::{
+    infrastructure::MemoryStateRepository,
+    ports::{IBackend, ManagedRuns, TreeTransfers},
+};
 use async_trait::async_trait;
 use std::{
     collections::BTreeMap,
@@ -92,42 +95,6 @@ impl IBackend for TransferBackend {
     async fn exec(&self, _: ExecutionRequest) -> Result<ExecResult> {
         unsupported()
     }
-    async fn start(&self, request: LaunchRequest) -> Result<RunRef> {
-        self.started_runs.fetch_add(1, Ordering::SeqCst);
-        Ok(RunRef {
-            workspace: self.descriptor.reference.clone(),
-            id: request.id,
-        })
-    }
-    async fn inspect_run(&self, _: &RunRef) -> Result<RunState> {
-        Ok(RunState::Exited { exit_code: 0 })
-    }
-    async fn read_output(&self, _: &RunRef, _: OutputCursor, _: u32) -> Result<OutputPage> {
-        unsupported()
-    }
-    async fn cancel(&self, _: &RunRef) -> Result<RunState> {
-        unsupported()
-    }
-    async fn export_tree(&self, transfer: &TreeTransfer) -> Result<TreeExportReceipt> {
-        self.export_count.fetch_add(1, Ordering::SeqCst);
-        self.staged
-            .lock()
-            .unwrap()
-            .insert(transfer.id.clone(), self.archive.clone());
-        Ok(TreeExportReceipt {
-            bytes: if self.corruption == Corruption::OversizedArchive {
-                MAX_ARCHIVE as u64 + 1
-            } else {
-                self.archive.len() as u64
-            },
-            sha256: if self.corruption == Corruption::Hash {
-                "0".repeat(64)
-            } else {
-                format!("{:x}", Sha256::digest(&self.archive))
-            },
-            files: 1,
-        })
-    }
     async fn read_file(&self, request: ReadFile) -> Result<FileChunk> {
         self.pause(BlockAt::Read).await;
         if self.corruption == Corruption::ReadError {
@@ -171,6 +138,62 @@ impl IBackend for TransferBackend {
             return Err(Error::State("injected write failure".into()));
         }
         Ok(())
+    }
+    fn runs(&self) -> Option<&dyn ManagedRuns> {
+        Some(self)
+    }
+    fn tree_transfers(&self) -> Option<&dyn TreeTransfers> {
+        Some(self)
+    }
+}
+#[async_trait]
+impl ManagedRuns for TransferBackend {
+    async fn start(&self, request: LaunchRequest) -> Result<RunRef> {
+        self.started_runs.fetch_add(1, Ordering::SeqCst);
+        Ok(RunRef {
+            workspace: self.descriptor.reference.clone(),
+            id: request.id,
+        })
+    }
+    async fn inspect_run(&self, _: &RunRef) -> Result<RunState> {
+        Ok(RunState::Exited { exit_code: 0 })
+    }
+    async fn read_output(&self, _: &RunRef, _: OutputCursor, _: u32) -> Result<OutputPage> {
+        unsupported()
+    }
+    async fn read_output_bytes(
+        &self,
+        _: &RunRef,
+        _: OutputCursor,
+        _: u32,
+    ) -> Result<OutputBytesPage> {
+        unsupported()
+    }
+    async fn cancel(&self, _: &RunRef) -> Result<RunState> {
+        unsupported()
+    }
+}
+#[async_trait]
+impl TreeTransfers for TransferBackend {
+    async fn export_tree(&self, transfer: &TreeTransfer) -> Result<TreeExportReceipt> {
+        self.export_count.fetch_add(1, Ordering::SeqCst);
+        self.staged
+            .lock()
+            .unwrap()
+            .insert(transfer.id.clone(), self.archive.clone());
+        Ok(TreeExportReceipt {
+            bytes: if self.corruption == Corruption::OversizedArchive {
+                MAX_ARCHIVE as u64 + 1
+            } else {
+                self.archive.len() as u64
+            },
+            sha256: if self.corruption == Corruption::Hash {
+                "0".repeat(64)
+            } else {
+                format!("{:x}", Sha256::digest(&self.archive))
+            },
+            files: 1,
+        })
     }
     async fn import_tree(&self, transfer: &TreeTransfer) -> Result<TreeImportReceipt> {
         self.pause(BlockAt::Import).await;

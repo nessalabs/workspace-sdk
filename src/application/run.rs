@@ -1,6 +1,6 @@
 use crate::{
     domain::{OutputBytesPage, OutputCursor, OutputPage, RunRef, RunState},
-    ports::IBackend,
+    ports::{require, IBackend, ManagedRuns},
     Error, Result,
 };
 use std::sync::Arc;
@@ -18,17 +18,20 @@ pub struct Run {
     pub(super) reference: RunRef,
 }
 impl Run {
+    fn runs(&self) -> Result<&dyn ManagedRuns> {
+        require(self.backend.runs(), "managed runs")
+    }
     /// Return the workspace-qualified identity needed to reconnect to this process.
     pub fn reference(&self) -> RunRef {
         self.reference.clone()
     }
     /// Observe the process lifecycle through its provider’s supervisor.
     pub async fn state(&self) -> Result<RunState> {
-        self.backend.inspect_run(&self.reference).await
+        self.runs()?.inspect_run(&self.reference).await
     }
     /// Read at most the requested output page size from absolute stream cursors.
     pub async fn output(&self, cursor: OutputCursor, limit: u32) -> Result<OutputPage> {
-        self.backend
+        self.runs()?
             .read_output(&self.reference, cursor, limit)
             .await
     }
@@ -37,13 +40,13 @@ impl Run {
     /// Reads do not advance server-side state; repeat or persist the returned
     /// cursors explicitly. Gaps must not be treated as complete protocol output.
     pub async fn output_bytes(&self, cursor: OutputCursor, limit: u32) -> Result<OutputBytesPage> {
-        self.backend
+        self.runs()?
             .read_output_bytes(&self.reference, cursor, limit)
             .await
     }
     /// Cancel this managed process group and observe the resulting state.
     pub async fn cancel(&self) -> Result<RunState> {
-        self.backend.cancel(&self.reference).await
+        self.runs()?.cancel(&self.reference).await
     }
     /// Poll until a confirmed terminal state or the caller’s waiting deadline.
     /// A waiting timeout leaves the process running; an unknown/lost state returns
