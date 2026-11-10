@@ -21,8 +21,6 @@ use std::{
 };
 use uuid::Uuid;
 
-/// How long a wake waits for a stopping sandbox to finish archiving.
-const ARCHIVE_WAIT: std::time::Duration = std::time::Duration::from_secs(120);
 /// How often a wake checks a stopping sandbox.
 const ARCHIVE_POLL: std::time::Duration = std::time::Duration::from_secs(1);
 
@@ -41,8 +39,52 @@ pub(super) struct SandboxTarget {
     pub(super) locator: Locator,
     pub(super) workspace_id: WorkspaceId,
     pub(super) verified_owned: AtomicBool,
+    /// Whether creation has just checked the machine, so the first wake
+    /// does not check it again.
+    pub(super) admitted_now: AtomicBool,
+    /// The Boat machine this is, checked on every wake through its machines.
+    pub(super) machine: Option<(super::machines::BoatMachines, super::locator::Machine)>,
+    /// How long one wake may take: every request and wait before the
+    /// supervisor is installed.
+    pub(super) wake: std::time::Duration,
 }
 impl SandboxTarget {
+    async fn wake_by(&self, deadline: tokio::time::Instant) -> Result<()> {
+        // A stop returns once Boat accepts it, while the sandbox may still be
+        // archiving; it can only be resumed once archived.
+        let mut info = self.api.get(&self.locator.target).await.map_err(error)?;
+        while info.sandbox.state == SandboxState::Archiving {
+            tokio::time::sleep(ARCHIVE_POLL).await;
+            info = self.api.get(&self.locator.target).await.map_err(error)?;
+        }
+        if info.sandbox.state == SandboxState::Archived {
+            if self.locator.ownership == Ownership::Attached {
+                return Err(Error::State(
+                    "attached Sandbox is archived; its owner must resume it".into(),
+                ));
+            }
+            self.verify_ownership().await?;
+            self.api
+                .resume(&self.locator.target, None)
+                .await
+                .map_err(error)?;
+        }
+        // The client reads a zero wait as none at all, so a spent budget
+        // ends here.
+        let left = deadline.saturating_duration_since(tokio::time::Instant::now());
+        let left = u64::try_from(left.as_millis()).unwrap_or(u64::MAX);
+        if left == 0 {
+            return Err(Error::Timeout("the Sandbox did not wake in time".into()));
+        }
+        wait_until_ready_with(
+            &self.api,
+            &self.locator.target,
+            WaitOptions::from_millis(left, 1_000),
+        )
+        .await
+        .map_err(error)?;
+        Ok(())
+    }
     async fn native(&self, command: String) -> Result<CommandResponse> {
         let result = self
             .api
@@ -244,38 +286,33 @@ impl ITarget for SandboxTarget {
         result
     }
     async fn ensure(&self) -> Result<()> {
-        // A stop returns once Boat accepts it, while the sandbox may still be
-        // archiving; it can only be resumed once archived.
-        let deadline = tokio::time::Instant::now() + ARCHIVE_WAIT;
-        let mut info = self.api.get(&self.locator.target).await.map_err(error)?;
-        while info.sandbox.state == SandboxState::Archiving {
-            if tokio::time::Instant::now() >= deadline {
-                return Err(Error::State(
-                    "Sandbox is still archiving; try again once it has stopped".into(),
+        if let Some((machines, machine)) = &self.machine {
+            if self.locator.ownership != Ownership::SdkOwned {
+                return Err(Error::Unsupported(
+                    "attached Sandbox lifecycle cannot be mutated".into(),
                 ));
             }
-            tokio::time::sleep(ARCHIVE_POLL).await;
-            info = self.api.get(&self.locator.target).await.map_err(error)?;
-        }
-        if info.sandbox.state == SandboxState::Archived {
-            if self.locator.ownership == Ownership::Attached {
-                return Err(Error::State(
-                    "attached Sandbox is archived; its owner must resume it".into(),
-                ));
+            if !self.admitted_now.swap(false, Ordering::AcqRel) {
+                machines
+                    .ready(&machine.spec, &self.locator.target, &machine.admitted)
+                    .await
+                    .map_err(|failed| {
+                        super::refusal::wake_failure(failed, &self.locator.target, machine)
+                    })?;
             }
-            self.verify_ownership().await?;
-            self.api
-                .resume(&self.locator.target, None)
-                .await
-                .map_err(error)?;
+            // Its marker can be read once it runs: a ready machine that is
+            // not this workspace's is never used.
+            if !self.verified_owned.load(Ordering::Acquire) {
+                self.verify_ownership().await?;
+            }
+            return self.install_supervisor().await;
         }
-        wait_until_ready_with(
-            &self.api,
-            &self.locator.target,
-            WaitOptions::from_millis(180_000, 1_000),
-        )
-        .await
-        .map_err(error)?;
+        // Every request and wait of the wake spends one deadline; installing
+        // the supervisor afterwards has bounds of its own.
+        let deadline = tokio::time::Instant::now() + self.wake;
+        tokio::time::timeout_at(deadline, self.wake_by(deadline))
+            .await
+            .map_err(|_| Error::Timeout("the Sandbox did not wake in time".into()))??;
         self.install_supervisor().await
     }
     async fn state(&self) -> Result<WorkspaceState> {
@@ -327,6 +364,15 @@ impl ITarget for SandboxTarget {
             url,
             policy: PortPolicy::Authenticated,
         })
+    }
+    async fn connection(
+        &self,
+        forward: Option<crate::ports::SocketForward>,
+    ) -> Result<std::sync::Arc<dyn crate::ports::IConnection>> {
+        let connection =
+            super::connection::SshConnection::connect(&self.api, &self.locator.target, forward)
+                .await?;
+        Ok(connection)
     }
     async fn stop(&self) -> Result<()> {
         self.verify_ownership().await?;
@@ -468,6 +514,9 @@ mod tests {
             },
             workspace_id: WorkspaceId::new("test").unwrap(),
             verified_owned: AtomicBool::new(false),
+            wake: Duration::from_secs(5),
+            admitted_now: AtomicBool::new(false),
+            machine: None,
         };
         (target, worker)
     }
@@ -499,6 +548,23 @@ mod tests {
         assert_eq!(request.method, "POST");
         assert_eq!(request.route, "/sandboxes/bx_23456789/commands");
         serde_json::from_slice(&request.body).unwrap()
+    }
+
+    /// A wake spends one budget: an archive that never ends fails once it
+    /// is spent, not after a fixed wait of its own.
+    #[tokio::test]
+    async fn a_wake_gives_up_on_an_endless_archive_within_its_budget() {
+        let mut archiving: serde_json::Value =
+            serde_json::from_str(include_str!("machines/fixtures/boat-v1-sandbox.json")).unwrap();
+        archiving["sandbox"]["id"] = "bx_23456789".into();
+        archiving["sandbox"]["state"] = "archiving".into();
+        let (mut target, worker) = server(vec![archiving.to_string(); 2]);
+        target.wake = Duration::from_millis(1_500);
+        let started = std::time::Instant::now();
+        assert!(matches!(target.ensure().await, Err(Error::Timeout(_))));
+        assert!(started.elapsed() < Duration::from_secs(5));
+        let requests = worker.join().unwrap();
+        assert!(requests.iter().all(|r| r.method == "GET"));
     }
 
     #[tokio::test]

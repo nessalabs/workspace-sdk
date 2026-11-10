@@ -10,7 +10,7 @@ publish = false
 
 [features]
 default = ["boat"]
-boat = ["dep:sandbox_client"]
+boat = ["dep:sandbox_client", "dep:reqwest", "dep:serde_path_to_error"]
 space = ["dep:reqwest"]
 # Docker/Podman-compatible container provider.
 container = []
@@ -34,6 +34,7 @@ libc = "0.2"
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+serde_path_to_error = { version = "0.1", optional = true }
 socket2 = "0.6"
 sha2 = "0.10"
 flate2 = { version = "1", optional = true }
@@ -42,12 +43,14 @@ thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "process", "time", "io-util", "fs", "sync", "signal"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 
-[dev-dependencies]
-workspace_sdk = { path = ".", features = ["testing"] }
-
 [[bin]]
 name = "workspace-supervisor"
 path = "src/bin/workspace-supervisor.rs"
+
+[dev-dependencies]
+workspace_sdk = { path = ".", features = ["testing"] }
+axum = "0.8"
+tokio = { version = "1", features = ["test-util"] }
 
 [[example]]
 name = "local_workflow"

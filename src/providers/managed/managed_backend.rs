@@ -502,6 +502,12 @@ impl IBackend for ManagedBackend {
         self.owned()?;
         self.target.destroy(&self.descriptor.reference).await
     }
+    async fn connection(
+        &self,
+        forward: Option<crate::ports::SocketForward>,
+    ) -> Result<Arc<dyn crate::ports::IConnection>> {
+        self.target.connection(forward).await
+    }
     async fn inspect_delete(&self, operation: &OperationRef) -> Result<DeleteOperation> {
         if operation.workspace != self.descriptor.reference {
             return Err(Error::InvalidInput(

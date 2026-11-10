@@ -1,6 +1,8 @@
+use super::{IConnection, SocketForward};
 use crate::Error;
 use crate::{domain::*, Result};
 use async_trait::async_trait;
+use std::sync::Arc;
 
 #[async_trait]
 /// Interface for a connected workspace’s execution, files, and lifecycle.
@@ -27,6 +29,15 @@ pub trait IBackend: Send + Sync {
     /// List one directory without recursively loading content. Unsupported providers refuse.
     async fn list_directory(&self, _request: ListDirectory) -> Result<DirectoryPage> {
         Err(Error::Unsupported("directory listing".into()))
+    }
+    /// Open a new live connection into the workspace's machine, making
+    /// `forward` reachable inside it when given; it ends when the last handle
+    /// to it, and every stream from it, is dropped. An attached workspace
+    /// may be connected too. A provider may leave something behind on the
+    /// machine for each connection, such as an authorized key it cannot
+    /// revoke; it says so. Unsupported providers refuse.
+    async fn connection(&self, _forward: Option<SocketForward>) -> Result<Arc<dyn IConnection>> {
+        Err(Error::Unsupported("live connections".into()))
     }
     #[cfg(feature = "portability")]
     /// Read with target-side revision checks; never silently fall back to chunk reads.
