@@ -2,6 +2,7 @@ mod branding;
 mod configuration;
 mod deletion;
 mod error;
+pub mod machines;
 mod provider;
 mod target;
 pub use configuration::SandboxOpenOptions;

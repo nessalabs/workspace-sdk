@@ -24,6 +24,9 @@ pub use ssh::{SshConfig, SshOpenOptions, SshProvider};
 pub use supervisor_deployment::{SupervisorArtifact, SupervisorDeployment, TargetPlatform};
 pub use system_command_runner::SystemCommandRunner;
 
+/// Boat VMs a caller makes, admits, resumes and stops itself.
+#[cfg(feature = "boat")]
+pub use sandbox::machines as boat_machines;
 /// Managed Boat workspaces and their creation options.
 #[cfg(feature = "boat")]
 pub use sandbox::{SandboxOpenOptions as BoatOpenOptions, SandboxProvider as BoatProvider};
