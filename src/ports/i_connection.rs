@@ -153,7 +153,8 @@ pub trait IConnection: Send + Sync {
     ) -> Result<ConnectionStream>;
 
     /// Run `command` with the file `input` on its standard input, and wait
-    /// at most `timeout` for it to exit. Processes it leaves behind in its
+    /// at most `timeout` for it to exit. An implementation may compress
+    /// `input` on the way, as one large file such as a build is worth it. Processes it leaves behind in its
     /// session end with it, which can take a few seconds more of `timeout`
     /// when they ignore being asked.
     ///

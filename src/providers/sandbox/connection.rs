@@ -169,7 +169,7 @@ impl SshConnection {
         // reported lost later may really have run.
         // A login that never reaches the wrapper fails within the deadline,
         // and dropping the connection releases the master, key and forward.
-        let mut probe = connection.session_bound_command("true")?;
+        let mut probe = connection.session_bound_command("true", false)?;
         probe.stdout(Stdio::null()).kill_on_drop(true);
         let probe = tokio::time::timeout(PROBE_TIMEOUT, probe.status())
             .await
@@ -253,9 +253,12 @@ impl SshConnection {
     /// a connection of its own, so its end is seen on the machine: a session
     /// shared through the master ends without the machine's command being
     /// told. It is refused once the master has ended, as every session is.
-    fn session_bound_command(&self, command: &str) -> Result<Command> {
+    fn session_bound_command(&self, command: &str, compressed: bool) -> Result<Command> {
         self.require_master()?;
         let mut ssh = ssh_via(&self.directory, self.endpoint, false);
+        if compressed {
+            ssh.args(["-o", "Compression=yes"]);
+        }
         ssh.arg(self.target())
             .arg(format!(
                 "exec sh -c {} workspace-sdk {} {}",
@@ -450,7 +453,7 @@ impl IConnection for SshConnection {
         if first_line.is_some_and(|line| line.contains(&b'\n')) {
             return Err(Error::InvalidInput("a first line holds no newline".into()));
         }
-        let mut ssh = self.session_bound_command(command)?;
+        let mut ssh = self.session_bound_command(command, false)?;
         ssh.stdin(Stdio::piped()).stdout(Stdio::piped());
         let mut child = ssh.spawn()?;
         let output = child
@@ -482,7 +485,8 @@ impl IConnection for SshConnection {
         input: Option<std::fs::File>,
         timeout: Duration,
     ) -> Result<RunOutput> {
-        let mut ssh = self.session_bound_command(command)?;
+        // A file sent, such as a build, is compressed on the way.
+        let mut ssh = self.session_bound_command(command, input.is_some())?;
         ssh.stdin(input.map_or_else(Stdio::null, Stdio::from))
             .stdout(Stdio::piped());
         let mut child = ssh.spawn()?;
