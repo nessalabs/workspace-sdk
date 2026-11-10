@@ -21,7 +21,7 @@
 use crate::{
     ports::{
         ConnectionStream, FileChannel, IConnection, IConnectionProcess, ProcessEnd, ProcessExit,
-        RunOutput, SocketForward, MAX_ERRORS, MAX_RUN_OUTPUT,
+        RunOutput, SocketForward, MAX_RUN_OUTPUT, MAX_STDERR,
     },
     providers::managed::quote,
     Error, Result,
@@ -51,7 +51,10 @@ const MAX_DIAGNOSTIC: usize = 512;
 
 /// Ends every process of the session `$me` but `$skip`: asks them, waits up
 /// to five seconds, then kills what is left. A process that started a
-/// session of its own is not reached.
+/// session of its own is not reached. The grace needs a `sleep` that takes
+/// fractions, as GNU's and busybox's do; and a process that ends and whose
+/// number is reused within microseconds could be signalled in its place,
+/// which a shell cannot rule out.
 macro_rules! end_session {
     () => {
         r#"k() {
@@ -94,14 +97,17 @@ finish
 
 /// Runs the command `$1` (with the watcher `$2`) so that it ends when its
 /// connection does, and leaves nothing of its session behind when it exits.
-/// It refuses to run unless it leads its session, as sshd makes it, so it
-/// never reaches past what this connection started.
+/// It refuses to run unless it leads its session and its parent is sshd, as
+/// sshd makes it, so it never reaches past what this connection started and
+/// never runs once that connection has already gone.
 const SESSION_BOUND: &str = concat!(
     end_session!(),
     r#"c=$1; watch=$2; me=$$
 read -r l 2>/dev/null < "/proc/$me/stat" || { echo "workspace-sdk: the machine has no /proc" >&2; exit 255; }
 set -- ${l##*) }; p=$2
 [ "$4" = "$me" ] || { echo "workspace-sdk: the command does not lead its session" >&2; exit 255; }
+read -r n 2>/dev/null < "/proc/$p/comm"
+case $n in sshd*) ;; *) echo "workspace-sdk: the command's session already ended" >&2; exit 255;; esac
 sh -c "$watch" workspace-sdk-watch "$me" "$p" < /dev/null > /dev/null 2>&1 &
 w=$!
 sh -c -- "$c"; s=$?
@@ -156,6 +162,18 @@ impl SshConnection {
         };
         if let Some(forward) = forward {
             connection.forward(&forward).await?;
+        }
+        // A machine that cannot bind a command is refused here, so a command
+        // reported lost later may really have run.
+        let probe = connection
+            .session_bound_command("true")?
+            .stdout(Stdio::null())
+            .status()
+            .await?;
+        if !probe.success() {
+            return Err(connection_error(
+                "the machine cannot end a command with its connection",
+            ));
         }
         Ok(Arc::new(connection))
     }
@@ -377,19 +395,20 @@ async fn start_master(directory: &tempfile::TempDir, endpoint: SocketAddr) -> Re
 /// connection it keeps open.
 struct SshProcess {
     child: Child,
-    errors: Option<tokio::task::JoinHandle<String>>,
+    stderr: Option<tokio::task::JoinHandle<String>>,
     _connection: Option<Arc<SshConnection>>,
 }
 impl SshProcess {
     fn new(mut child: Child, connection: Option<Arc<SshConnection>>) -> Self {
-        let errors = child.stderr.take().map(|stderr| {
+        let stderr = child.stderr.take().map(|stderr| {
             tokio::spawn(async move {
-                printable(&read_tail(stderr, MAX_ERRORS).await.unwrap_or_default())
+                String::from_utf8_lossy(&read_tail(stderr, MAX_STDERR).await.unwrap_or_default())
+                    .into_owned()
             })
         });
         Self {
             child,
-            errors,
+            stderr,
             _connection: connection,
         }
     }
@@ -405,15 +424,15 @@ impl IConnectionProcess for SshProcess {
             Some(code) if code != 255 => ProcessEnd::Exited(code),
             _ => ProcessEnd::Lost,
         };
-        let errors = match self.errors.take() {
-            Some(errors) => tokio::time::timeout(Duration::from_secs(1), errors)
+        let stderr = match self.stderr.take() {
+            Some(stderr) => tokio::time::timeout(Duration::from_secs(1), stderr)
                 .await
                 .ok()
                 .and_then(std::result::Result::ok)
                 .unwrap_or_default(),
             None => String::new(),
         };
-        Ok(ProcessExit { end, errors })
+        Ok(ProcessExit { end, stderr })
     }
 }
 
@@ -478,7 +497,7 @@ impl IConnection for SshConnection {
         Ok(RunOutput {
             end: exit.end,
             output: String::from_utf8_lossy(&output).into_owned(),
-            errors: exit.errors,
+            stderr: exit.stderr,
         })
     }
 

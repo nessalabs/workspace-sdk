@@ -69,18 +69,19 @@ pub enum ProcessEnd {
 }
 
 /// The most of a process's standard error that is kept: its last bytes.
-pub const MAX_ERRORS: usize = 4096;
+pub const MAX_STDERR: usize = 4096;
 
 /// What [`IConnectionProcess::wait`] answers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProcessExit {
     /// How it ended.
     pub end: ProcessEnd,
-    /// The last [`MAX_ERRORS`] bytes of its standard error, printable ASCII
-    /// only. It holds what the command printed as well as what the
-    /// connection reported, so it is treated as the command's output, never
-    /// logged as if it were free of secrets.
-    pub errors: String,
+    /// The last [`MAX_STDERR`] bytes of its standard error, decoded lossily.
+    /// It holds what the command printed as well as what the connection
+    /// reported: it is the command's output, never logged as if it were free
+    /// of secrets or of forged lines. (`Debug` prints it whole, as it does a
+    /// command's output.)
+    pub stderr: String,
 }
 
 /// A process started through a connection. Dropping it ends the process:
@@ -101,7 +102,7 @@ pub struct ConnectionStream {
     /// Its standard output.
     pub output: ConnectionOutput,
     /// The process itself; dropping it ends the process. Its standard
-    /// error is kept in [`ProcessExit::errors`].
+    /// error is kept in [`ProcessExit::stderr`].
     pub process: Box<dyn IConnectionProcess>,
 }
 
@@ -123,8 +124,8 @@ pub struct RunOutput {
     /// The last [`MAX_RUN_OUTPUT`] bytes of its standard output, decoded
     /// lossily.
     pub output: String,
-    /// Its standard error, as in [`ProcessExit::errors`].
-    pub errors: String,
+    /// Its standard error, as in [`ProcessExit::stderr`].
+    pub stderr: String,
 }
 
 /// The most of a [`IConnection::run`] command's output that is kept: its
@@ -153,7 +154,8 @@ pub trait IConnection: Send + Sync {
 
     /// Run `command` with the file `input` on its standard input, and wait
     /// at most `timeout` for it to exit. Processes it leaves behind in its
-    /// session end with it.
+    /// session end with it, which can take a few seconds more of `timeout`
+    /// when they ignore being asked.
     ///
     /// # Errors
     /// [`Error::Timeout`] when `timeout` passed, and the command is ended as

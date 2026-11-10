@@ -11,8 +11,8 @@ mod i_workspace_repository;
 pub use i_backend::IBackend;
 pub use i_connection::{
     ConnectionInput, ConnectionOutput, ConnectionStream, FileChannel, IConnection,
-    IConnectionProcess, ProcessEnd, ProcessExit, RunOutput, SocketForward, MAX_ERRORS,
-    MAX_RUN_OUTPUT, MAX_SOCKET_PATH,
+    IConnectionProcess, ProcessEnd, ProcessExit, RunOutput, SocketForward, MAX_RUN_OUTPUT,
+    MAX_SOCKET_PATH, MAX_STDERR,
 };
 pub use i_edit_coordinator::IEditCoordinator;
 pub use i_provider::IProvider;

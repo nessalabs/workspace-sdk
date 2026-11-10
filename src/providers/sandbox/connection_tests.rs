@@ -19,28 +19,39 @@ fn host_key_line(key: &[u8; 32]) -> String {
     )
 }
 
-/// The wrapper, run as sshd runs it: leading its own session.
+/// The wrapper, run as sshd runs it: leading its own session, under a
+/// parent whose name starts like sshd's.
+#[cfg(target_os = "linux")]
 fn bound(command: &str, shell: &str) -> std::process::Output {
-    use std::os::unix::process::CommandExt;
-    let script = format!(
-        "exec sh -c {} workspace-sdk {} {}",
-        quote(SESSION_BOUND),
-        quote(command),
-        quote(WATCH)
-    );
-    let mut run = std::process::Command::new(shell);
-    run.args(["-c", &script]);
-    // SAFETY: setsid is async-signal-safe and touches no memory.
-    unsafe {
-        run.pre_exec(|| {
-            libc::setsid();
-            Ok(())
-        });
-    }
-    run.output().unwrap()
+    let place = tempfile::tempdir().unwrap();
+    let sshd = place.path().join("sshd-fixture");
+    let shell = String::from_utf8(
+        std::process::Command::new("sh")
+            .args(["-c", &format!("command -v {shell}")])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+    std::os::unix::fs::symlink(shell.trim(), &sshd).unwrap();
+    // `exit` keeps the shell from replacing itself with setsid, so it stays
+    // the wrapper's parent; setsid does not fork outside job control.
+    std::process::Command::new(&sshd)
+        .args([
+            "-c",
+            r#"setsid sh -c "$1" workspace-sdk "$2" "$3"; exit $?"#,
+            "sshd-fixture",
+            SESSION_BOUND,
+            command,
+            WATCH,
+        ])
+        .output()
+        .unwrap()
 }
 
 #[test]
+// The wrapper reads Linux's `/proc`.
+#[cfg(target_os = "linux")]
 fn a_script_with_its_own_quotes_reaches_sh_whole() {
     // The machine's sshd hands the command to the account's login shell.
     for shell in ["bash", "sh"] {
@@ -57,6 +68,8 @@ fn a_script_with_its_own_quotes_reaches_sh_whole() {
 }
 
 #[test]
+// The wrapper reads Linux's `/proc`.
+#[cfg(target_os = "linux")]
 fn what_a_command_leaves_in_its_session_ends_with_it() {
     let started = std::time::Instant::now();
     let said = bound(
@@ -68,12 +81,22 @@ fn what_a_command_leaves_in_its_session_ends_with_it() {
     assert_eq!(said.status.code(), Some(0));
     assert!(started.elapsed() < Duration::from_secs(10));
     for marker in ["4701", "4702", "4703"] {
-        assert!(!running(marker), "{marker} outlived its command");
+        let mut left = running(marker);
+        for _ in 0..50 {
+            if !left {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+            left = running(marker);
+        }
+        assert!(!left, "{marker} outlived its command");
     }
 }
 
 #[test]
-fn a_command_that_does_not_lead_its_session_is_refused() {
+// The wrapper reads Linux's `/proc`.
+#[cfg(target_os = "linux")]
+fn a_command_outside_an_sshd_session_is_refused() {
     let script = format!(
         "exec sh -c {} workspace-sdk {} {}",
         quote(SESSION_BOUND),
@@ -87,6 +110,22 @@ fn a_command_that_does_not_lead_its_session_is_refused() {
     assert_eq!(said.status.code(), Some(255));
     assert!(said.stdout.is_empty());
     assert!(String::from_utf8_lossy(&said.stderr).contains("does not lead its session"));
+    // Leading its session under anything but sshd: its connection is gone.
+    let said = std::process::Command::new("setsid")
+        .args([
+            "-w",
+            "sh",
+            "-c",
+            SESSION_BOUND,
+            "workspace-sdk",
+            "echo ran",
+            WATCH,
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(said.status.code(), Some(255));
+    assert!(said.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&said.stderr).contains("already ended"));
 }
 
 #[test]
@@ -333,8 +372,8 @@ async fn a_connection_streams_runs_and_serves_files() {
         .await
         .unwrap();
     assert_eq!(
-        (&failed.end, failed.output.as_str(), failed.errors.as_str()),
-        (&ProcessEnd::Exited(7), "partial\n", "why")
+        (&failed.end, failed.output.as_str(), failed.stderr.as_str()),
+        (&ProcessEnd::Exited(7), "partial\n", "why\n")
     );
     let input = tempfile::tempfile().unwrap();
     std::io::Write::write_all(&mut &input, b"from a file\n").unwrap();
