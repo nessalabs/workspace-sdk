@@ -1,5 +1,5 @@
 //! Typed persistence boundary for synchronization workflow entities.
-use super::{HandoffReceipt, SyncSession};
+use super::{HandoffReceipt, RecoverySession, SyncSession};
 use crate::{domain::workspace::OperationId, Error, Result};
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +15,8 @@ pub enum WorkflowRecord {
     Sync(SyncSession),
     /// Current state of a stopped-source continuation handoff.
     Handoff(HandoffReceipt),
+    /// Canonical revision-fenced placement and recovery state.
+    Recovery(RecoverySession),
 }
 
 impl WorkflowRecord {
@@ -23,6 +25,7 @@ impl WorkflowRecord {
         match self {
             Self::Sync(value) => &value.id,
             Self::Handoff(value) => &value.id,
+            Self::Recovery(value) => &value.id,
         }
     }
 
@@ -33,6 +36,9 @@ impl WorkflowRecord {
             Self::Handoff(_) => Err(Error::Conflict(
                 "operation ID belongs to a handoff, not a sync session".into(),
             )),
+            Self::Recovery(_) => Err(Error::Conflict(
+                "operation ID belongs to recovery, not a sync session".into(),
+            )),
         }
     }
 
@@ -42,6 +48,22 @@ impl WorkflowRecord {
             Self::Handoff(value) => Ok(value),
             Self::Sync(_) => Err(Error::Conflict(
                 "operation ID belongs to a sync session, not a handoff".into(),
+            )),
+            Self::Recovery(_) => Err(Error::Conflict(
+                "operation ID belongs to recovery, not a handoff".into(),
+            )),
+        }
+    }
+
+    /// Extract recovery authority, rejecting identities reserved by other workflow kinds.
+    pub fn into_recovery(self) -> Result<RecoverySession> {
+        match self {
+            Self::Recovery(value) => {
+                value.validate()?;
+                Ok(value)
+            }
+            _ => Err(Error::Conflict(
+                "operation ID belongs to another workflow kind, not recovery".into(),
             )),
         }
     }
@@ -56,5 +78,11 @@ impl From<SyncSession> for WorkflowRecord {
 impl From<HandoffReceipt> for WorkflowRecord {
     fn from(value: HandoffReceipt) -> Self {
         Self::Handoff(value)
+    }
+}
+
+impl From<RecoverySession> for WorkflowRecord {
+    fn from(value: RecoverySession) -> Self {
+        Self::Recovery(value)
     }
 }

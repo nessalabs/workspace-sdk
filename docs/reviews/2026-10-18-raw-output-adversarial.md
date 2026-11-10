@@ -1,0 +1,23 @@
+# Byte-preserving retained output: adversarial review
+
+**FINAL PASS** for exact source `2bcf55eaa2752c9b0a56b0201f8f30e0b55ac541`. Reviewer: `workspace_handoff_adversarial_review`, separate from implementation/test authors. No unresolved P1/P2 finding remains. Review was read-only apart from this record; the reviewer did not run builds or probes.
+
+The additive `OutputBytesPage`/`Run::output_bytes` API preserves raw stdout/stderr through the existing qualified run identity, absolute cursors, retention and lifecycle checks. Existing text output remains a lossy per-page wrapper. Optional backends refuse unsupported byte reads; managed transport rejects a text response instead of reconstructing bytes from lossy text. Base64 stays in the supervisor DTO, with content-redacted Debug and per-stream reply-budget checks.
+
+Source review found shared native raw slicing/cursor arithmetic preserves repeat reads and independent streams; the text wrapper retains prior behavior. `gap` continues to report discarded output or loss markers, and `complete` requires terminal state plus both retained streams drained. A page may be complete while reporting a gap: consumers must not interpret that as an intact protocol transcript. This is retained output, not backpressured pipes or delivery acknowledgement.
+
+Two actual native tests exercise all byte values and multibyte text using a two-byte combined page budget (one raw byte per stream), asymmetric cursors, repeated reads, reconnect, final drain, tiny-retention tail gaps, future cursors, invalid limits and wrong target. Wire tests cover binary/base64 round trip, malformed encoding, maximal response framing, redaction and rejection of text fallback. Domain values do not acquire serialization merely to serve transport.
+
+The eleven-file manifest matches actual source. After three actual semantic mutations, `run_record.rs` restoration matches SHA256 `1280e87de9437cf14e8a7db11470972edf656b11da9e1543d62299fb7fbdc95f`. Each mutated supervisor was successfully rebuilt before its native test. Lossy byte conversion failed through the managed stream-budget guard, clearing gap failed `page.gap`, and early completion failed `!first.complete`; all exited 101 through runtime assertions, not compiler errors. Restored supervisor was rebuilt again before the final two-case pass. These prove sensitivity to those specific faults, not exhaustive fault coverage.
+
+Actual affected checks passed 157 cases: 143 library, two expected-head, two native raw-output and ten workflow tests. Final restored native cases passed 2/2 in 2.01s. All-feature/all-target Clippy with denied warnings passed (9.39s), strict docs passed (3.91s), and fmt passed; bounded-runner metadata confirms exit 0/no cleanup error. The first focused run hit the disk floor and was terminated with SIGTERM; it is retained and is not a passing result. Source/evidence preservation and inactive-cache retirement are documented in the [qualification record](../evidence/raw-output-2026-10-18/qualification.json).
+
+## Final exact-source qualification
+
+[Full cloud gate 39163398052](https://github.com/nessalabs/workspace-sdk/actions/runs/39163398052) completed successfully on Ubuntu 24.04 and macOS 15 at the exact source above. Independently verified both completed successful jobs, raw log SHA256 `506baf8010e98dafe30931815b39b68fbf2a2931d10fb7cbd26f4686eda1fc03`, and metadata SHA256 `0b1386b80a9c321108efef48b58340d7d85a8a09fa5fb33ef71745bf11a1e237`. All eleven manifest files match both the checkout and exact candidate Git blobs; raw manifest SHA256 is `662682014160250b024f2a923ee997eb076a8a7c8363fc99545681a720c3da35`.
+
+Each of the five new unit/wire/native test names passes four times, covering both feature selections on both OS: twenty executions. The complete mechanical script passed retained tests, all-feature/all-target Clippy, fmt, strict docs and builds/examples. No zero-warning claim is made for known no-default dependency warnings.
+
+All four complete saved performance objects independently match raw-log decoding: three managed and fifteen PTY samples per OS, debug Linux x86_64 and macOS aarch64. These are hosted qualification samples, not a statistical baseline or a measured improvement for byte paging. Final qualification source/count/hash/performance claims agree with actual evidence.
+
+No new stdin, input EOF, clear-environment launch, duplex transport or application migration capability is established. Retention can discard bytes, so protocol consumers must fail on gaps rather than skip/replay. Old supervisors may reject the new operation; no text fallback exists. Native and wire tests do not qualify live remote providers, physical failure, external writer quiescence or arbitrary exactly-once effects.

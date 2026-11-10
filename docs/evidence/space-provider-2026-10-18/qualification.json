@@ -1,0 +1,852 @@
+{
+  "scope": "Optional attach-only SPACE provider using the existing native supervisor and SDK managed claims; isolated HTTP/SSE simulation with real native execution",
+  "source_commit": "068d8193438ba14e2d44ce915ac1f1e95c4bb377",
+  "feature_commit": "23c6445e2e14130f95775749f4b5ff5604c4aecb",
+  "status": "PASS \u2014 full mechanical gate and both independent final reviews",
+  "cloud_url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39144874948",
+  "source_manifest_sha256": "936884e528dfb93a198fe5784526b36d19ada4944382e557cc60b73280b6c70e",
+  "upstream": {
+    "commit": "3f0ed159f6249fc9029f6f44d7f7db7d954d1f14",
+    "files": [
+      {
+        "path": "crates/libs/public/api/src/lib.rs",
+        "sha256": "7742070e2aad613c748be7dfbad0fe32782a539cbda87b706ec1d0f985d391e3",
+        "url": "https://github.com/perplexityai/SPACE/blob/3f0ed159f6249fc9029f6f44d7f7db7d954d1f14/crates/libs/public/api/src/lib.rs"
+      },
+      {
+        "path": "crates/libs/data/plane/server/src/native.rs",
+        "sha256": "7b56c1f2a4f47ad6b14c70d52b19c388407f0f9ce093905779604550c18899b9",
+        "url": "https://github.com/perplexityai/SPACE/blob/3f0ed159f6249fc9029f6f44d7f7db7d954d1f14/crates/libs/data/plane/server/src/native.rs"
+      },
+      {
+        "path": "crates/libs/data/plane/server/src/native/protocol.rs",
+        "sha256": "98232c37c047644d8bfb148d564a77d9d75ff62d6f8690724540b4830cf9067d",
+        "url": "https://github.com/perplexityai/SPACE/blob/3f0ed159f6249fc9029f6f44d7f7db7d954d1f14/crates/libs/data/plane/server/src/native/protocol.rs"
+      },
+      {
+        "path": "crates/libs/api/src/routes/public/sandboxes.rs",
+        "sha256": "50925ac40a174243ca9d9ba4d678a9854fc94a28769831dffa9883b26e4d2960",
+        "url": "https://github.com/perplexityai/SPACE/blob/3f0ed159f6249fc9029f6f44d7f7db7d954d1f14/crates/libs/api/src/routes/public/sandboxes.rs"
+      },
+      {
+        "path": "crates/libs/api/src/routes/public/sessions.rs",
+        "sha256": "763470a11cd54feab6099c66a098eb6dc5359efc1fcc95749b3765a3b29d9b25",
+        "url": "https://github.com/perplexityai/SPACE/blob/3f0ed159f6249fc9029f6f44d7f7db7d954d1f14/crates/libs/api/src/routes/public/sessions.rs"
+      },
+      {
+        "path": "crates/libs/api/src/routes/public/files.rs",
+        "sha256": "6cfed92840daac856d80857681cc592b03300e61bd32dc9c76cc72085f943b5d",
+        "url": "https://github.com/perplexityai/SPACE/blob/3f0ed159f6249fc9029f6f44d7f7db7d954d1f14/crates/libs/api/src/routes/public/files.rs"
+      }
+    ],
+    "incubating_dependency": "Pinned files:write API for prepared private payloads; no monorepo dependency"
+  },
+  "local_checks": {
+    "focused": "12/12 SPACE contract tests passed after restoring both provider mutations (3.14s); targeted SPACE-only Clippy -Dwarnings passed (4.14s); fmt passed",
+    "final_gpu_delta": "130 library tests passed (7.90s) and 12 SPACE contract tests passed (3.22s) after restoring GPU cap mutation; fmt passed",
+    "logs": [
+      {
+        "label": "space-first-focused",
+        "sha256": "dab96b8091c9c86c987c29c32a3010d2d596c52cc3d9ffe00a769437c5f49329"
+      },
+      {
+        "label": "space-final-focused",
+        "sha256": "926de2ab02a578a5c059d848f952461a0a7f8621a2e579fafb5969922ae0e8f5"
+      },
+      {
+        "label": "space-targeted-clippy",
+        "sha256": "4c2ce3514e303f057b371289979f953ba89259803df91fb59e66b2144c381d11"
+      },
+      {
+        "label": "space-final-fmt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "label": "space-gpu-restored",
+        "sha256": "27514cd6b3a76cf756e5616a2992bd786d3f015fef4b39a0d31222141cc34b65"
+      },
+      {
+        "label": "space-gpu-fmt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ]
+  },
+  "semantic_fault_probes": [
+    {
+      "label": "space-probe-started",
+      "test": "malformed_streams_fail_closed_without_transport_replay",
+      "exit": 101,
+      "caught": true,
+      "log": "workspace-tools-space-probe-started.log",
+      "log_sha256": "b3ef4dd494a6fcc27ccf846dd74d3ab9cde3a5ac714046b6b201a34d005d753c",
+      "source_sha256": "bcd85a589eec58679337d6937a9d28149d880940dc94e5da4c2216679dd190f2"
+    },
+    {
+      "label": "space-probe-upload",
+      "test": "ambiguous_or_short_upload_is_never_invoked_or_replayed",
+      "exit": 101,
+      "caught": true,
+      "log": "workspace-tools-space-probe-upload.log",
+      "log_sha256": "5830686fb717b59401459207d110a193485e2e547d01d8bc6b8a8e2566427171",
+      "source_sha256": "58962353e39bc3a33f3cac70296e1fba35ea09735f50f7861449f974567c395b"
+    },
+    {
+      "label": "space-probe-gpu-limit",
+      "test": "runtime::infrastructure::native_resources::collection_tests::gpu_output_byte_limit_accepts_exact_boundary_and_rejects_one_extra_byte",
+      "exit": 101,
+      "caught": true,
+      "log": "workspace-tools-space-probe-gpu-limit.log",
+      "log_sha256": "850989b6633b0a35cb6c48caee171443a5576a8798890b1a7dccb6b240447d45",
+      "source_sha256": "145915bb5d3dd86479eabae9a1a79ef265c48409006b25f4ee3b8b5416ddbe5b"
+    }
+  ],
+  "prior_cloud": {
+    "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39144143639",
+    "source_commit": "23c6445e2e14130f95775749f4b5ff5604c4aecb",
+    "result": "macOS full gate passed; Ubuntu stopped at existing GPU exact-byte boundary test returning no observation (0 versus 1). Exact incident return reason remains unproven.",
+    "raw_log_sha256": "58f5f8da0893688dca5e56a26888680e53b3edefbbfb4454707704ae17a172d7"
+  },
+  "retained_failures": [
+    "First local contract run compiled, then fixture header WouldBlock and a second Drop panic caused SIGABRT after three passing tests. Cause inherited-nonblocking versus speculative idle connection was not established; bounded concurrent blocking handlers and safe unwind reporting were added.",
+    "Original Ubuntu GPU failure is retained without attribution to the separate POSIX pipe inheritance demonstration. The test-only byte-limit fixture now verifies successful real child output length in a finite private file; all production GPU collection code and separate live-stream/EOF/backpressure/timeout cases remain unchanged."
+  ],
+  "checks": [
+    "PASS full scripts/quality-gate.sh on Ubuntu 24.04 and macOS 15: all-features, no-default-features, SPACE-only contract selection, fmt/Clippy/docs/builds and managed/PTY performance.",
+    "Eight simultaneous starts share one stable native claim and append exactly once in the fixture; this is not arbitrary external-effect exactly-once execution.",
+    "Three managed and fifteen PTY samples per OS; twelve SPACE cases under all-features and SPACE-without-Boat on each OS. No-default-feature selection correctly excludes the optional provider tests."
+  ],
+  "limits": [
+    "No live SPACE deployment, Linux/KVM isolation, cross-host transport, physical power loss, resource provisioning or billing qualification.",
+    "Attach only with existing sandbox, trusted guest parent directory, same explicit guest user and installed SDK supervisor; no lifecycle mutation or port publication.",
+    "SSE transports short RPCs; native SDK records remain durable execution/output authority. Disconnect or missing acknowledgement does not confirm workload termination.",
+    "Ambiguous private uploads retain the prepared private file and are not invoked/replayed; owner cleanup requires transport quiescence. SPACE may retain file payloads internally and workload output may reveal secrets.",
+    "Native resource observations remain conservative. The original Ubuntu return reason is unproven; the separate inherited-writer mechanism is not an incident diagnosis.",
+    "Hosted debug performance samples are qualification samples, not a statistical regression baseline."
+  ],
+  "reviews": [
+    "../../reviews/2026-10-18-space-quality.md",
+    "../../reviews/2026-10-18-space-adversarial.md"
+  ],
+  "cloud_run": {
+    "conclusion": "success",
+    "headSha": "068d8193438ba14e2d44ce915ac1f1e95c4bb377",
+    "jobs": [
+      {
+        "completedAt": "2026-10-18T16:28:33Z",
+        "conclusion": "success",
+        "databaseId": 117726578176,
+        "name": "quality (macos-15)",
+        "startedAt": "2026-10-18T16:24:54Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T16:24:58Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T16:24:54Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T16:25:00Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v4",
+            "number": 2,
+            "startedAt": "2026-10-18T16:24:58Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T16:25:09Z",
+            "conclusion": "success",
+            "name": "Run dtolnay/rust-toolchain@stable",
+            "number": 3,
+            "startedAt": "2026-10-18T16:25:00Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T16:25:15Z",
+            "conclusion": "success",
+            "name": "Run Swatinem/rust-cache@v2",
+            "number": 4,
+            "startedAt": "2026-10-18T16:25:09Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T16:28:28Z",
+            "conclusion": "success",
+            "name": "Run scripts/quality-gate.sh",
+            "number": 5,
+            "startedAt": "2026-10-18T16:25:15Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T16:28:28Z",
+            "conclusion": "success",
+            "name": "Post Run Swatinem/rust-cache@v2",
+            "number": 9,
+            "startedAt": "2026-10-18T16:28:28Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T16:28:29Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v4",
+            "number": 10,
+            "startedAt": "2026-10-18T16:28:28Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T16:28:31Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 11,
+            "startedAt": "2026-10-18T16:28:29Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39144874948/job/117726578176"
+      },
+      {
+        "completedAt": "2026-10-18T16:27:47Z",
+        "conclusion": "success",
+        "databaseId": 117726578351,
+        "name": "quality (ubuntu-24.04)",
+        "startedAt": "2026-10-18T16:24:50Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T16:24:51Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T16:24:51Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T16:24:52Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v4",
+            "number": 2,
+            "startedAt": "2026-10-18T16:24:51Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T16:25:01Z",
+            "conclusion": "success",
+            "name": "Run dtolnay/rust-toolchain@stable",
+            "number": 3,
+            "startedAt": "2026-10-18T16:24:52Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T16:25:05Z",
+            "conclusion": "success",
+            "name": "Run Swatinem/rust-cache@v2",
+            "number": 4,
+            "startedAt": "2026-10-18T16:25:01Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T16:27:39Z",
+            "conclusion": "success",
+            "name": "Run scripts/quality-gate.sh",
+            "number": 5,
+            "startedAt": "2026-10-18T16:25:05Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T16:27:45Z",
+            "conclusion": "success",
+            "name": "Post Run Swatinem/rust-cache@v2",
+            "number": 9,
+            "startedAt": "2026-10-18T16:27:39Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T16:27:46Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v4",
+            "number": 10,
+            "startedAt": "2026-10-18T16:27:45Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T16:27:46Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 11,
+            "startedAt": "2026-10-18T16:27:46Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39144874948/job/117726578351"
+      }
+    ],
+    "status": "completed",
+    "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39144874948"
+  },
+  "raw_log_sha256": "1a93fa58f5385c38b21f4c2611944e9074c99cc908c930cb1a7ab32e9ccb7750",
+  "performance": [
+    {
+      "job": "quality (macos-15)",
+      "kind": "managed",
+      "schema_version": 1,
+      "unix_timestamp_seconds": 1792340889,
+      "operating_system": "macos",
+      "architecture": "aarch64",
+      "debug_assertions": true,
+      "retention_bytes": 32768,
+      "minimum_load_bytes_per_stream": 131072,
+      "poll_interval_ms": 10,
+      "samples": [
+        {
+          "launch_ms": 16.066167,
+          "launch_to_first_output_ms": 43.970042,
+          "reconnect_ms": 0.142708,
+          "idempotent_retry_ms": 4.875166999999999,
+          "loaded_read_ms": 4.18975,
+          "cancel_ms": 198.303083,
+          "final_stdout_offset": 163840,
+          "final_stderr_offset": 163840,
+          "retained_stdout_bytes": 16384,
+          "retained_stderr_bytes": 16384
+        },
+        {
+          "launch_ms": 17.056584,
+          "launch_to_first_output_ms": 42.516541999999994,
+          "reconnect_ms": 0.15620799999999999,
+          "idempotent_retry_ms": 4.801333,
+          "loaded_read_ms": 3.576417,
+          "cancel_ms": 178.617666,
+          "final_stdout_offset": 155648,
+          "final_stderr_offset": 155648,
+          "retained_stdout_bytes": 16384,
+          "retained_stderr_bytes": 16384
+        },
+        {
+          "launch_ms": 15.027334,
+          "launch_to_first_output_ms": 45.016124999999995,
+          "reconnect_ms": 0.065542,
+          "idempotent_retry_ms": 6.116084,
+          "loaded_read_ms": 3.859666,
+          "cancel_ms": 135.397041,
+          "final_stdout_offset": 155648,
+          "final_stderr_offset": 155648,
+          "retained_stdout_bytes": 16384,
+          "retained_stderr_bytes": 16384
+        }
+      ]
+    },
+    {
+      "job": "quality (macos-15)",
+      "kind": "pty",
+      "architecture": "aarch64",
+      "debug_assertions": true,
+      "os": "macos",
+      "samples": [
+        {
+          "cancel_ms": 162.761917,
+          "elapsed_to_cancel_ms": 2639.434375,
+          "input_delivery_ms": 104.272667,
+          "launch_ms": 15.669083,
+          "observed_bytes_per_second": 108629.33464674605,
+          "output_bytes": 286720,
+          "population": 1,
+          "ready_ms": 32.664167,
+          "resize_observed_ms": 57.430417,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7072
+        },
+        {
+          "cancel_ms": 254.92662500000003,
+          "elapsed_to_cancel_ms": 2463.2004589999997,
+          "input_delivery_ms": 81.085042,
+          "launch_ms": 11.067834,
+          "observed_bytes_per_second": 137603.0922540519,
+          "output_bytes": 338944,
+          "population": 1,
+          "ready_ms": 26.417292,
+          "resize_observed_ms": 135.951875,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7024
+        },
+        {
+          "cancel_ms": 169.633166,
+          "elapsed_to_cancel_ms": 2630.2985420000005,
+          "input_delivery_ms": 22.180917,
+          "launch_ms": 13.245292000000001,
+          "observed_bytes_per_second": 107449.39993963619,
+          "output_bytes": 282624,
+          "population": 1,
+          "ready_ms": 27.83025,
+          "resize_observed_ms": 48.316708999999996,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 6960
+        },
+        {
+          "cancel_ms": 97.558375,
+          "elapsed_to_cancel_ms": 2198.2063749999998,
+          "input_delivery_ms": 59.521542,
+          "launch_ms": 10.3245,
+          "observed_bytes_per_second": 134160.2878392162,
+          "output_bytes": 294912,
+          "population": 4,
+          "ready_ms": 26.948417,
+          "resize_observed_ms": 123.002917,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7072
+        },
+        {
+          "cancel_ms": 124.605667,
+          "elapsed_to_cancel_ms": 2172.950625,
+          "input_delivery_ms": 44.231,
+          "launch_ms": 10.766334,
+          "observed_bytes_per_second": 142788.33418039585,
+          "output_bytes": 310272,
+          "population": 4,
+          "ready_ms": 24.750042,
+          "resize_observed_ms": 130.064583,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 18,
+          "supervisor_rss_kib": 6992
+        },
+        {
+          "cancel_ms": 71.278333,
+          "elapsed_to_cancel_ms": 2221.6545,
+          "input_delivery_ms": 103.485541,
+          "launch_ms": 13.107417,
+          "observed_bytes_per_second": 136431.6548770297,
+          "output_bytes": 303104,
+          "population": 4,
+          "ready_ms": 28.479,
+          "resize_observed_ms": 134.715041,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 6992
+        },
+        {
+          "cancel_ms": 136.88025000000002,
+          "elapsed_to_cancel_ms": 2296.381042,
+          "input_delivery_ms": 121.83825,
+          "launch_ms": 11.843958,
+          "observed_bytes_per_second": 128870.59881937485,
+          "output_bytes": 295936,
+          "population": 4,
+          "ready_ms": 28.6185,
+          "resize_observed_ms": 84.374625,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7104
+        },
+        {
+          "cancel_ms": 65.68975,
+          "elapsed_to_cancel_ms": 2179.8912499999997,
+          "input_delivery_ms": 95.73841700000001,
+          "launch_ms": 7.192792,
+          "observed_bytes_per_second": 137166.4756212036,
+          "output_bytes": 299008,
+          "population": 4,
+          "ready_ms": 22.995207999999998,
+          "resize_observed_ms": 86.055541,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 6928
+        },
+        {
+          "cancel_ms": 63.621125,
+          "elapsed_to_cancel_ms": 2157.309041,
+          "input_delivery_ms": 60.093459,
+          "launch_ms": 10.959041,
+          "observed_bytes_per_second": 138602.3023671183,
+          "output_bytes": 299008,
+          "population": 4,
+          "ready_ms": 27.240750000000002,
+          "resize_observed_ms": 106.2245,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 6912
+        },
+        {
+          "cancel_ms": 78.41116600000001,
+          "elapsed_to_cancel_ms": 2314.525333,
+          "input_delivery_ms": 114.259792,
+          "launch_ms": 8.435958000000001,
+          "observed_bytes_per_second": 136708.80827641388,
+          "output_bytes": 316416,
+          "population": 4,
+          "ready_ms": 22.697833,
+          "resize_observed_ms": 180.858833,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 6848
+        },
+        {
+          "cancel_ms": 160.083833,
+          "elapsed_to_cancel_ms": 2416.733208,
+          "input_delivery_ms": 56.070209000000006,
+          "launch_ms": 11.311083,
+          "observed_bytes_per_second": 127961.16632829419,
+          "output_bytes": 309248,
+          "population": 4,
+          "ready_ms": 27.297625,
+          "resize_observed_ms": 164.59045799999998,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 6816
+        },
+        {
+          "cancel_ms": 96.8175,
+          "elapsed_to_cancel_ms": 1679.706542,
+          "input_delivery_ms": 16.295167,
+          "launch_ms": 11.743834,
+          "observed_bytes_per_second": 173744.63497207718,
+          "output_bytes": 291840,
+          "population": 4,
+          "ready_ms": 29.122208999999998,
+          "resize_observed_ms": 97.5115,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7136
+        },
+        {
+          "cancel_ms": 181.210042,
+          "elapsed_to_cancel_ms": 1792.820125,
+          "input_delivery_ms": 64.835458,
+          "launch_ms": 12.976792,
+          "observed_bytes_per_second": 161640.30956535586,
+          "output_bytes": 289792,
+          "population": 4,
+          "ready_ms": 28.369167,
+          "resize_observed_ms": 39.814750000000004,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 6864
+        },
+        {
+          "cancel_ms": 191.857291,
+          "elapsed_to_cancel_ms": 1796.8175840000001,
+          "input_delivery_ms": 42.113499999999995,
+          "launch_ms": 11.431334,
+          "observed_bytes_per_second": 164130.18362358146,
+          "output_bytes": 294912,
+          "population": 4,
+          "ready_ms": 25.687334,
+          "resize_observed_ms": 90.91229100000001,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 6832
+        },
+        {
+          "cancel_ms": 191.95237500000002,
+          "elapsed_to_cancel_ms": 1834.062542,
+          "input_delivery_ms": 17.601208,
+          "launch_ms": 13.267083000000001,
+          "observed_bytes_per_second": 170846.9546836206,
+          "output_bytes": 313344,
+          "population": 4,
+          "ready_ms": 36.040542,
+          "resize_observed_ms": 113.789125,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 18,
+          "supervisor_rss_kib": 6960
+        }
+      ],
+      "schema_version": 1,
+      "unix_timestamp_seconds": 1792340908
+    },
+    {
+      "job": "quality (ubuntu-24.04)",
+      "kind": "managed",
+      "schema_version": 1,
+      "unix_timestamp_seconds": 1792340853,
+      "operating_system": "linux",
+      "architecture": "x86_64",
+      "debug_assertions": true,
+      "retention_bytes": 32768,
+      "minimum_load_bytes_per_stream": 131072,
+      "poll_interval_ms": 10,
+      "samples": [
+        {
+          "launch_ms": 3.698944,
+          "launch_to_first_output_ms": 21.066941,
+          "reconnect_ms": 0.031609000000000005,
+          "idempotent_retry_ms": 2.0744309999999997,
+          "loaded_read_ms": 2.323108,
+          "cancel_ms": 52.650133000000004,
+          "final_stdout_offset": 221184,
+          "final_stderr_offset": 221184,
+          "retained_stdout_bytes": 16384,
+          "retained_stderr_bytes": 16384
+        },
+        {
+          "launch_ms": 3.2769269999999997,
+          "launch_to_first_output_ms": 20.638752,
+          "reconnect_ms": 0.030286,
+          "idempotent_retry_ms": 2.2433359999999998,
+          "loaded_read_ms": 2.117654,
+          "cancel_ms": 52.693470999999995,
+          "final_stdout_offset": 221184,
+          "final_stderr_offset": 221184,
+          "retained_stdout_bytes": 16384,
+          "retained_stderr_bytes": 16384
+        },
+        {
+          "launch_ms": 3.3688809999999996,
+          "launch_to_first_output_ms": 20.907131999999997,
+          "reconnect_ms": 0.041718000000000005,
+          "idempotent_retry_ms": 2.323699,
+          "loaded_read_ms": 2.36107,
+          "cancel_ms": 52.822332,
+          "final_stdout_offset": 274432,
+          "final_stderr_offset": 274432,
+          "retained_stdout_bytes": 16384,
+          "retained_stderr_bytes": 16384
+        }
+      ]
+    },
+    {
+      "job": "quality (ubuntu-24.04)",
+      "kind": "pty",
+      "architecture": "x86_64",
+      "debug_assertions": true,
+      "os": "linux",
+      "samples": [
+        {
+          "cancel_ms": 52.397599,
+          "elapsed_to_cancel_ms": 614.3317149999999,
+          "input_delivery_ms": 6.838921,
+          "launch_ms": 4.333653,
+          "observed_bytes_per_second": 868429.8514524845,
+          "output_bytes": 533504,
+          "population": 1,
+          "ready_ms": 10.480932,
+          "resize_observed_ms": 30.86401,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7332
+        },
+        {
+          "cancel_ms": 52.478987999999994,
+          "elapsed_to_cancel_ms": 617.403538,
+          "input_delivery_ms": 10.62941,
+          "launch_ms": 3.64667,
+          "observed_bytes_per_second": 872401.8682251218,
+          "output_bytes": 538624,
+          "population": 1,
+          "ready_ms": 9.783890999999999,
+          "resize_observed_ms": 30.811591,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7592
+        },
+        {
+          "cancel_ms": 52.437376,
+          "elapsed_to_cancel_ms": 616.268558,
+          "input_delivery_ms": 9.028733,
+          "launch_ms": 3.768787,
+          "observed_bytes_per_second": 869023.7284505435,
+          "output_bytes": 535552,
+          "population": 1,
+          "ready_ms": 9.909792000000001,
+          "resize_observed_ms": 31.651818999999996,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7336
+        },
+        {
+          "cancel_ms": 53.276179,
+          "elapsed_to_cancel_ms": 643.7226099999999,
+          "input_delivery_ms": 3.812369,
+          "launch_ms": 4.589651,
+          "observed_bytes_per_second": 862185.033395052,
+          "output_bytes": 555008,
+          "population": 4,
+          "ready_ms": 10.764342,
+          "resize_observed_ms": 32.381052000000004,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7568
+        },
+        {
+          "cancel_ms": 53.300696,
+          "elapsed_to_cancel_ms": 676.333847,
+          "input_delivery_ms": 14.309612,
+          "launch_ms": 3.901235,
+          "observed_bytes_per_second": 875118.1130818076,
+          "output_bytes": 591872,
+          "population": 4,
+          "ready_ms": 10.044355,
+          "resize_observed_ms": 40.001724,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7400
+        },
+        {
+          "cancel_ms": 54.054631,
+          "elapsed_to_cancel_ms": 655.315203,
+          "input_delivery_ms": 7.679694,
+          "launch_ms": 3.894733,
+          "observed_bytes_per_second": 873497.2077246314,
+          "output_bytes": 572416,
+          "population": 4,
+          "ready_ms": 10.177092,
+          "resize_observed_ms": 39.338772,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7504
+        },
+        {
+          "cancel_ms": 53.337277,
+          "elapsed_to_cancel_ms": 666.7332110000001,
+          "input_delivery_ms": 9.484652,
+          "launch_ms": 3.805246,
+          "observed_bytes_per_second": 864681.6905000402,
+          "output_bytes": 576512,
+          "population": 4,
+          "ready_ms": 9.945546,
+          "resize_observed_ms": 54.530064,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7440
+        },
+        {
+          "cancel_ms": 54.732637000000004,
+          "elapsed_to_cancel_ms": 650.483219,
+          "input_delivery_ms": 6.107516,
+          "launch_ms": 3.828947,
+          "observed_bytes_per_second": 857946.8058498832,
+          "output_bytes": 558080,
+          "population": 4,
+          "ready_ms": 9.996365,
+          "resize_observed_ms": 36.719027000000004,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7500
+        },
+        {
+          "cancel_ms": 54.101608000000006,
+          "elapsed_to_cancel_ms": 659.1730799999999,
+          "input_delivery_ms": 4.894189,
+          "launch_ms": 3.6076569999999997,
+          "observed_bytes_per_second": 866831.5156316761,
+          "output_bytes": 571392,
+          "population": 4,
+          "ready_ms": 9.749018999999999,
+          "resize_observed_ms": 28.458996,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7524
+        },
+        {
+          "cancel_ms": 53.691311999999996,
+          "elapsed_to_cancel_ms": 669.669979,
+          "input_delivery_ms": 16.298924,
+          "launch_ms": 3.747034,
+          "observed_bytes_per_second": 863947.9417368356,
+          "output_bytes": 578560,
+          "population": 4,
+          "ready_ms": 9.893312,
+          "resize_observed_ms": 36.847149,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7432
+        },
+        {
+          "cancel_ms": 53.635939,
+          "elapsed_to_cancel_ms": 641.431088,
+          "input_delivery_ms": 6.578405,
+          "launch_ms": 4.5671289999999996,
+          "observed_bytes_per_second": 858879.4810643789,
+          "output_bytes": 550912,
+          "population": 4,
+          "ready_ms": 10.720573,
+          "resize_observed_ms": 53.792631,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7516
+        },
+        {
+          "cancel_ms": 54.238489,
+          "elapsed_to_cancel_ms": 627.449391,
+          "input_delivery_ms": 5.5554619999999995,
+          "launch_ms": 4.098233,
+          "observed_bytes_per_second": 866594.1951643396,
+          "output_bytes": 543744,
+          "population": 4,
+          "ready_ms": 10.272853999999999,
+          "resize_observed_ms": 20.868073000000003,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7604
+        },
+        {
+          "cancel_ms": 54.011846000000006,
+          "elapsed_to_cancel_ms": 657.903789,
+          "input_delivery_ms": 5.441044,
+          "launch_ms": 3.685459,
+          "observed_bytes_per_second": 862278.0556747942,
+          "output_bytes": 567296,
+          "population": 4,
+          "ready_ms": 9.825344999999999,
+          "resize_observed_ms": 32.740027,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7524
+        },
+        {
+          "cancel_ms": 53.431041,
+          "elapsed_to_cancel_ms": 638.394529,
+          "input_delivery_ms": 7.2772499999999996,
+          "launch_ms": 3.79699,
+          "observed_bytes_per_second": 867776.8602869714,
+          "output_bytes": 553984,
+          "population": 4,
+          "ready_ms": 9.93872,
+          "resize_observed_ms": 41.166284999999995,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 17,
+          "supervisor_rss_kib": 7200
+        },
+        {
+          "cancel_ms": 52.350393000000004,
+          "elapsed_to_cancel_ms": 669.61929,
+          "input_delivery_ms": 12.951747,
+          "launch_ms": 3.7978650000000003,
+          "observed_bytes_per_second": 873188.703987306,
+          "output_bytes": 584704,
+          "population": 4,
+          "ready_ms": 10.066768999999999,
+          "resize_observed_ms": 57.101886,
+          "retained_bytes": 131072,
+          "supervisor_open_descriptors": 18,
+          "supervisor_rss_kib": 7500
+        }
+      ],
+      "schema_version": 1,
+      "unix_timestamp_seconds": 1792340859
+    }
+  ],
+  "contract_executions": {
+    "all_features_per_os": 12,
+    "space_without_boat_per_os": 12,
+    "no_default_features": 0,
+    "total_new_cases_across_both_os_and_feature_selections": 48,
+    "simultaneous_same_claim_starts_per_stress_case": 8
+  },
+  "review_records": [
+    {
+      "path": "../../reviews/2026-10-18-space-quality.md",
+      "sha256": "e65272eec0c77d15ef2f3e856fe54944f4e11783a93086ea6e438ae229241474",
+      "decision": "FINAL PASS"
+    },
+    {
+      "path": "../../reviews/2026-10-18-space-adversarial.md",
+      "sha256": "ab3adb96d402c398399dfdfab7ef90d17df4b4e28c14906638f3bff6af1c0533",
+      "decision": "FINAL PASS"
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "at": "2026-10-18T16:24:53.118375+00:00",
+  "base": "849984e4a6e81cb36469a03dfe262a0be3efa0b5",
+  "source_commit": "068d8193438ba14e2d44ce915ac1f1e95c4bb377",
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "bytes": 45867,
+      "sha256": "0c788f348b8969cf24f1013f4ee61508a80ca9ffd6e45635be55f82f1f2753f7"
+    },
+    {
+      "path": "Cargo.toml",
+      "bytes": 1181,
+      "sha256": "bc4943ea09128ffbc08a2868688ef3f375a253ccaf45d9e8644aec4bfbbb731f"
+    },
+    {
+      "path": "README.md",
+      "bytes": 5965,
+      "sha256": "29c8c8c14ec6b662e16476b617e8dfb15bc59563769b44340295b31a74df370b"
+    },
+    {
+      "path": "docs/space-provider.md",
+      "bytes": 2795,
+      "sha256": "bf45f03591143bf26b21ee78706e2f9d107afd499a74b58832cf8856abc85b18"
+    },
+    {
+      "path": "scripts/quality-gate.sh",
+      "bytes": 975,
+      "sha256": "0fe410c2491f30c7f402bf058f18606dde2829ffc41b0cac1383fb0f0625e578"
+    },
+    {
+      "path": "src/providers/mod.rs",
+      "bytes": 1173,
+      "sha256": "aa7623c41aa727a1d6b89b843047dc9398736f88ef629594f638f0ea7984b040"
+    },
+    {
+      "path": "src/providers/space/client.rs",
+      "bytes": 9302,
+      "sha256": "0d8d5e4cf747e15a6f21e9ed6d714402df046712b0fba0cdab24e3aa17cf6d24"
+    },
+    {
+      "path": "src/providers/space/configuration.rs",
+      "bytes": 6150,
+      "sha256": "c33d25635f1354879f52aca2a5c77105b45be04b88ca76bbfa0d2b4ece42f1dd"
+    },
+    {
+      "path": "src/providers/space/events.rs",
+      "bytes": 8634,
+      "sha256": "bcd85a589eec58679337d6937a9d28149d880940dc94e5da4c2216679dd190f2"
+    },
+    {
+      "path": "src/providers/space/mod.rs",
+      "bytes": 391,
+      "sha256": "d0b649fbd0f53e9ffab20098dc5b672915f308f1437e59e95449c229743b8b55"
+    },
+    {
+      "path": "src/providers/space/provider.rs",
+      "bytes": 4426,
+      "sha256": "f959a0abb4d3cb26c41f6718a84a0108fc6d5e16c9657579badefd21122e325d"
+    },
+    {
+      "path": "src/providers/space/target.rs",
+      "bytes": 4918,
+      "sha256": "58962353e39bc3a33f3cac70296e1fba35ea09735f50f7861449f974567c395b"
+    },
+    {
+      "path": "src/runtime/infrastructure/native_resources_tests.rs",
+      "bytes": 8827,
+      "sha256": "3a6562917fc5ba9052c3f9824d2152f3db93c16249e8faba6d5b8efb732f69c7"
+    },
+    {
+      "path": "tests/space_provider_contract.rs",
+      "bytes": 20818,
+      "sha256": "d31a18f17536a998b4eb98303ae36eddf9b6083491d385209edee21bb7950c3c"
+    },
+    {
+      "path": "tests/support/space_http_fixture.rs",
+      "bytes": 32368,
+      "sha256": "61cbf203f760d0e793f0464d12afe4a033c34d32677a2b425def7530ffb9ff2a"
+    }
+  ],
+  "unchanged_gpu_production_sha256": "145915bb5d3dd86479eabae9a1a79ef265c48409006b25f4ee3b8b5416ddbe5b",
+  "scope": "SPACE provider and test-only GPU boundary fixture; candidate frozen after 130lib+12SPACEpassed, 3semanticfaults caught/restored; freshbothOScloudpending"
+}

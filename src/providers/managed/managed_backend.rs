@@ -51,8 +51,29 @@ impl ManagedBackend {
             Ok(())
         }
     }
-    async fn launch(&self, request: LaunchRequest, directory: WorkingDirectory) -> Result<RunRef> {
+    async fn launch(
+        &self,
+        request: LaunchRequest,
+        directory: WorkingDirectory,
+        piped: bool,
+        clean_environment: bool,
+    ) -> Result<RunRef> {
         request.execution.command.validate()?;
+        if clean_environment
+            && !std::path::Path::new(&request.execution.command.program).is_absolute()
+        {
+            return Err(Error::InvalidInput(
+                "clean environment launch requires an absolute executable".into(),
+            ));
+        }
+        if piped
+            && (request.execution.command.stdin.is_some()
+                || request.execution.private_stdin.is_some())
+        {
+            return Err(Error::InvalidInput(
+                "piped launch cannot include initial stdin".into(),
+            ));
+        }
         if !(2..=16 * 1024 * 1024).contains(&request.output_limit_bytes) {
             return Err(Error::InvalidInput(
                 "run output retention must be 2 bytes..=16 MiB".into(),
@@ -75,12 +96,27 @@ impl ManagedBackend {
             private_stdin: request.execution.private_stdin,
             directory,
         };
-        self.target
-            .invoke(self.protocol_request(SupervisorOperation::Start {
+        let operation = if clean_environment {
+            SupervisorOperation::StartPipedCleanEnvironment {
                 id: request.id,
                 execution: Box::new(execution),
                 output_limit_bytes: request.output_limit_bytes,
-            }))
+            }
+        } else if piped {
+            SupervisorOperation::StartPiped {
+                id: request.id,
+                execution: Box::new(execution),
+                output_limit_bytes: request.output_limit_bytes,
+            }
+        } else {
+            SupervisorOperation::Start {
+                id: request.id,
+                execution: Box::new(execution),
+                output_limit_bytes: request.output_limit_bytes,
+            }
+        };
+        self.target
+            .invoke(self.protocol_request(operation))
             .await?
             .run()?;
         Ok(reference)
@@ -99,6 +135,8 @@ impl ManagedBackend {
                     output_limit_bytes: 1024 * 1024,
                 },
                 directory,
+                false,
+                false,
             )
             .await?;
         let state = loop {
@@ -193,10 +231,60 @@ impl IBackend for ManagedBackend {
     }
     async fn start(&self, request: LaunchRequest) -> Result<RunRef> {
         let cwd = request.execution.command.cwd.clone();
-        self.launch(request, WorkingDirectory::Project(cwd)).await
+        self.launch(request, WorkingDirectory::Project(cwd), false, false)
+            .await
+    }
+    async fn start_piped(&self, request: LaunchRequest) -> Result<RunRef> {
+        let cwd = request.execution.command.cwd.clone();
+        self.launch(request, WorkingDirectory::Project(cwd), true, false)
+            .await
+    }
+    async fn start_piped_with_clean_environment(&self, request: LaunchRequest) -> Result<RunRef> {
+        let cwd = request.execution.command.cwd.clone();
+        self.launch(request, WorkingDirectory::Project(cwd), true, true)
+            .await
+    }
+    async fn write_input(&self, run: &RunRef, input: &SecretInput) -> Result<InputOutcome> {
+        self.validate_run(run)?;
+        if input.expose().is_empty() || input.expose().len() > 65536 {
+            return Err(Error::InvalidInput(
+                "managed input must contain 1..=65536 bytes".into(),
+            ));
+        }
+        let outcome = match self
+            .target
+            .invoke(self.protocol_request(SupervisorOperation::PipeInput {
+                id: run.id.clone(),
+                input: Some(input.clone()),
+            }))
+            .await
+        {
+            Ok(SupervisorValue::InputRejected(fault)) => return Err(fault.into_error()),
+            Ok(value) => value.input().unwrap_or(InputOutcome::Unknown),
+            Err(_) => return Ok(InputOutcome::Unknown),
+        };
+        if matches!(outcome, InputOutcome::Accepted { bytes } if bytes > input.expose().len()) {
+            return Ok(InputOutcome::Unknown);
+        }
+        Ok(outcome)
+    }
+    async fn close_input(&self, run: &RunRef) -> Result<InputCloseOutcome> {
+        self.validate_run(run)?;
+        match self
+            .target
+            .invoke(
+                self.protocol_request(SupervisorOperation::PipeCloseInput { id: run.id.clone() }),
+            )
+            .await
+        {
+            Ok(SupervisorValue::InputCloseRejected(fault)) => Err(fault.into_error()),
+            Ok(SupervisorValue::InputClosed(outcome)) => Ok(outcome),
+            Ok(_) | Err(_) => Ok(InputCloseOutcome::Unknown),
+        }
     }
     async fn start_private(&self, request: LaunchRequest, cwd: WorkspacePath) -> Result<RunRef> {
-        self.launch(request, WorkingDirectory::Control(cwd)).await
+        self.launch(request, WorkingDirectory::Control(cwd), false, false)
+            .await
     }
     async fn start_terminal(
         &self,
@@ -392,6 +480,36 @@ impl IBackend for ManagedBackend {
             }))
             .await?
             .output()
+    }
+    async fn read_output_bytes(
+        &self,
+        run: &RunRef,
+        cursor: OutputCursor,
+        limit: u32,
+    ) -> Result<OutputBytesPage> {
+        self.validate_run(run)?;
+        if !(2..=MAX_CHUNK as u32).contains(&limit) {
+            return Err(Error::InvalidInput(
+                "output page limit must be 2..=262144 bytes".into(),
+            ));
+        }
+        let page = self
+            .target
+            .invoke(self.protocol_request(SupervisorOperation::OutputBytes {
+                id: run.id.clone(),
+                cursor,
+                limit,
+            }))
+            .await?
+            .output_bytes()?;
+        let stdout_budget = limit as usize / 2;
+        let stderr_budget = limit as usize - stdout_budget;
+        if page.stdout.len() > stdout_budget || page.stderr.len() > stderr_budget {
+            return Err(Error::State(
+                "supervisor byte output exceeds requested stream budgets".into(),
+            ));
+        }
+        Ok(page)
     }
     async fn cancel(&self, run: &RunRef) -> Result<RunState> {
         self.validate_run(run)?;

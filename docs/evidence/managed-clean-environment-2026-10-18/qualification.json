@@ -1,0 +1,101 @@
+{
+  "status": "ACCEPTED: exact-source full mechanical/performance gate and both independent final reviews passed",
+  "scope": "Additive explicit child environment clearing for managed piped runs; absolute executable; legacy modes unchanged",
+  "source": {
+    "README.md": "08df6c7201c9f4c97149d6b3bedf9b9aa10e2f146b9dd834c7a906ffd9accde3",
+    "src/application/workspace.rs": "4719bcd3ce8718b57f95286acd3c0c5e95a5f25592380377380ebc64ad5fd2cc",
+    "src/ports/i_backend.rs": "e965ba754685879a5e2844201e5c3091547b5a3090bc3bb74f7a2e9013fe6362",
+    "src/providers/managed/managed_backend.rs": "72b18ba1e2a5c7bd7b0512858fb0c62bdbc382d6c37c02be9b7bb0525d35272f",
+    "src/supervisor/dispatcher.rs": "881e33d52902104d640966c88f2e961c95a84ffb5023411eee830963524c6d70",
+    "src/supervisor/protocol.rs": "1a3547e602b94860a551b0cc85bc86c87ceb4e210f8300168721ac8105a8ef42",
+    "src/supervisor/workload.rs": "b617b6fd9bc3e3f94d6e67f377c6360613a4efd4863023f49f15af5cacf4571f",
+    "docs/managed-clean-environment.md": "0e671405261f218fcb04e017dac0c9f71afd54f2169268354dabb2a769923524",
+    "tests/managed_clean_environment.rs": "45ce3264c0269585e716062da0388e4d9c0623c2aa3c870a032c376184de1785"
+  },
+  "local_checks": {
+    "focused": "164PASS:145library+3cleanenv+4pipe+2rawoutput+10SDKworkflow;outer32.05869s",
+    "restored": "Restoredsupervisorrebuilt;3cleanenv1.28s+4pipe1.23s PASS;outer10.4136s",
+    "clippy": "Allfeatures/alltargets-DwarningsPASS9.88s",
+    "docs": "Strictallfeatures/no-depsPASS4.08s",
+    "fmt": "PASS",
+    "environment": "macOS arm64/Rust1.99/debugassertions/jobs1/noincremental"
+  },
+  "fault_probes": [
+    {
+      "name": "no-clear",
+      "test": "clean_pipe_excludes_host_environment_preserves_explicit_precedence_and_reconnects",
+      "original_sha256": "b617b6fd9bc3e3f94d6e67f377c6360613a4efd4863023f49f15af5cacf4571f",
+      "mutated_sha256": "f161d335e049288e69e76f617c06ad4f1c316a6f4e26e094ac862b1124c019f6",
+      "build_exit": 0,
+      "test_exit": 101,
+      "assertion_failure": true,
+      "exact_source_restored": true
+    },
+    {
+      "name": "no-identity",
+      "test": "clean_pipe_rejects_initial_input_relative_program_and_existing_mode_rebinding",
+      "original_sha256": "b617b6fd9bc3e3f94d6e67f377c6360613a4efd4863023f49f15af5cacf4571f",
+      "mutated_sha256": "ea3c0d78f2902b5dc830e5554d3dac545e32f6dd65226e571ddcbba19c6dcec5",
+      "build_exit": 0,
+      "test_exit": 101,
+      "assertion_failure": true,
+      "exact_source_restored": true
+    },
+    {
+      "name": "public-over-secret",
+      "test": "clean_pipe_excludes_host_environment_preserves_explicit_precedence_and_reconnects",
+      "original_sha256": "b617b6fd9bc3e3f94d6e67f377c6360613a4efd4863023f49f15af5cacf4571f",
+      "mutated_sha256": "12d76da2275dc1e9b1061f421ca5a2330aed01f151251ee777836caf78fb8194",
+      "build_exit": 0,
+      "test_exit": 101,
+      "assertion_failure": true,
+      "exact_source_restored": true
+    }
+  ],
+  "limits": [
+    "Clears only native workload Command inheritance; supervisor and transport environments remain outside guarantee.",
+    "Explicit public values then transient secrets are supplied after clearing; env_remove does not suppress later explicit values.",
+    "No automatic PATH/HOME/locale/loader environment reconstruction; child/interpreter/OS may introduce values. Absolute executable is not a sandbox.",
+    "Input accepted-prefix/Unknown/EOF/cleanup ownership contracts remain unchanged; no input replay.",
+    "No agent adapter/application migration/live remote provider or physical failure qualification."
+  ],
+  "cloud": {
+    "run": "https://github.com/nessalabs/workspace-sdk/actions/runs/39170044183",
+    "source_commit": "7ff5c9b0d33af85545f6cb11b5c19c3e959c0700",
+    "ubuntu_24_04": "success",
+    "macos_15": "success",
+    "script": "scripts/quality-gate.sh",
+    "new_test_executions": {
+      "clean_pipe_excludes_host_environment_preserves_explicit_precedence_and_reconnects": 4,
+      "clean_pipe_rejects_initial_input_relative_program_and_existing_mode_rebinding": 4,
+      "unsupported_clean_mode_never_falls_back_and_native_rechecks_absolute_program": 4
+    },
+    "total_new_test_executions": 12,
+    "performance": "3managed/15PTYsamplesperOS; actual performance.json; samples notstatisticalbaseline",
+    "raw_log_sha256": "f11f91f42a1d618b55ab91826e47215793b416c1f05bd3ef7b569af9faa57820",
+    "metadata_sha256": "963f833a9380c6cd64a1cb134b9835b2889ba0d329fc3d84446e96c108d070de"
+  },
+  "reviews": [
+    {
+      "path": "docs/reviews/managed-clean-environment-quality.md",
+      "sha256": "71b7c36e60cdfab63be14647fe34fb7d7fe260f0bcf236b6cdb1a2825705b856",
+      "decision": "FINAL PASS; no unresolved P1/P2; additional documentation attribution scope reviewed"
+    },
+    {
+      "path": "docs/reviews/managed-clean-environment-adversarial.md",
+      "sha256": "2602f58e23b77fa77d05e66dd4faedcf67c5e6b518d4bc4f0eacc54fd6a6e0e7",
+      "decision": "FINAL PASS; no unresolved P1/P2; additional documentation attribution scope reviewed"
+    }
+  ],
+  "documentation_followup": {
+    "scope": "External repository learning/credit policy and LayerFS research attribution",
+    "files": {
+      "AGENTS.md": "e420eef00eaaf8a9b2032356d6969df72e3e3f122d89878e19863e5dc4e1a097",
+      "docs/research/layerfs-learning.md": "d4e54c6eca68273ef657188191f75cc192e99e67afdec895dc4c2fc45c1026e1"
+    },
+    "review": "Both independent final documentation reviews PASS; all9 qualified feature files unchanged",
+    "checks": "No new Rust execution claimed for documentation-only followup; exact7ff5c9b fullgate remains implementation evidence",
+    "source": "https://github.com/Ephemeral-AI-Lab/layerfs/tree/16e622e27278396c2cb822b0b0cc75ad03a7102c",
+    "license": "MIT; Copyright2026Ephemeral-AI; no upstream code copied ordependencyadopted"
+  }
+}

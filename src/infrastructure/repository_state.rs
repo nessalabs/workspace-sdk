@@ -1,3 +1,4 @@
+use crate::domain::RecoverySession;
 use crate::{
     BackendDescriptor, Error, HandoffReceipt, OperationId, Result, SyncSession, WorkflowRecord,
     WorkspaceId,
@@ -19,7 +20,7 @@ pub(super) struct RepositoryState {
 impl Default for RepositoryState {
     fn default() -> Self {
         Self {
-            version: 2,
+            version: 3,
             reservations: BTreeMap::new(),
             workspaces: BTreeMap::new(),
             workflows: BTreeMap::new(),
@@ -32,6 +33,11 @@ impl RepositoryState {
         id: &OperationId,
         receipt: &WorkflowRecord,
     ) -> Result<()> {
+        if matches!(receipt, WorkflowRecord::Recovery(_)) {
+            return Err(Error::Conflict(
+                "recovery authority requires compare-exchange".into(),
+            ));
+        }
         if id != receipt.id() {
             return Err(Error::InvalidInput(
                 "workflow key must match the receipt identity".into(),
@@ -47,6 +53,37 @@ impl RepositoryState {
         self.workflows.insert(id.clone(), receipt.clone());
         Ok(())
     }
+    pub(super) fn load_recovery(&self, id: &OperationId) -> Result<Option<RecoverySession>> {
+        self.workflows
+            .get(id)
+            .cloned()
+            .map(WorkflowRecord::into_recovery)
+            .transpose()
+    }
+
+    pub(super) fn compare_exchange_recovery(
+        &mut self,
+        id: &OperationId,
+        expected_revision: Option<u64>,
+        replacement: &RecoverySession,
+    ) -> Result<()> {
+        if id != &replacement.id {
+            return Err(Error::InvalidInput(
+                "recovery key must match session identity".into(),
+            ));
+        }
+        let previous = self.load_recovery(id)?;
+        if previous.as_ref().map(|session| session.revision) != expected_revision {
+            return Err(Error::Conflict(
+                "recovery revision no longer matches".into(),
+            ));
+        }
+        replacement.validate_replacement(previous.as_ref())?;
+        self.workflows
+            .insert(id.clone(), WorkflowRecord::Recovery(replacement.clone()));
+        Ok(())
+    }
+
     pub(super) fn reserve(&mut self, id: &WorkspaceId, identity: &str) -> Result<()> {
         if let Some(previous) = self.reservations.get(id) {
             if previous != identity {
@@ -104,6 +141,9 @@ fn decode_workflows<'de, D: Deserializer<'de>>(
                 return Err(DeserializeError::custom(
                     "workflow key differs from its receipt identity",
                 ));
+            }
+            if let WorkflowRecord::Recovery(session) = &record {
+                session.validate().map_err(DeserializeError::custom)?;
             }
             Ok((id, record))
         })

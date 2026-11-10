@@ -6,6 +6,7 @@ use crate::checkpoint::domain::*;
 use crate::{Error, Result};
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
+#[cfg(test)]
 use std::fs;
 use std::path::Path;
 use std::str::from_utf8;
@@ -58,6 +59,15 @@ impl GitCheckpointEngine {
     }
 
     pub(super) fn save_tree(&self, tree: &Tree, options: CaptureOptions) -> Result<Checkpoint> {
+        self.save_tree_with(tree, options, PublicationStep::perform)
+    }
+
+    fn save_tree_with(
+        &self,
+        tree: &Tree,
+        options: CaptureOptions,
+        perform: impl FnMut(&PublicationStep) -> Result<()>,
+    ) -> Result<Checkpoint> {
         check_entries(&tree.entries(), &self.limits)?;
         validate_tree_symlinks(tree)?;
         let reference = CheckpointRef(Uuid::new_v4().to_string());
@@ -98,7 +108,12 @@ impl GitCheckpointEngine {
             },
         };
         self.write_json(&temporary.path().join("manifest.json"), &checkpoint)?;
-        fs::rename(temporary.path(), self.checkpoint_dir(&reference)?)?;
+        publish_checkpoint_directory_with(
+            temporary.path(),
+            &self.checkpoint_dir(&reference)?,
+            &self.limits,
+            perform,
+        )?;
         Ok(checkpoint)
     }
 
@@ -174,5 +189,41 @@ impl GitCheckpointEngine {
     pub(super) fn load_tree(&self, reference: &CheckpointRef) -> Result<Tree> {
         let checkpoint = self.load_checkpoint(reference)?;
         self.tree_from_repo(&self.checkpoint_dir(reference)?.join("repo"), &checkpoint)
+    }
+}
+
+#[cfg(test)]
+mod publication_tests {
+    use super::*;
+    use crate::checkpoint::ports::ICheckpointEngine;
+
+    #[test]
+    fn actual_snapshot_save_refuses_artifact_and_postrename_sync_failures() {
+        for final_parent in [false, true] {
+            let root = tempfile::tempdir().unwrap();
+            let source = root.path().join("source");
+            fs::create_dir(&source).unwrap();
+            fs::write(source.join("counter"), b"3").unwrap();
+            let engine = GitCheckpointEngine::new("git", root.path().join("state")).unwrap();
+            let previous = engine.capture(&source, CaptureOptions::default()).unwrap();
+            let previous_bytes = engine.export(previous.reference()).unwrap().bytes;
+            let tree = engine.scan(&source).unwrap();
+            let parent = engine.state_directory.join("checkpoints");
+            let mut injected = false;
+            assert!(engine.save_tree_with(&tree, CaptureOptions::default(), |step| {
+                let selected = if final_parent {
+                    matches!(step, PublicationStep::SyncDirectory(path) if path == &parent)
+                } else { matches!(step, PublicationStep::SyncFile(path) if path.file_name().is_some_and(|name| name == "snapshot.bundle")) };
+                if selected { injected = true; return Err(Error::State("injected snapshot sync failure".into())); }
+                step.perform()
+            }).is_err());
+            assert!(injected);
+            assert_eq!(
+                engine.export(previous.reference()).unwrap().bytes,
+                previous_bytes
+            );
+            let artifacts = fs::read_dir(parent).unwrap().count();
+            assert_eq!(artifacts, if final_parent { 2 } else { 1 });
+        }
     }
 }

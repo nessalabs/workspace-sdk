@@ -2,9 +2,10 @@ use crate::domain::{HostGpu, HostResources};
 use crate::Result;
 use std::env::consts::{ARCH, OS};
 use std::fs;
-use std::io::Read;
+use std::io::{Error as IoError, ErrorKind, Read};
+use std::os::fd::AsRawFd;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::thread::{available_parallelism, sleep};
 use std::time::{Duration, Instant};
 #[cfg(target_os = "macos")]
@@ -97,7 +98,7 @@ fn physical_memory() -> Option<u64> {
 }
 
 fn inspect_gpus() -> Vec<HostGpu> {
-    let Ok(mut child) = Command::new("nvidia-smi")
+    let Ok(child) = Command::new("nvidia-smi")
         .args([
             "--query-gpu=name,memory.total",
             "--format=csv,noheader,nounits",
@@ -109,32 +110,103 @@ fn inspect_gpus() -> Vec<HostGpu> {
     else {
         return Vec::new();
     };
-    let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) if status.success() => {
-                let mut output = String::new();
-                if child
-                    .stdout
-                    .take()
-                    .is_some_and(|stream| stream.take(65_537).read_to_string(&mut output).is_ok())
-                    && output.len() <= 65_536
-                {
-                    return parse_gpus(&output);
+    collect_gpus(child, Duration::from_secs(5))
+}
+
+fn collect_gpus(mut child: Child, budget: Duration) -> Vec<HostGpu> {
+    let deadline = Instant::now() + budget;
+    let mut reaped = false;
+    let observed = (|| {
+        let mut output = child.stdout.take()?;
+        let flags = unsafe { libc::fcntl(output.as_raw_fd(), libc::F_GETFL) };
+        if flags < 0
+            || unsafe { libc::fcntl(output.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK) }
+                < 0
+        {
+            return None;
+        }
+        let mut bytes = Vec::new();
+        let mut chunk = [0; 8192];
+        let mut eof = false;
+        loop {
+            if Instant::now() >= deadline {
+                return None;
+            }
+            if !reaped {
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        reaped = true;
+                        if !status.success() {
+                            return None;
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        // An external reaper can make ownership unavailable too.
+                        reaped = error.raw_os_error() == Some(libc::ECHILD);
+                        return None;
+                    }
                 }
-                return Vec::new();
             }
-            Ok(Some(_)) => return Vec::new(),
-            Ok(None) if Instant::now() < deadline => {
-                sleep(Duration::from_millis(25));
+            if !eof {
+                loop {
+                    if Instant::now() >= deadline {
+                        return None;
+                    }
+                    match output.read(&mut chunk) {
+                        Ok(0) => {
+                            eof = true;
+                            break;
+                        }
+                        Ok(size) => {
+                            if size > 65_536_usize.saturating_sub(bytes.len()) {
+                                return None;
+                            }
+                            bytes.extend_from_slice(&chunk[..size]);
+                        }
+                        Err(error) if error.kind() == ErrorKind::Interrupted => continue,
+                        Err(error) if error.kind() == ErrorKind::WouldBlock => break,
+                        Err(_) => return None,
+                    }
+                }
             }
-            _ => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Vec::new();
+            if reaped {
+                // A surviving writer cannot extend the probe after its leader
+                // exits. Only a complete stream establishes an observation.
+                return if eof {
+                    std::str::from_utf8(&bytes).ok().map(parse_gpus)
+                } else {
+                    None
+                };
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if eof {
+                sleep(Duration::from_millis(25).min(remaining));
+            } else {
+                // Wake for bytes instead of imposing a 25-ms gap on every short
+                // producer burst. Retain a bounded wait to recheck child status.
+                let mut readiness = libc::pollfd {
+                    fd: output.as_raw_fd(),
+                    events: libc::POLLIN,
+                    revents: 0,
+                };
+                let timeout_ms = remaining.as_millis().clamp(1, 25) as libc::c_int;
+                let ready = unsafe { libc::poll(&mut readiness, 1, timeout_ms) };
+                if (ready < 0 && IoError::last_os_error().kind() != ErrorKind::Interrupted)
+                    || readiness.revents & (libc::POLLERR | libc::POLLNVAL) != 0
+                {
+                    return None;
+                }
             }
         }
+    })();
+    if !reaped {
+        // Only this directly owned, unreaped child may be killed. Descendants
+        // are not owned by this probe, and no numeric PID is signaled after reap.
+        let _ = child.kill();
+        let _ = child.wait();
     }
+    observed.unwrap_or_default()
 }
 
 fn parse_gpus(output: &str) -> Vec<HostGpu> {
@@ -163,3 +235,7 @@ mod tests {
         assert_eq!(actual[1].memory_mib, 49_152);
     }
 }
+
+#[cfg(test)]
+#[path = "native_resources_tests.rs"]
+mod collection_tests;

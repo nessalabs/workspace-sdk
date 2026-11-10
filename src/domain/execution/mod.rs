@@ -8,12 +8,14 @@
 //! conversation memory or make a running process portable between machines.
 
 pub mod command;
+pub mod input;
 pub mod output;
 pub mod run;
 pub mod terminal;
 
 pub use command::{CommandSpec, ExecResult, ExecutionRequest, SecretEnvironment, SecretInput};
-pub use output::{OutputCursor, OutputPage};
+pub use input::InputCloseOutcome;
+pub use output::{OutputBytesPage, OutputCursor, OutputPage};
 pub use run::{LaunchRequest, RunId, RunRef, RunState};
 
 pub use terminal::{InputOutcome, TerminalSize};
