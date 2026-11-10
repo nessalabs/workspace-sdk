@@ -46,6 +46,8 @@ const MASTER_START_TIMEOUT: Duration = Duration::from_secs(15);
 const KEY_TIMEOUT: Duration = Duration::from_secs(10);
 const FORWARD_TIMEOUT: Duration = Duration::from_secs(15);
 const FIRST_LINE_TIMEOUT: Duration = Duration::from_secs(10);
+/// How long the first command through a new connection may take.
+const PROBE_TIMEOUT: Duration = Duration::from_secs(15);
 /// The most of what ssh reports that a diagnostic keeps.
 const MAX_DIAGNOSTIC: usize = 512;
 
@@ -165,11 +167,13 @@ impl SshConnection {
         }
         // A machine that cannot bind a command is refused here, so a command
         // reported lost later may really have run.
-        let probe = connection
-            .session_bound_command("true")?
-            .stdout(Stdio::null())
-            .status()
-            .await?;
+        // A login that never reaches the wrapper fails within the deadline,
+        // and dropping the connection releases the master, key and forward.
+        let mut probe = connection.session_bound_command("true")?;
+        probe.stdout(Stdio::null()).kill_on_drop(true);
+        let probe = tokio::time::timeout(PROBE_TIMEOUT, probe.status())
+            .await
+            .map_err(|_| connection_error("the machine did not run a first command in time"))??;
         if !probe.success() {
             return Err(connection_error(
                 "the machine cannot end a command with its connection",
