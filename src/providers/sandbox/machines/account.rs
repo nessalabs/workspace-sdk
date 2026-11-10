@@ -150,6 +150,24 @@ impl BoatMachines {
             budget: Budget::default(),
         }
     }
+    /// The VMs of the account `api` signs in to, as [`BoatMachines::new`],
+    /// reading raw receipts with a client of their own: `api`'s connect and
+    /// request timeouts, no redirects, and the proxy the process's
+    /// environment names, as `api` has. A caller that needs another client
+    /// passes it to [`BoatMachines::new`].
+    ///
+    /// # Errors
+    /// [`MachineFailure::Provider`] when the client cannot be built.
+    pub fn for_account(api: Api, events: Arc<dyn IMachineEvents>) -> Result<Self, MachineFailure> {
+        let config = api.config();
+        let http = reqwest::Client::builder()
+            .connect_timeout(config.connect_timeout)
+            .timeout(config.request_timeout)
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|_| MachineFailure::Provider)?;
+        Ok(Self::new(api, http, events))
+    }
     /// The same account with another budget for each creation and each
     /// readiness.
     pub fn with_budget(mut self, budget: Budget) -> Self {

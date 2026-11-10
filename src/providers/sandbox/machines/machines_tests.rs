@@ -363,6 +363,53 @@ fn machines(base: &str, events: Arc<Events>, timeout: std::time::Duration) -> Bo
     BoatMachines::new(Api::new(config).unwrap(), http, events)
 }
 
+fn account(base: &str, events: Arc<Events>) -> BoatMachines {
+    let mut config = sandbox_client::ClientConfig::new("fixture-token")
+        .unwrap()
+        .with_base_path(base)
+        .unwrap();
+    config.request_timeout = std::time::Duration::from_secs(5);
+    BoatMachines::for_account(Api::new(config).unwrap(), events).unwrap()
+}
+
+#[tokio::test]
+async fn an_account_reads_receipts_with_its_own_client_and_follows_no_redirect() {
+    let server = server().await;
+    let receipt = account(&server.base, server.events.clone())
+        .create(&spec(), KEY)
+        .await
+        .unwrap();
+    assert_eq!(receipt.vm, VM);
+    assert!(receipt.refusal.is_none());
+    assert_eq!(server.state.lock().unwrap().created, 1);
+
+    // A creation answered with a redirect is not followed: whatever the
+    // other address would make, this one made nothing it can name.
+    let target = server.base.clone();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}/api/v1", listener.local_addr().unwrap());
+    let redirect = Router::new().fallback(move |uri: axum::http::Uri| {
+        let to = format!(
+            "{}{}",
+            target.trim_end_matches("/api/v1"),
+            uri.path_and_query().map_or("", |p| p.as_str())
+        );
+        async move {
+            (
+                axum::http::StatusCode::TEMPORARY_REDIRECT,
+                [(axum::http::header::LOCATION, to)],
+            )
+        }
+    });
+    let task = tokio::spawn(async move { axum::serve(listener, redirect).await.unwrap() });
+    let redirected = account(&base, server.events.clone())
+        .create(&spec(), KEY)
+        .await;
+    task.abort();
+    assert_eq!(redirected, Err(MachineFailure::ProvisioningUncertain));
+    assert_eq!(server.state.lock().unwrap().created, 1);
+}
+
 #[tokio::test]
 async fn admitted_creation_sends_explicit_null_for_no_automatic_stop() {
     let server = server().await;
