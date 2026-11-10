@@ -55,24 +55,31 @@ impl<'de> Deserialize<'de> for RepositoryState {
                 if stored.machines.is_some() || stored.retired.is_some() {
                     return Err(DeserializeError::custom("machines field in an old state"));
                 }
-                upgrade(
+                let machines = upgrade(
                     stored.reservations.unwrap_or_default(),
                     stored.workspaces.unwrap_or_default(),
                 )
-                .map_err(DeserializeError::custom)?
+                .map_err(DeserializeError::custom)?;
+                for record in machines.values() {
+                    record.validate(None).map_err(DeserializeError::custom)?;
+                }
+                machines
             }
             VERSION => {
                 if stored.reservations.is_some() || stored.workspaces.is_some() {
                     return Err(DeserializeError::custom("old fields in a version 4 state"));
                 }
                 let machines = stored.machines.unwrap_or_default();
-                if machines
-                    .iter()
-                    .any(|(id, record)| id != &record.workspace_id)
-                {
-                    return Err(DeserializeError::custom(
-                        "machine key differs from its record identity",
-                    ));
+                let retired = stored.retired.as_ref();
+                for (id, record) in &machines {
+                    if id != &record.workspace_id {
+                        return Err(DeserializeError::custom(
+                            "machine key differs from its record identity",
+                        ));
+                    }
+                    record
+                        .validate(retired.and_then(|retired| retired.get(id)).copied())
+                        .map_err(DeserializeError::custom)?;
                 }
                 machines
             }
@@ -195,9 +202,13 @@ impl RepositoryState {
         request: &str,
         initial: MachineState,
     ) -> Result<MachineRecord> {
-        let next_revision = self.retired.get(id).map_or(1, |last| last + 1);
-        let (record, changed) =
-            MachineRecord::begin(self.machines.get(id), id, request, initial, next_revision)?;
+        let (record, changed) = MachineRecord::begin(
+            self.machines.get(id),
+            id,
+            request,
+            initial,
+            self.retired.get(id).copied(),
+        )?;
         if changed {
             self.machines.insert(id.clone(), record.clone());
         }
@@ -213,12 +224,7 @@ impl RepositoryState {
             .machines
             .get(id)
             .ok_or_else(|| Error::NotFound(format!("workspace {id}")))?;
-        if previous.revision != expected_revision {
-            return Err(Error::Conflict(format!(
-                "workspace {id} changed since it was read"
-            )));
-        }
-        let record = previous.advance(next)?;
+        let record = previous.advance(expected_revision, next)?;
         self.machines.insert(id.clone(), record.clone());
         Ok(record)
     }
@@ -235,14 +241,7 @@ impl RepositoryState {
     pub(super) fn save_workspace(&mut self, descriptor: &BackendDescriptor) -> Result<()> {
         let id = &descriptor.reference.id;
         let Some(previous) = self.machines.get(id) else {
-            let record = MachineRecord {
-                workspace_id: id.clone(),
-                origin: RequestOrigin::Connected,
-                revision: self.retired.get(id).map_or(1, |last| last + 1),
-                state: MachineState::Ready {
-                    descriptor: descriptor.clone(),
-                },
-            };
+            let record = MachineRecord::connected(descriptor, self.retired.get(id).copied());
             self.machines.insert(id.clone(), record);
             return Ok(());
         };

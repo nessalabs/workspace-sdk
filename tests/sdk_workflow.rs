@@ -29,11 +29,7 @@ fn sdk(root: &Path, repository: Arc<FileStateRepository>) -> WorkspaceSdk {
         .unwrap()
 }
 fn request(id: &str) -> CreateRequest {
-    CreateRequest {
-        workspace_id: WorkspaceId::new(id).unwrap(),
-        config: ProviderOptions::default(),
-        resources: ResourceRequirements::default(),
-    }
+    CreateRequest::new(WorkspaceId::new(id).unwrap())
 }
 fn run_request(id: &str, args: &[&str]) -> LaunchRequest {
     LaunchRequest {

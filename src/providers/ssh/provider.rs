@@ -105,13 +105,15 @@ impl IProvider for SshProvider {
         managed::require_no_create_options(&request.config, "SSH")
     }
     fn check_attach(&self, request: &AttachRequest) -> Result<()> {
-        request.config.decode::<SshAttachOptions>().map(drop)
+        let options: SshAttachOptions = request.config.decode()?;
+        managed::validate_remote_path(&options.path)
     }
     async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
         self.check_create(&request)?;
         self.open(request.workspace_id, None).await
     }
     async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {
+        self.check_attach(&request)?;
         let options: SshAttachOptions = request.config.decode()?;
         self.open(request.workspace_id, Some(options.path)).await
     }

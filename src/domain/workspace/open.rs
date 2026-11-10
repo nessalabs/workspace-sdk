@@ -20,6 +20,10 @@ pub struct CreateRequest {
     /// Requested target resources; unsupported requirements may be rejected.
     #[serde(default)]
     pub resources: ResourceRequirements,
+    /// The key saved in this request's machine record, set by the SDK before
+    /// the provider is asked. Not part of the request's identity.
+    #[serde(skip)]
+    pub(crate) key: Option<ProvisionKey>,
 }
 
 impl CreateRequest {
@@ -29,11 +33,16 @@ impl CreateRequest {
             workspace_id,
             config: ProviderOptions::default(),
             resources: ResourceRequirements::default(),
+            key: None,
         }
     }
-    /// The idempotency key every attempt to create this workspace uses.
+    /// The idempotency key every attempt to finish this create uses: the one
+    /// saved in its machine record. Before the SDK has reserved the ID it is
+    /// the first generation's key.
     pub fn provision_key(&self) -> ProvisionKey {
-        ProvisionKey::for_workspace(&self.workspace_id)
+        self.key
+            .clone()
+            .unwrap_or_else(|| ProvisionKey::for_workspace(&self.workspace_id))
     }
     /// Request a target using the selected provider's named create options.
     pub fn with_options<T: Serialize>(workspace_id: WorkspaceId, options: &T) -> Result<Self> {
@@ -41,6 +50,7 @@ impl CreateRequest {
             workspace_id,
             config: ProviderOptions::from_options(options)?,
             resources: ResourceRequirements::default(),
+            key: None,
         })
     }
 }

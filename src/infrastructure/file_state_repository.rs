@@ -389,6 +389,42 @@ mod tests {
         ));
     }
     #[test]
+    fn a_corrupt_record_refuses_to_load() {
+        let reserved = |revision: u64, retired: serde_json::Value| {
+            serde_json::json!({
+                "version": VERSION,
+                "machines": {"bad": {
+                    "workspace_id": "bad",
+                    "origin": {"origin": "request", "hash": "h"},
+                    "revision": revision,
+                    "state": {"state": "attaching"},
+                }},
+                "retired": retired,
+                "workflows": {},
+            })
+        };
+        let connected_pending = serde_json::json!({
+            "version": VERSION,
+            "machines": {"bad": {
+                "workspace_id": "bad",
+                "origin": {"origin": "connected"},
+                "revision": 1,
+                "state": {"state": "attaching"},
+            }},
+            "workflows": {},
+        });
+        assert!(
+            serde_json::from_value::<RepositoryState>(reserved(1, serde_json::json!({}))).is_ok()
+        );
+        for corrupt in [
+            reserved(0, serde_json::json!({})),
+            reserved(3, serde_json::json!({"bad": 3})),
+            connected_pending,
+        ] {
+            assert!(serde_json::from_value::<RepositoryState>(corrupt).is_err());
+        }
+    }
+    #[test]
     fn lease_excludes_another_repository_instance_until_dropped() {
         let temporary = tempfile::tempdir().unwrap();
         let first = FileStateRepository::new(temporary.path()).unwrap();

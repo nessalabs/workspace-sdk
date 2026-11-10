@@ -123,13 +123,21 @@ impl IProvider for LocalProvider {
         managed::require_no_create_options(&request.config, "local")
     }
     fn check_attach(&self, request: &AttachRequest) -> Result<()> {
-        request.config.decode::<LocalAttachOptions>().map(drop)
+        // Reading the path changes nothing, and a missing one can never attach.
+        let options: LocalAttachOptions = request.config.decode()?;
+        if !options.path.canonicalize()?.is_dir() {
+            return Err(Error::InvalidInput(
+                "a local attach path must be a directory".into(),
+            ));
+        }
+        Ok(())
     }
     async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
         self.check_create(&request)?;
         self.open(request.workspace_id, None).await
     }
     async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {
+        self.check_attach(&request)?;
         let options: LocalAttachOptions = request.config.decode()?;
         self.open(request.workspace_id, Some(options.path)).await
     }

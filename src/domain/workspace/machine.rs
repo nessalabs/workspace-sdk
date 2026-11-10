@@ -6,9 +6,11 @@ use sha2::{Digest, Sha256};
 
 /// The provider's idempotency key for creating one workspace's target.
 ///
-/// It is derived only from the workspace ID, so every attempt to create the same
-/// workspace, including one after a restart, asks the provider for the same
-/// target instead of a second one.
+/// It is saved in the Provisioning record and derived from the workspace ID and
+/// the record's generation, so every attempt to finish one record, including one
+/// after a restart, asks the provider for the same target, while a create made
+/// after [`crate::WorkspaceSdk::forget_unfinished`] never reuses the key of the
+/// forgotten one.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ProvisionKey(String);
 impl ProvisionKey {
@@ -18,6 +20,16 @@ impl ProvisionKey {
             "workspace-sdk-{:x}",
             Sha256::digest(workspace_id.as_str().as_bytes())
         ))
+    }
+    /// The key for `workspace_id` after `generation` records were forgotten,
+    /// counted by the last forgotten revision. Generation 0 is the key older
+    /// versions used, [`Self::for_workspace`].
+    pub fn for_generation(workspace_id: &WorkspaceId, generation: u64) -> Self {
+        let key = Self::for_workspace(workspace_id);
+        if generation == 0 {
+            return key;
+        }
+        Self(format!("{}-{generation}", key.0))
     }
     /// The key as the provider receives it.
     pub fn as_str(&self) -> &str {
@@ -196,10 +208,37 @@ impl MachineRecord {
             _ => None,
         }
     }
-    /// Check a record read from storage.
-    pub fn validate(&self) -> Result<()> {
-        if self.revision == 0 {
-            return Err(Error::State("machine record revision starts at 1".into()));
+    /// The first revision a new record for an ID may use, given the last
+    /// revision of a forgotten record for it.
+    pub fn first_revision(retired: Option<u64>) -> u64 {
+        retired.map_or(1, |last| last + 1)
+    }
+    /// A Ready record saved by reconnecting to a reference made elsewhere.
+    pub fn connected(descriptor: &BackendDescriptor, retired: Option<u64>) -> Self {
+        Self {
+            workspace_id: descriptor.reference.id.clone(),
+            origin: RequestOrigin::Connected,
+            revision: Self::first_revision(retired),
+            state: MachineState::Ready {
+                descriptor: descriptor.clone(),
+            },
+        }
+    }
+    /// Whether this record says the SDK itself created its target: a create
+    /// finished it, not a reconnect that only reported ownership.
+    pub fn created_here(&self) -> bool {
+        self.origin != RequestOrigin::Connected
+            && self
+                .descriptor()
+                .is_some_and(|descriptor| descriptor.ownership == Ownership::SdkOwned)
+    }
+    /// Check a record read from storage, given the last revision forgotten for
+    /// its ID.
+    pub fn validate(&self, retired: Option<u64>) -> Result<()> {
+        if self.revision < Self::first_revision(retired) {
+            return Err(Error::State(
+                "machine record revision is not above every forgotten one".into(),
+            ));
         }
         if self
             .descriptor()
@@ -221,20 +260,29 @@ impl MachineRecord {
     /// Returns the record to use and whether it must be saved. The same request
     /// continues from its saved record; an upgraded record is adopted by the
     /// first request whose kind fits it; anything else is a conflict.
-    /// `next_revision` is the first revision a new record may use.
+    /// `retired` is the last revision of a forgotten record for `id`.
     pub fn begin(
         saved: Option<&Self>,
         id: &WorkspaceId,
         request: &str,
         initial: MachineState,
-        next_revision: u64,
+        retired: Option<u64>,
     ) -> Result<(Self, bool)> {
+        let next_revision = Self::first_revision(retired);
         let wanted = initial
             .intended_ownership()
             .filter(|_| initial.is_pending())
             .ok_or_else(|| {
                 Error::InvalidInput("a machine record starts Provisioning or Attaching".into())
             })?;
+        // A new create's key belongs to its record's generation, so a create
+        // made after a forget never reuses a forgotten record's key.
+        let initial = match initial {
+            MachineState::Provisioning { .. } => MachineState::Provisioning {
+                key: ProvisionKey::for_generation(id, next_revision - 1),
+            },
+            other => other,
+        };
         let Some(saved) = saved else {
             let record = Self {
                 workspace_id: id.clone(),
@@ -284,8 +332,15 @@ impl MachineRecord {
             }
         }
     }
-    /// Apply `next` if it is a legal move from the current state.
-    pub fn advance(&self, next: MachineState) -> Result<Self> {
+    /// Apply `next` for a caller that read this record at `expected_revision`,
+    /// if it is a legal move from the current state.
+    pub fn advance(&self, expected_revision: u64, next: MachineState) -> Result<Self> {
+        if self.revision != expected_revision {
+            return Err(Error::Conflict(format!(
+                "workspace {} changed since it was read",
+                self.workspace_id
+            )));
+        }
         if !self.state.allows(&next) {
             return Err(Error::Conflict(format!(
                 "workspace {} cannot move from its saved state to the requested one",
@@ -321,7 +376,7 @@ impl MachineRecord {
         if *saved == next {
             return Ok(None);
         }
-        self.advance(MachineState::Ready { descriptor: next })
+        self.advance(self.revision, MachineState::Ready { descriptor: next })
             .map(Some)
             .map_err(|_| {
                 Error::Conflict(format!(

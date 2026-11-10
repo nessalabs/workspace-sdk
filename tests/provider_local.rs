@@ -25,11 +25,7 @@ fn provider(base: &TempDir) -> LocalProvider {
 }
 async fn workspace(base: &TempDir) -> Arc<dyn IBackend> {
     provider(base)
-        .create(CreateRequest {
-            workspace_id: WorkspaceId::generate(),
-            config: ProviderOptions::default(),
-            resources: ResourceRequirements::default(),
-        })
+        .create(CreateRequest::new(WorkspaceId::generate()))
         .await
         .unwrap()
 }

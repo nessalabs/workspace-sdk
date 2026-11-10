@@ -303,6 +303,7 @@ impl RecoveryService {
                                 workspace_id: attempt.workspace_id,
                                 config: candidate.config.clone(),
                                 resources: candidate.resources.clone(),
+                                key: None,
                             },
                         )
                         .await?;

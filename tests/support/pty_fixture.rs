@@ -56,11 +56,7 @@ impl Fixture {
         config.supervisor = env!("CARGO_BIN_EXE_workspace-supervisor").into();
         let provider = LocalProvider::new(config).unwrap();
         let backend = provider
-            .create(CreateRequest {
-                workspace_id: WorkspaceId::generate(),
-                config: Default::default(),
-                resources: Default::default(),
-            })
+            .create(CreateRequest::new(WorkspaceId::generate()))
             .await
             .unwrap();
         Self {

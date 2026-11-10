@@ -117,11 +117,7 @@ async fn await_output(backend: &dyn IBackend, run: &RunRef, minimum: u64) -> Out
 
 async fn sample(provider: &LocalProvider, executable: &Path) -> Sample {
     let backend = provider
-        .create(CreateRequest {
-            workspace_id: WorkspaceId::generate(),
-            config: Default::default(),
-            resources: Default::default(),
-        })
+        .create(CreateRequest::new(WorkspaceId::generate()))
         .await
         .unwrap();
     let descriptor = backend.descriptor();

@@ -19,11 +19,7 @@ async fn setup(temp: &TempDir) -> Workspace {
     .unwrap();
     sdk.create(
         &ProviderId::new("local").unwrap(),
-        CreateRequest {
-            workspace_id: WorkspaceId::new("portable").unwrap(),
-            config: ProviderOptions::default(),
-            resources: ResourceRequirements::default(),
-        },
+        CreateRequest::new(WorkspaceId::new("portable").unwrap()),
     )
     .await
     .unwrap()

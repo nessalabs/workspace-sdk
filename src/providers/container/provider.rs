@@ -189,10 +189,14 @@ impl IProvider for ContainerProvider {
         self.id.clone()
     }
     fn check_create(&self, request: &CreateRequest) -> Result<()> {
-        managed::require_no_create_options(&request.config, "container")
+        managed::require_no_create_options(&request.config, "container")?;
+        if request.resources.disk_mib.is_some() {
+            return Err(Error::Unsupported("portable container disk quotas".into()));
+        }
+        name(&format!("workspace-sdk-{}", request.workspace_id))
     }
     fn check_attach(&self, request: &AttachRequest) -> Result<()> {
-        request.config.decode::<ContainerAttachOptions>().map(drop)
+        attach_options(request).map(drop)
     }
     async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
         self.check_create(&request)?;
@@ -200,7 +204,7 @@ impl IProvider for ContainerProvider {
             .await
     }
     async fn attach(&self, request: AttachRequest) -> Result<Arc<dyn IBackend>> {
-        let options: ContainerAttachOptions = request.config.decode()?;
+        let options = attach_options(&request)?;
         self.open(
             request.workspace_id,
             ResourceRequirements::default(),
@@ -227,4 +231,11 @@ impl IProvider for ContainerProvider {
         }
         Ok(Arc::new(self.backend(reference.clone(), locator)))
     }
+}
+
+/// Decode and check attach options with no effect.
+fn attach_options(request: &AttachRequest) -> Result<ContainerAttachOptions> {
+    let options: ContainerAttachOptions = request.config.decode()?;
+    name(&options.container_id)?;
+    Ok(options)
 }

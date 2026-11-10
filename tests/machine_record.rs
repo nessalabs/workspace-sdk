@@ -251,6 +251,9 @@ async fn a_request_the_provider_rejects_reserves_nothing() {
     assert!(sdk.create(&local(), bad).await.is_err());
     let bad = AttachRequest::new(workspace.clone(), &serde_json::json!({"nope": 1})).unwrap();
     assert!(sdk.attach(&local(), bad).await.is_err());
+    // A path that does not exist can never attach either.
+    let missing = attach_request(&workspace, temp.path().join("typo"));
+    assert!(sdk.attach(&local(), missing).await.is_err());
     assert!(sdk.record(&workspace).unwrap().is_none());
     assert_eq!(provider.calls(), 0);
 }
@@ -362,9 +365,20 @@ async fn a_forgotten_request_cannot_land_on_the_next_record() {
         async move { sdk.create(&local(), CreateRequest::new(workspace)).await }
     });
     until(|| provider.calls() == 1).await;
-    let revision = sdk.record(&workspace).unwrap().unwrap().revision;
-    sdk.forget_unfinished(&workspace, revision).unwrap();
-    let attached = sdk
+    // Another process shares the state file but keeps its own targets, so its
+    // attach and the late create do not touch the same directories.
+    let mut config = LocalConfig::trusted_host(temp.path().join("other-targets"));
+    config.supervisor = env!("CARGO_BIN_EXE_workspace-supervisor").into();
+    let other = WorkspaceSdk::builder(Arc::new(
+        FileStateRepository::new(temp.path().join("state")).unwrap(),
+    ))
+    .provider(Arc::new(LocalProvider::new(config).unwrap()))
+    .unwrap()
+    .build()
+    .unwrap();
+    let revision = other.record(&workspace).unwrap().unwrap().revision;
+    other.forget_unfinished(&workspace, revision).unwrap();
+    let attached = other
         .attach(
             &local(),
             attach_request(&workspace, project(temp.path(), "project")),
@@ -372,11 +386,89 @@ async fn a_forgotten_request_cannot_land_on_the_next_record() {
         .await
         .unwrap();
     signal.notify_one();
-    assert!(matches!(slow.await.unwrap(), Err(Error::Conflict(_))));
+    // The late create succeeds at its provider, but is told its record was
+    // forgotten; it never adopts the attach as its own outcome. Its provider
+    // work is left behind: forgetting while a call runs is what
+    // `forget_unfinished` warns against.
+    assert!(matches!(
+        slow.await.unwrap(),
+        Err(Error::Conflict(message)) if message.contains("forgotten")
+    ));
     assert_eq!(
         sdk.record(&workspace).unwrap().unwrap().descriptor(),
         Some(&attached.descriptor())
     );
+}
+
+#[tokio::test]
+async fn a_create_after_a_forget_never_reuses_the_forgotten_key() {
+    let temp = TempDir::new().unwrap();
+    let workspace = id("new-key");
+    let (sdk, provider) = sdk(temp.path(), &[Next::Lost, Next::Lost, Next::Real]);
+    assert!(sdk
+        .create(&local(), CreateRequest::new(workspace.clone()))
+        .await
+        .is_err());
+    let first = sdk.record(&workspace).unwrap().unwrap();
+    sdk.forget_unfinished(&workspace, first.revision).unwrap();
+    assert!(sdk
+        .create(&local(), CreateRequest::new(workspace.clone()))
+        .await
+        .is_err());
+    let second = sdk.record(&workspace).unwrap().unwrap();
+    let MachineState::Provisioning { key } = &second.state else {
+        panic!("expected a pending create");
+    };
+    assert_eq!(
+        key,
+        &ProvisionKey::for_generation(&workspace, first.revision)
+    );
+    // Its retry keeps the record's key, and the provider got only saved keys.
+    sdk.create(&local(), CreateRequest::new(workspace.clone()))
+        .await
+        .unwrap();
+    assert_eq!(
+        provider.keys.lock().unwrap().as_slice(),
+        [
+            ProvisionKey::for_workspace(&workspace),
+            key.clone(),
+            key.clone()
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_reconnected_target_is_never_treated_as_created_here() {
+    let temp = TempDir::new().unwrap();
+    let workspace = id("elsewhere");
+    let (sdk, _) = sdk(temp.path(), &[]);
+    let created = sdk
+        .create(&local(), CreateRequest::new(workspace.clone()))
+        .await
+        .unwrap();
+    // A second store reaches the same target only by its reference.
+    let mut config = LocalConfig::trusted_host(temp.path().join("targets"));
+    config.supervisor = env!("CARGO_BIN_EXE_workspace-supervisor").into();
+    let other = WorkspaceSdk::builder(Arc::new(
+        FileStateRepository::new(temp.path().join("other-state")).unwrap(),
+    ))
+    .provider(Arc::new(LocalProvider::new(config).unwrap()))
+    .unwrap()
+    .build()
+    .unwrap();
+    other.connect(&created.reference()).await.unwrap();
+    assert_eq!(
+        other.record(&workspace).unwrap().unwrap().origin,
+        RequestOrigin::Connected
+    );
+    assert!(matches!(
+        other.connect_owned(&created.reference()).await,
+        Err(Error::Conflict(_))
+    ));
+    assert!(matches!(
+        other.owned_workspace(&workspace).await,
+        Err(Error::Conflict(_))
+    ));
 }
 
 #[tokio::test]

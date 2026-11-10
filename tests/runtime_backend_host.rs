@@ -84,11 +84,7 @@ async fn backend(root: &Path) -> Arc<dyn IBackend> {
     config.supervisor = env!("CARGO_BIN_EXE_workspace-supervisor").into();
     LocalProvider::new(config)
         .unwrap()
-        .create(CreateRequest {
-            workspace_id: WorkspaceId::generate(),
-            config: Default::default(),
-            resources: Default::default(),
-        })
+        .create(CreateRequest::new(WorkspaceId::generate()))
         .await
         .unwrap()
 }

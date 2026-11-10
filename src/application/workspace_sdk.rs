@@ -38,7 +38,7 @@ impl WorkspaceSdk {
     pub async fn create(
         &self,
         provider: &ProviderId,
-        request: CreateRequest,
+        mut request: CreateRequest,
     ) -> Result<OwnedWorkspace> {
         let adapter = self.provider(provider)?;
         adapter.check_create(&request)?;
@@ -50,6 +50,10 @@ impl WorkspaceSdk {
                 key: request.provision_key(),
             },
         )?;
+        // The provider gets the key saved in the record, never a recomputed one.
+        if let MachineState::Provisioning { key } = &record.state {
+            request.key = Some(key.clone());
+        }
         let workspace = self
             .finish(
                 provider,
@@ -105,13 +109,9 @@ impl WorkspaceSdk {
         ownership: Ownership,
         open: impl Future<Output = Result<Arc<dyn IBackend>>>,
     ) -> Result<Workspace> {
+        // `begin` only returns a pending record of the request's own kind.
         if !record.state.is_pending() {
             return self.outcome(record).await;
-        }
-        if record.state.intended_ownership() != Some(ownership.clone()) {
-            return Err(Error::State(
-                "the saved request is for a different kind of target".into(),
-            ));
         }
         let id = record.workspace_id.clone();
         let backend = match open.await {
@@ -120,7 +120,7 @@ impl WorkspaceSdk {
                 let refused = MachineState::Refused {
                     refusal: (*refusal).clone(),
                 };
-                return match self.settle(&id, record.revision, refused)? {
+                return match self.settle(&record, refused)? {
                     // Another caller finished the same request first.
                     Some(winner) => self.outcome(winner).await,
                     None => Err(Error::Refused(refusal)),
@@ -143,7 +143,7 @@ impl WorkspaceSdk {
         let ready = MachineState::Ready {
             descriptor: descriptor.clone(),
         };
-        if let Some(winner) = self.settle(&id, record.revision, ready)? {
+        if let Some(winner) = self.settle(&record, ready)? {
             // Another caller finished the same request first; use its outcome.
             return self.outcome(winner).await;
         }
@@ -158,24 +158,29 @@ impl WorkspaceSdk {
             _ => Err(Error::State("the saved record has no outcome yet".into())),
         }
     }
-    /// Save an outcome. If another caller saved one first, return its record.
+    /// Save the outcome of the request that reserved `reserved`. If another
+    /// caller of the same request saved one first, return its record. A record
+    /// that a different request made after this one was forgotten is never
+    /// treated as this request's outcome.
     fn settle(
         &self,
-        id: &WorkspaceId,
-        revision: u64,
+        reserved: &MachineRecord,
         next: MachineState,
     ) -> Result<Option<MachineRecord>> {
-        match self.repository.advance(id, revision, next) {
+        let id = &reserved.workspace_id;
+        let forgotten = || {
+            Error::Conflict(format!(
+                "workspace {id} was forgotten while its request ran"
+            ))
+        };
+        match self.repository.advance(id, reserved.revision, next) {
             Ok(_) => Ok(None),
             Err(Error::Conflict(message)) => match self.repository.record(id)? {
-                Some(record) if record.revision != revision && !record.state.is_pending() => {
-                    Ok(Some(record))
-                }
+                Some(record) if record.origin != reserved.origin => Err(forgotten()),
+                Some(record) if !record.state.is_pending() => Ok(Some(record)),
                 _ => Err(Error::Conflict(message)),
             },
-            Err(Error::NotFound(_)) => Err(Error::Conflict(format!(
-                "workspace {id} was forgotten while its request ran"
-            ))),
+            Err(Error::NotFound(_)) => Err(forgotten()),
             Err(error) => Err(error),
         }
     }
@@ -235,18 +240,22 @@ impl WorkspaceSdk {
         let saved = self.owned_record(id)?;
         OwnedWorkspace::from_owned(self.connect(&saved.reference).await?)
     }
-    /// The saved Ready descriptor of a target this SDK created.
-    fn owned_record(&self, id: &WorkspaceId) -> Result<BackendDescriptor> {
-        let descriptor = self
+    /// The saved Ready descriptor of a target this SDK created. A target
+    /// only reconnected here, whatever ownership its locator claims, is not one.
+    pub(crate) fn owned_record(&self, id: &WorkspaceId) -> Result<BackendDescriptor> {
+        let record = self
             .repository
-            .get(id)?
+            .record(id)?
             .ok_or_else(|| Error::NotFound(format!("workspace {id}")))?;
-        if descriptor.ownership != Ownership::SdkOwned {
+        if !record.created_here() {
             return Err(Error::Conflict(format!(
-                "workspace {id} is attached; this SDK cannot stop or destroy it"
+                "workspace {id} was not created by this SDK; it cannot be stopped or destroyed here"
             )));
         }
-        Ok(descriptor)
+        record
+            .descriptor()
+            .cloned()
+            .ok_or_else(|| Error::State(format!("workspace {id} has no target")))
     }
     /// List persisted descriptors without polling providers or discovering unrelated resources.
     pub fn list(&self) -> Result<Vec<BackendDescriptor>> {

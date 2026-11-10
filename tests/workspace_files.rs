@@ -22,11 +22,7 @@ fn sdk(base: &Path) -> WorkspaceSdk {
 async fn open(sdk: &WorkspaceSdk, id: &str) -> Workspace {
     sdk.create(
         &ProviderId::new("local").unwrap(),
-        CreateRequest {
-            workspace_id: WorkspaceId::new(id).unwrap(),
-            config: ProviderOptions::default(),
-            resources: ResourceRequirements::default(),
-        },
+        CreateRequest::new(WorkspaceId::new(id).unwrap()),
     )
     .await
     .unwrap()

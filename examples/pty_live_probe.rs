@@ -288,11 +288,7 @@ async fn controller(phase: &str, root: &Path, supervisor: PathBuf) -> ProbeResul
     let mut state = if phase == "start" {
         let executable = fs::canonicalize(env::current_exe()?)?;
         let backend = provider
-            .create(CreateRequest {
-                workspace_id: WorkspaceId::generate(),
-                config: Default::default(),
-                resources: Default::default(),
-            })
+            .create(CreateRequest::new(WorkspaceId::generate()))
             .await?;
         let state = State {
             phase: "created".into(),

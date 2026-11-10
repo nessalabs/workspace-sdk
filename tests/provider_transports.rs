@@ -54,11 +54,7 @@ fn result(code: i32, stdout: &str) -> ExecResult {
     }
 }
 fn request(id: &str) -> CreateRequest {
-    CreateRequest {
-        workspace_id: WorkspaceId::new(id).unwrap(),
-        config: ProviderOptions::default(),
-        resources: ResourceRequirements::default(),
-    }
+    CreateRequest::new(WorkspaceId::new(id).unwrap())
 }
 #[tokio::test]
 async fn ssh_verifies_known_hosts_and_puts_secrets_on_stdin() {

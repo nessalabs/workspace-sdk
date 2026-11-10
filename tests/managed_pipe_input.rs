@@ -23,11 +23,7 @@ async fn workspace(f: &Fixture) -> Workspace {
     f.sdk
         .create(
             &host("laptop"),
-            CreateRequest {
-                workspace_id: WorkspaceId::new("pipe-project").unwrap(),
-                config: ProviderOptions::default(),
-                resources: ResourceRequirements::default(),
-            },
+            CreateRequest::new(WorkspaceId::new("pipe-project").unwrap()),
         )
         .await
         .unwrap()
@@ -230,11 +226,7 @@ async fn piped_admission_bounds_and_wrong_targets_refuse_before_effects() {
             .sdk
             .create(
                 &host("devbox"),
-                CreateRequest {
-                    workspace_id: WorkspaceId::new("wrong-pipe-project").unwrap(),
-                    config: ProviderOptions::default(),
-                    resources: ResourceRequirements::default(),
-                },
+                CreateRequest::new(WorkspaceId::new("wrong-pipe-project").unwrap()),
             )
             .await
             .unwrap();

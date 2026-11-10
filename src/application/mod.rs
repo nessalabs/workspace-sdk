@@ -11,7 +11,7 @@ mod workspace_sdk_builder;
 
 pub use directory_observer::{DirectoryChanges, DirectoryObserver};
 pub use edit::ManagedEditSession;
-pub use machines::{MachineUse, Machines, RestReport};
+pub use machines::{MachineUse, Machines, RestReport, RestTask};
 pub use recovery_service::{
     RecoveryContinuationRequest, RecoveryRequest, RecoverySafety, RecoveryService,
 };

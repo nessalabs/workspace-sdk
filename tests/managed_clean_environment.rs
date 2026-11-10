@@ -90,11 +90,7 @@ async fn workspace(f: &Fixture, runner: Arc<SyntheticHost>) -> Workspace {
         .unwrap();
     sdk.create(
         &host("laptop"),
-        CreateRequest {
-            workspace_id: WorkspaceId::new("clean-environment").unwrap(),
-            config: ProviderOptions::default(),
-            resources: ResourceRequirements::default(),
-        },
+        CreateRequest::new(WorkspaceId::new("clean-environment").unwrap()),
     )
     .await
     .unwrap()

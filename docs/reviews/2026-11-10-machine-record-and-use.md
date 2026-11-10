@@ -50,18 +50,56 @@ Two separate agents reviewed `a968b79..fa31c66` (W2 only):
 `hold` and `rest_idle` both take the lifecycle lock. A rest therefore never stops a machine that a new use has just opened. Dropping a `MachineUse` only removes its name and, when none is left, starts the idle clock. Nothing reads reference counts.
 
 Tests in `tests/machine_use.rs`:
-- a held machine never rests;
-- an idle machine rests once;
+- a held machine never rests, and an idle machine rests once;
 - a new use wakes a rested machine and restarts the clock;
+- a use opened during a rest pass keeps its machine awake;
 - the background rest reports what it stopped;
 - an attached machine cannot be held for rest.
 
 ## Round 2
 
-Pending. Results are added here after the re-review.
+New separate agents reviewed `a968b79..d748636` (W2 fixes and W5).
+
+### Design findings
+
+| ID | Finding | Resolution |
+| --- | --- | --- |
+| P1-A | `settle` treated any settled record as the winner, so a request whose record was forgotten could adopt another request's target. The round-1 test passed only because `from_owned` refused the attach. | Fixed. A winner must have the reserved record's origin; anything else is "forgotten while its request ran". The test now uses a second process with its own targets, so the late create really succeeds at the provider, and it asserts that message. |
+| P1-B | `MachineRecord::validate` was never called. | Fixed. Decoding runs it on every v4 and upgraded record, together with the forgotten revision: a record's revision must be above it. Test: `a_corrupt_record_refuses_to_load`. |
+| P2-A | A reference reconnected on an unknown ID minted a record that `owned_workspace` trusted. | Fixed. `MachineRecord::created_here` requires a non-`Connected` origin, and `owned_record` uses it. `Machines::hold` checks it before keeping anything. Test: `a_reconnected_target_is_never_treated_as_created_here`. |
+| P2-B | The provision key had two authorities, and a different create after a forget reused the old key. | Fixed. The record's key is the authority. It is `ProvisionKey::for_generation(id, last forgotten revision)`, and generation 0 is the old key. The SDK hands the saved key to the provider through `CreateRequest::provision_key`. Test: `a_create_after_a_forget_never_reuses_the_forgotten_key`. |
+| P2-C | Stores still held the revision compare-and-swap, the next revision and how a Connected record is built. | Fixed. `MachineRecord::advance(expected_revision, next)`, `first_revision` and `connected` decide them. Stores only lock and save. |
+| P2-D | `MachineUse` exposed stop and destroy, and kept two ways to reach the workspace. | Fixed. It dereferences to `Workspace` only. |
+| P2-E | One slow wake or stop stalled the whole rest pass. | Fixed for wakes: `rest_idle` skips a machine whose lock is busy, because it is being opened. A stop that hangs still blocks that machine's next hold; see limitations. |
+| P3 | Unreachable kind check in `finish`; poisoned locks; missing count of tests. | The check is removed, since `begin` guarantees the kind. Locks recover from poisoning, because every change under them is one step. The test list above is corrected. |
+| P3 | `RequestHash` newtype; double decode in the sandbox attach; an upgraded Refused record. | Not changed. The hash never leaves the SDK, the second decode is cheap, and upgrades never produce Refused. |
+
+### Adversarial findings
+
+| ID | Finding | Resolution |
+| --- | --- | --- |
+| P2-A | Several `check_*` accepted requests that create or attach then rejected, pinning the ID. | Fixed. Container checks disk quotas and both container names. SSH validates the attach path. Local requires the attach path to be an existing directory. Each attach calls its check first. Test: a missing local path reserves nothing. |
+| P2-B | `validate` never ran. | Fixed; see design P1-B. |
+| P2-C | Connected records were trusted as owned. | Fixed; see design P2-A. |
+| P2-D | `hold` handed out a cached handle that something else might have stopped. | Fixed. When nothing holds the machine, `hold` runs `ensure_ready` even on a cached handle. The docs say to keep one `Machines` per state store, since the lock is in memory. |
+| P2-E | A wake that failed part way was never rested. | Fixed. The handle is kept from the moment waking starts. A failed wake with no holders starts the idle clock, so the rest path stops it. |
+| P3-1 | Hung stops and slow wakes stalled resting. | Partly fixed (see design P2-E). |
+| P3-2 | Poisoned locks dropped a report or pinned a machine. | Fixed: locks recover, and the name is converted before locking. `rest_idle` and `uses` no longer return `Result`. |
+| P3-3 | The `rest_every` task outlived its owner. | Fixed. It returns `RestTask`, which aborts on drop. |
+| P3-4 | Failed holds grew the entry map. | Fixed. The record is checked before an entry is made. |
+| P3-5 | The tests depended on the wall clock, and nothing raced a hold against a rest. | Idle is raised to 500 ms. `a_use_opened_during_a_rest_pass_keeps_its_machine_awake` races the two five times. |
+| P3-6 | Tests left provider work behind. | Documented in the tests as deliberate. |
+| P3-7 | A Refused record can never be cleared. | Intended. A refusal is the provider's final word on that ID. A temporary condition must not be reported as `Refused`; the W3 mapping keeps it as a retryable error. |
+| P3-8 | Identical attaches racing each other both reach the provider. | Accepted. Attach is idempotent per control directory, and only the first save wins. |
+
+## Round 3
+
+Pending.
 
 ## Remaining limitations
 
-- Boat key lifetime and rollback of a created target are W3's (adversarial P2-3).
+- Boat key lifetime and rollback of a created target belong to W3 (adversarial round-1 P2-3).
 - `Workspace::backend()` exposes lifecycle methods until W6.
-- A `Machines` entry is kept for each machine it has seen. A caller that holds very many short-lived machines grows the map. Removing an entry when its machine is destroyed comes with W6's lifecycle trait.
+- A stop that hangs blocks the next hold of that machine. Stops have no timeout until the provider budget from W3 exists.
+- A machine that is created and never held is not rested by `Machines`; the provider's lifetime is its backstop.
+- `Machines` keeps an entry for each machine it has held.
