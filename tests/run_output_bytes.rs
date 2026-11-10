@@ -156,9 +156,19 @@ async fn binary_retention_reports_gaps_and_refuses_invalid_limits_cursors_and_ta
             )
             .await
             .unwrap();
+        // A workspace gives no backend; reach the other target's directly.
+        let mut config = providers::LocalConfig::trusted_host(fixture.root.join("workers/laptop"));
+        config.supervisor = env!("CARGO_BIN_EXE_workspace-supervisor").into();
+        let other = providers::LocalProvider::new(config)
+            .unwrap()
+            .with_id(host("laptop"))
+            .connect(&other.reference())
+            .await
+            .unwrap();
         assert!(matches!(
             other
-                .backend()
+                .runs()
+                .unwrap()
                 .read_output_bytes(&run.reference(), OutputCursor::default(), 8)
                 .await,
             Err(Error::InvalidInput(_))

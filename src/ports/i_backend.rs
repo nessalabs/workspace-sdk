@@ -1,19 +1,26 @@
-use super::{IConnection, SocketForward};
-use crate::Error;
+use super::{Connections, Deletion, Lifecycle, ManagedRuns, Ports, PrivateState, Terminals};
+#[cfg(feature = "portability")]
+use super::{FileBrowsing, TreeTransfers};
 use crate::{domain::*, Result};
 use async_trait::async_trait;
-use std::sync::Arc;
 
 #[async_trait]
-/// Interface for a connected workspace’s execution, files, and lifecycle.
+/// Interface for a connected workspace: what every backend does, and accessors
+/// for the optional capabilities.
 ///
 /// Providers implement this contract using their native transport. Domain values
 /// cross this boundary; wire-level serialization belongs inside the adapter.
-/// Optional operations default to `Unsupported` rather than silently weakening
-/// the requested behavior. The file-browser and tree-transfer operations exist
-/// only with the `portability` feature; implementations gate them the same way.
+/// Every backend runs foreground commands and reads and writes files. Anything
+/// else is a capability: a backend that has one returns `Some(self)` from its
+/// accessor, and one that lacks it keeps the default `None`. The capability
+/// flags a caller sees are derived from these accessors
+/// ([`dyn IBackend::capabilities`]), so they cannot disagree with them. The
+/// file-browser and tree-transfer accessors exist only with the `portability`
+/// feature; implementations gate them the same way.
 pub trait IBackend: Send + Sync {
     /// Return connection metadata without polling remote resource state.
+    /// Its `capabilities` field is replaced by [`dyn IBackend::capabilities`]
+    /// wherever the SDK hands a descriptor out or saves one.
     fn descriptor(&self) -> BackendDescriptor;
     /// Establish readiness using the provider’s supported lifecycle.
     async fn ensure_ready(&self) -> Result<()>;
@@ -25,131 +32,70 @@ pub trait IBackend: Send + Sync {
     async fn read_file(&self, request: ReadFile) -> Result<FileChunk>;
     /// Write a bounded binary chunk, preserving the requested executable mode.
     async fn write_file(&self, request: WriteFile) -> Result<()>;
-    #[cfg(feature = "portability")]
-    /// List one directory without recursively loading content. Unsupported providers refuse.
-    async fn list_directory(&self, _request: ListDirectory) -> Result<DirectoryPage> {
-        Err(Error::Unsupported("directory listing".into()))
+    /// Durable managed runs.
+    fn runs(&self) -> Option<&dyn ManagedRuns> {
+        None
     }
-    /// Open a new live connection into the workspace's machine, making
-    /// `forward` reachable inside it when given; it ends when the last handle
-    /// to it, and every stream from it, is dropped. An attached workspace
-    /// may be connected too. A provider may leave something behind on the
-    /// machine for each connection, such as an authorized key it cannot
-    /// revoke; it says so. Unsupported providers refuse.
-    async fn connection(&self, _forward: Option<SocketForward>) -> Result<Arc<dyn IConnection>> {
-        Err(Error::Unsupported("live connections".into()))
+    /// Terminal runs.
+    fn terminals(&self) -> Option<&dyn Terminals> {
+        None
     }
-    #[cfg(feature = "portability")]
-    /// Read with target-side revision checks; never silently fall back to chunk reads.
-    async fn read_versioned_file(&self, _request: ReadVersionedFile) -> Result<VersionedFileChunk> {
-        Err(Error::Unsupported("revision-bound file reads".into()))
+    /// Private control-directory work and host inspection, for runtime preparation.
+    fn private_state(&self) -> Option<&dyn PrivateState> {
+        None
     }
-    #[cfg(feature = "portability")]
-    /// Publish according to an enforced precondition. Never retry an unknown outcome.
-    async fn publish_file(&self, _request: PublishFile) -> Result<PublishOutcome> {
-        Err(Error::Unsupported("conditional file publication".into()))
+    /// Access to listening services.
+    fn ports(&self) -> Option<&dyn Ports> {
+        None
     }
-    #[cfg(feature = "portability")]
-    /// Export a filtered tree to this transfer’s scoped staging file.
-    async fn export_tree(&self, _transfer: &TreeTransfer) -> Result<TreeExportReceipt> {
-        Err(Error::Unsupported("file-tree export".into()))
+    /// Stopping the workspace. Never `Some` for an attached workspace.
+    fn lifecycle(&self) -> Option<&dyn Lifecycle> {
+        None
     }
-    #[cfg(feature = "portability")]
-    /// Restore the staged tree to an empty destination or resume an identical import.
-    async fn import_tree(&self, _transfer: &TreeTransfer) -> Result<TreeImportReceipt> {
-        Err(Error::Unsupported("file-tree import".into()))
+    /// Deleting the workspace. Never `Some` for an attached workspace.
+    fn deletion(&self) -> Option<&dyn Deletion> {
+        None
+    }
+    /// Live connections into the workspace's machine.
+    fn connections(&self) -> Option<&dyn Connections> {
+        None
     }
     #[cfg(feature = "portability")]
-    /// Remove only the temporary directory belonging to this transfer.
-    async fn remove_transfer(&self, _transfer: &TreeTransfer) -> Result<()> {
-        Err(Error::Unsupported("file-tree transfer cleanup".into()))
+    /// Revision-checked file browsing and conditional publication.
+    fn file_browsing(&self) -> Option<&dyn FileBrowsing> {
+        None
     }
-    /// Execute with a working directory relative to private SDK control state.
-    async fn exec_private(
-        &self,
-        _request: ExecutionRequest,
-        _cwd: WorkspacePath,
-    ) -> Result<ExecResult> {
-        Err(Error::Unsupported("private runtime execution".into()))
+    #[cfg(feature = "portability")]
+    /// Whole-tree export and import.
+    fn tree_transfers(&self) -> Option<&dyn TreeTransfers> {
+        None
     }
-    /// Launch a managed run with a working directory relative to private control state.
-    async fn start_private(&self, _request: LaunchRequest, _cwd: WorkspacePath) -> Result<RunRef> {
-        Err(Error::Unsupported("private runtime launch".into()))
+}
+
+impl dyn IBackend {
+    /// The capability flags this backend reports, derived from its accessors.
+    /// Port flags come from the policies its [`Ports`] reports.
+    pub fn capabilities(&self) -> Capabilities {
+        let policies = self.ports().map(Ports::policies).unwrap_or_default();
+        Capabilities {
+            managed_runs: self.runs().is_some(),
+            file_transfer: true,
+            stop: self.lifecycle().is_some(),
+            destroy: self.deletion().is_some(),
+            private_ports: policies.contains(&PortPolicy::Private),
+            hosted_ports: policies.contains(&PortPolicy::Authenticated),
+        }
     }
-    /// Create a private directory beneath the control root, rejecting symlink escape.
-    async fn ensure_private_directory(&self, _path: WorkspacePath) -> Result<()> {
-        Err(Error::Unsupported("private runtime directory".into()))
+    /// The descriptor with its `capabilities` derived from the accessors.
+    pub(crate) fn described(&self) -> BackendDescriptor {
+        BackendDescriptor {
+            capabilities: self.capabilities(),
+            ..self.descriptor()
+        }
     }
-    /// Write transient credentials beneath the control root using private file permissions.
-    async fn write_private_file(&self, _path: WorkspacePath, _bytes: &[u8]) -> Result<()> {
-        Err(Error::Unsupported("private runtime file".into()))
-    }
-    /// Observe host resources without provisioning or reserving them.
-    async fn inspect_resources(&self) -> Result<HostResources> {
-        Err(Error::Unsupported("host resource inspection".into()))
-    }
-    /// Start or reconnect to the exact request identified by its stable run ID.
-    async fn start(&self, request: LaunchRequest) -> Result<RunRef>;
-    /// Start a terminal under the same durable run identity. `private_cwd` selects
-    /// private control state; otherwise the command's project-relative cwd applies.
-    /// The supervisor owns the terminal independently of this backend handle.
-    async fn start_terminal(
-        &self,
-        _request: LaunchRequest,
-        _private_cwd: Option<WorkspacePath>,
-        _size: TerminalSize,
-    ) -> Result<RunRef> {
-        Err(Error::Unsupported("terminal launch".into()))
-    }
-    /// Deliver transient input once. Ambiguous acknowledgement is `Unknown`;
-    /// callers must never replay the submission automatically.
-    async fn write_terminal_input(
-        &self,
-        _run: &RunRef,
-        _input: &SecretInput,
-    ) -> Result<InputOutcome> {
-        Err(Error::Unsupported("terminal input".into()))
-    }
-    /// Resize one existing terminal without replacing its owned process.
-    async fn resize_terminal(&self, _run: &RunRef, _size: TerminalSize) -> Result<()> {
-        Err(Error::Unsupported("terminal resize".into()))
-    }
-    /// Observe a workspace-qualified run, rejecting references to another target.
-    async fn inspect_run(&self, run: &RunRef) -> Result<RunState>;
-    /// Read retained output using absolute byte cursors and an explicit page limit.
-    async fn read_output(
-        &self,
-        run: &RunRef,
-        cursor: OutputCursor,
-        limit: u32,
-    ) -> Result<OutputPage>;
-    /// Read byte-preserving retained output at independent absolute cursors.
-    /// No input or process mutation occurs. Unsupported providers must refuse;
-    /// converting lossy text output back into bytes cannot satisfy this contract.
-    async fn read_output_bytes(
-        &self,
-        _run: &RunRef,
-        _cursor: OutputCursor,
-        _limit: u32,
-    ) -> Result<OutputBytesPage> {
-        Err(Error::Unsupported("byte-preserving run output".into()))
-    }
-    /// Stop the identified managed process group; never signal an unrelated or guessed PID.
-    async fn cancel(&self, run: &RunRef) -> Result<RunState>;
-    /// Return service access satisfying the requested policy, or reject unsupported access.
-    async fn port(&self, _request: PortRequest) -> Result<PortAccess> {
-        Err(Error::Unsupported("ports".into()))
-    }
-    /// Stop SDK-owned workspace execution; do not treat attachments as disposable.
-    async fn stop(&self) -> Result<()> {
-        Err(Error::Unsupported("stop".into()))
-    }
-    /// Request destruction and return the provider’s actual cleanup progress.
-    async fn destroy(&self) -> Result<DeleteOperation> {
-        Err(Error::Unsupported("destroy".into()))
-    }
-    /// Poll a saved deletion receipt without assuming accepted means completed.
-    async fn inspect_delete(&self, _operation: &OperationRef) -> Result<DeleteOperation> {
-        Err(Error::Unsupported("delete status".into()))
-    }
+}
+
+/// A capability the caller needs, or `Unsupported` naming it.
+pub(crate) fn require<'a, T: ?Sized>(capability: Option<&'a T>, name: &str) -> Result<&'a T> {
+    capability.ok_or_else(|| crate::Error::Unsupported(name.into()))
 }

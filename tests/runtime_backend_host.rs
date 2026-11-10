@@ -75,8 +75,8 @@ async fn native_process_references_cannot_control_another_workspace() {
         right.cancel_process(&second).await.unwrap(),
         RuntimeProcessState::Exited { code: 130 }
     );
-    left_backend.destroy().await.unwrap();
-    right_backend.destroy().await.unwrap();
+    left_backend.deletion().unwrap().destroy().await.unwrap();
+    right_backend.deletion().unwrap().destroy().await.unwrap();
 }
 
 async fn backend(root: &Path) -> Arc<dyn IBackend> {
@@ -138,7 +138,7 @@ async fn local_adapter_checks_installed_runtime_launches_and_retains_no_input_se
     let run = host.launch(RunId::generate(), launch, 8192).await.unwrap();
     timeout(Duration::from_secs(10), async {
         loop {
-            match backend.inspect_run(&run).await.unwrap() {
+            match backend.runs().unwrap().inspect_run(&run).await.unwrap() {
                 RunState::Starting | RunState::Running => sleep(Duration::from_millis(50)).await,
                 state => {
                     assert_eq!(state, RunState::Exited { exit_code: 0 });
@@ -150,6 +150,8 @@ async fn local_adapter_checks_installed_runtime_launches_and_retains_no_input_se
     .await
     .unwrap();
     let output = backend
+        .runs()
+        .unwrap()
         .read_output(&run, OutputCursor::default(), 8192)
         .await
         .unwrap();
@@ -336,5 +338,5 @@ async fn authentication_output_advances_across_split_unicode_bytes() {
         .await
         .unwrap();
     assert!(end.stdout.is_empty());
-    backend.destroy().await.unwrap();
+    backend.deletion().unwrap().destroy().await.unwrap();
 }

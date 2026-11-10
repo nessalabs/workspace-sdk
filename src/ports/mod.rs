@@ -1,4 +1,5 @@
 //! Ports implemented by infrastructure and injected into application services.
+mod backend_capabilities;
 mod i_backend;
 mod i_connection;
 mod i_provider;
@@ -10,6 +11,12 @@ mod i_workflow_lease;
 mod i_workflow_repository;
 mod i_workspace_repository;
 
+pub use backend_capabilities::{
+    Connections, Deletion, Lifecycle, ManagedRuns, Ports, PrivateState, Terminals,
+};
+#[cfg(feature = "portability")]
+pub use backend_capabilities::{FileBrowsing, TreeTransfers};
+pub(crate) use i_backend::require;
 pub use i_backend::IBackend;
 pub use i_connection::{
     ConnectionInput, ConnectionOutput, ConnectionStream, FileChannel, IConnection,

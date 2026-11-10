@@ -71,6 +71,15 @@ impl LocalTarget {
 }
 #[async_trait]
 impl ITarget for LocalTarget {
+    fn port_policies(&self) -> &'static [PortPolicy] {
+        &[PortPolicy::Private]
+    }
+    fn stops(&self) -> bool {
+        true
+    }
+    fn deletes(&self) -> bool {
+        true
+    }
     async fn invoke(&self, request: SupervisorRequest) -> Result<SupervisorValue> {
         let output = self
             .runner
@@ -90,9 +99,6 @@ impl ITarget for LocalTarget {
         managed::response(&output.stdout, output.success())
     }
     async fn port(&self, request: PortRequest) -> Result<PortAccess> {
-        if request.policy != PortPolicy::Private {
-            return Err(Error::Unsupported("local authenticated hosting".into()));
-        }
         // URL is loopback access; binding of the actual server remains caller-owned.
         Ok(PortAccess {
             url: format!("http://127.0.0.1:{}", request.port),

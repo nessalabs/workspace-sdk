@@ -235,6 +235,18 @@ impl SandboxTarget {
 }
 #[async_trait]
 impl ITarget for SandboxTarget {
+    fn port_policies(&self) -> &'static [PortPolicy] {
+        &[PortPolicy::Authenticated]
+    }
+    fn stops(&self) -> bool {
+        true
+    }
+    fn deletes(&self) -> bool {
+        true
+    }
+    fn connects(&self) -> bool {
+        true
+    }
     async fn invoke(&self, request: SupervisorRequest) -> Result<SupervisorValue> {
         let sensitive = request.operation.requires_private_transport();
         if !sensitive {
@@ -331,11 +343,6 @@ impl ITarget for SandboxTarget {
         }
     }
     async fn port(&self, request: PortRequest) -> Result<PortAccess> {
-        if request.policy != PortPolicy::Authenticated {
-            return Err(Error::Unsupported(
-                "Sandbox private port tunneling; use authenticated hosting".into(),
-            ));
-        }
         let response = self
             .api
             .host_port(

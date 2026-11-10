@@ -292,7 +292,14 @@ async fn missing_terminal_program_exits_127_with_retained_diagnostic_and_safe_li
         assert_eq!(repeated.next.stderr, page.next.stderr);
         assert!(repeated.complete && !repeated.gap);
         assert_eq!(fs::read(directory.join("claim.json")).unwrap(), claim);
-        reconnected.backend().stop().await.unwrap();
+        fixture
+            .backend()
+            .await
+            .lifecycle()
+            .unwrap()
+            .stop()
+            .await
+            .unwrap();
     })
     .await;
 }
@@ -377,7 +384,14 @@ async fn socket_cleanup_failure(replace_with_directory: bool) {
         if replace_with_directory {
             fs::remove_dir(&socket).unwrap();
         }
-        reconnected.backend().stop().await.unwrap();
+        fixture
+            .backend()
+            .await
+            .lifecycle()
+            .unwrap()
+            .stop()
+            .await
+            .unwrap();
     }).await;
 }
 
@@ -730,7 +744,15 @@ async fn killed_terminal_owner_becomes_lost_releases_its_lock_and_never_relaunch
             Err(Error::Conflict(_))
         ));
         assert_eq!(
-            host.backend().destroy().await.unwrap().state,
+            observed
+                .backend()
+                .await
+                .deletion()
+                .unwrap()
+                .destroy()
+                .await
+                .unwrap()
+                .state,
             DeleteState::Blocked
         );
         assert!(
@@ -748,7 +770,7 @@ async fn killed_terminal_owner_becomes_lost_releases_its_lock_and_never_relaunch
     };
     // If the case failed before SIGKILL, cancellation still cleans the live run.
     // When it reached Lost, refusing lifecycle mutation is the asserted behavior.
-    let host = fixture.host().await;
-    let _ = timeout(Duration::from_secs(6), host.backend().stop()).await;
+    let backend = fixture.backend().await;
+    let _ = timeout(Duration::from_secs(6), backend.lifecycle().unwrap().stop()).await;
     outcome.expect("owner-death case failed");
 }

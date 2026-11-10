@@ -70,7 +70,6 @@ impl SshProvider {
         Ok(Arc::new(backend))
     }
     fn backend(&self, reference: WorkspaceRef, locator: Locator) -> ManagedBackend {
-        let owned = locator.ownership == Ownership::SdkOwned;
         ManagedBackend {
             descriptor: BackendDescriptor {
                 reference: reference.clone(),
@@ -78,12 +77,8 @@ impl SshProvider {
                 control_root: locator.control.clone(),
                 ownership: locator.ownership.clone(),
                 isolation: Isolation::TrustedHost,
-                capabilities: Capabilities {
-                    managed_runs: true,
-                    file_transfer: true,
-                    stop: owned,
-                    ..Capabilities::default()
-                },
+                // Derived from the backend's accessors when read.
+                capabilities: Capabilities::default(),
                 admission: None,
             },
             target: Arc::new(SshTarget {

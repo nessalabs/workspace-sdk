@@ -133,7 +133,7 @@ impl WorkspaceSdk {
             // No outcome: the record stays pending for a retry.
             Err(error) => return Err(error),
         };
-        let descriptor = backend.descriptor();
+        let descriptor = backend.described();
         if descriptor.reference.id != id
             || &descriptor.reference.provider != provider
             || descriptor.reference.version != 1
@@ -208,7 +208,7 @@ impl WorkspaceSdk {
             .get(&reference.provider)
             .ok_or_else(|| Error::NotFound(format!("provider {}", reference.provider)))?;
         let backend = provider.connect(reference).await?;
-        let descriptor = backend.descriptor();
+        let descriptor = backend.described();
         if descriptor.reference != *reference {
             return Err(Error::State(
                 "provider changed the persisted workspace identity during reconnect".into(),

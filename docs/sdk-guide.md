@@ -9,7 +9,7 @@ container provider needs `container`.
 | Feature | Default | Adds |
 | --- | --- | --- |
 | `boat` | yes | The Boat provider (`BoatProvider`) and the reexported `boat_client`. |
-| `portability` | no | Workspace portability: checkpoints (`checkpoint` engine), `SyncService` sync and handoff, `RecoveryService`, Git worktree helpers (`git`), `DirectoryObserver` and the file-browser and tree-transfer backend operations (`list_directory`, `read_versioned_file`, `publish_file`, `export_tree`, `import_tree`, `remove_transfer`) with their supervisor operations. |
+| `portability` | no | Workspace portability: checkpoints (`checkpoint` engine), `SyncService` sync and handoff, `RecoveryService`, Git worktree helpers (`git`), `DirectoryObserver` and the `FileBrowsing` (`list_directory`, `read_versioned_file`, `publish_file`) and `TreeTransfers` (`export_tree`, `import_tree`, `remove_transfer`) backend capabilities with their supervisor operations. |
 | `container` | no | The Docker/Podman-compatible `ContainerProvider`. |
 | `space` | no | The SPACE attachment provider (`SpaceProvider`). |
 | `testing` | no | `MemoryStateRepository`, for tests only. |
@@ -17,10 +17,11 @@ container provider needs `container`.
 Saved state reads and writes the same with or without `portability`. Deploy a
 supervisor built with `portability`; one built without it refuses the
 portability operations with `Error::Unsupported`, never a schema error.
-The six portability methods of `IBackend` exist only when the feature is on.
-A crate outside this one that overrides them must forward the feature, for
-example `portability = ["workspace_sdk/portability"]`, and gate its overrides
-on it.
+The `FileBrowsing` and `TreeTransfers` traits and their `IBackend` accessors
+(`file_browsing`, `tree_transfers`) exist only when the feature is on. A crate
+outside this one that implements them must forward the feature, for example
+`portability = ["workspace_sdk/portability"]`, and gate its implementations on
+it.
 
 ## Register infrastructure explicitly
 
@@ -38,7 +39,27 @@ The provider IDs default to `local`, `boat`, `ssh`, and `container`. Each adapte
 
 Create with `CreateRequest::new(workspace_id)` or `CreateRequest::with_options(workspace_id, &options)`, and attach with `AttachRequest::new(workspace_id, &options)`. `ProviderOptions` erases the concrete type only for registry dispatch; the adapter decodes it immediately into its own schema. Create refuses attach-shaped options rather than ignoring them. Resource requirements are validated or rejected; they are never silently treated as provisioned. Boat sizing currently uses an explicit Boat type. Runtime resource checks can verify the CPU, memory, disk, platform and GPU needs of an existing host.
 
-Local and SSH execution share the user's host permissions. Container isolation depends on the selected engine/image; the SDK does not claim a hardware security boundary. `create` returns an `OwnedWorkspace`, the only handle with `stop`, `destroy` and `inspect_delete`; `attach` returns a plain `Workspace`. Backends also refuse lifecycle calls on attachments.
+Local and SSH execution share the user's host permissions. Container isolation depends on the selected engine/image; the SDK does not claim a hardware security boundary. `create` returns an `OwnedWorkspace`, the only handle with `stop`, `destroy` and `inspect_delete`; `attach` returns a plain `Workspace`, which has no way to reach them: its backend is not public. A backend never offers lifecycle for an attachment: its `lifecycle()` and `deletion()` are `None`.
+
+## Backend capabilities
+
+`IBackend` holds only what every backend does: `descriptor`, `ensure_ready`, `refresh`, `exec`, `read_file` and `write_file`. Everything else is a small capability trait in `workspace_sdk::ports`, handed out by an `IBackend` accessor that returns `Some(self)` when the backend has it and `None` (the default) when it does not:
+
+| Accessor | Trait | Methods |
+| --- | --- | --- |
+| `runs()` | `ManagedRuns` | `start`, `inspect_run`, `read_output`, `read_output_bytes`, `cancel` |
+| `terminals()` | `Terminals` | `start_terminal`, `write_terminal_input`, `resize_terminal` |
+| `private_state()` | `PrivateState` | `exec_private`, `start_private`, `ensure_private_directory`, `write_private_file`, `inspect_resources` |
+| `ports()` | `Ports` | `policies`, `port` |
+| `lifecycle()` | `Lifecycle` | `stop` |
+| `deletion()` | `Deletion` | `destroy`, `inspect_delete` |
+| `connections()` | `Connections` | `connection` |
+| `file_browsing()` | `FileBrowsing` (`portability`) | `list_directory`, `read_versioned_file`, `publish_file` |
+| `tree_transfers()` | `TreeTransfers` (`portability`) | `export_tree`, `import_tree`, `remove_transfer` |
+
+A capability never refuses a call only because the backend lacks it; lacking it is `None`. It may still refuse one request, such as a port policy outside `Ports::policies`. `Workspace` methods keep their names and return `Error::Unsupported` naming the capability when the accessor is `None`; `Workspace::connection(forward)` opens a live connection. `OwnedWorkspace::stop` uses `Lifecycle`, and `destroy` and `inspect_delete` use `Deletion`. SSH stops its managed runs but cannot delete its target, so it offers `Lifecycle` without `Deletion`.
+
+`Capabilities` flags are derived from the accessors (`<dyn IBackend>::capabilities()`): `managed_runs` from `runs`, `stop` from `lifecycle`, `destroy` from `deletion`, and `private_ports`/`hosted_ports` from the `Private`/`Authenticated` policies `Ports` reports; `file_transfer` is always true. `Workspace::descriptor()` and every descriptor the SDK saves carry the derived flags. The copy in a saved `MachineRecord` is a snapshot from the last connect, refreshed on every reconnect; the SDK decides nothing from it, so read flags from a connected `Workspace`.
 
 ## Deploy the Rust supervisor
 
@@ -52,7 +73,7 @@ The helper is Rust, so targets using a prebuilt artifact need no Python interpre
 
 Build a `CreateRequest` with `CreateRequest::new` or `with_options` and then set `resources`; the SDK fills in the saved provision key itself. Each workspace ID has one saved `MachineRecord`. The provider first checks the request with `check_create` or `check_attach`, which have no effect, so a request that can never succeed reserves nothing. Then `create` saves the record as `Provisioning` (with the provider's idempotency key, derived from the ID and the record's generation, so a create made after a forget never reuses an old key) and `attach` as `Attaching`, both before the provider does anything. The record then becomes `Ready` with the target's descriptor, or `Refused` with a typed `Refusal` when the provider rejects the target; records never move back, a Ready target never changes its reference, ownership or admission, and a Ready target can be refused only under the admission it was made Ready with. Repeating the same request continues from the saved state: a pending create asks the provider again with the same key, Ready reconnects, and Refused returns the saved refusal without calling the provider. When two callers race, the first outcome saved wins and the other caller gets it too. A different request under the same ID, including attaching where a create was reserved, returns a conflict. A record upgraded from an older state file (`RequestOrigin::Upgraded`) is adopted by the first create or attach that fits it. If a create never got an outcome and the provider confirms it holds nothing for it, `forget_unfinished(id, revision)` deletes the pending record read at that revision; revisions never repeat, so a request still in flight cannot land on a later record. `record(id)` reads it in any state; `workspace(id)` reconnects a Ready target and `connect(reference)` a saved reference, without recreating missing state. `owned_workspace(id)` and `connect_owned(reference)` return the stop and destroy operations only for a saved Ready target this SDK created; a target only reconnected here never qualifies, whatever its locator claims.
 
-`Machines` keeps SDK-owned machines awake while something uses them. `hold(id, name)` wakes a resting machine and returns a `MachineUse` guard; the machine is in use exactly while a guard is alive. `rest_idle()` is the one path that stops machines, once they have had no use for the idle time the caller chose; `rest_every(period, report)` runs it on a timer. Opening for use and resting take the same per-machine lock, so a rest never stops a machine a new use has just opened. A machine that is being opened is skipped by a rest pass. Keep one `Machines` per state store, because its lock lives in memory. A `MachineUse` gives the workspace's operations but not stop or destroy. A provider's own auto-stop lifetime is only a backstop for a process that dies.
+`Machines` keeps SDK-owned machines awake while something uses them. `hold(id, name)` wakes a resting machine and returns a `MachineUse` guard; the machine is in use exactly while a guard is alive. `rest_idle()` is the one path that stops machines, once they have had no use for the idle time the caller chose; `rest_every(period, report)` runs it on a timer. Opening for use and resting take the same per-machine lock, so a rest never stops a machine a new use has just opened. A machine that is being opened is skipped by a rest pass. Keep one `Machines` per state store, because its lock lives in memory. A `MachineUse` gives the workspace's operations but not stop or destroy; it derefs to `Workspace`, which has no public path to the backend's `Lifecycle`. A provider's own auto-stop lifetime is only a backstop for a process that dies.
 
 `MemoryStateRepository` is only built with the `testing` feature: it forgets every record on drop, so a restarted caller would create a second target.
 
@@ -189,7 +210,7 @@ permissions or introduce a worktree ownership registry.
 
 ## Credentials and preparation
 
-Inject `ICredentialResolver`, `IRuntimeHost`, and `IPreparationStore` into `PreparationService`. `BackendRuntimeHost::new(workspace.backend())` connects runtime preparation to any registered workspace backend.
+Inject `ICredentialResolver`, `IRuntimeHost`, and `IPreparationStore` into `PreparationService`. `workspace.runtime_host()` connects runtime preparation to a connected workspace, and `BackendRuntimeHost::new(backend)` to a backend you hold. The host uses the `ManagedRuns`, `Terminals` and `PrivateState` capabilities and gives no way to stop or delete the workspace.
 
 A `CredentialRef` is an application-owned identifier. The resolver returns `CredentialResolution::Available(SecretValue)`, `Missing`, or `Expired`. Only declare variables a workload or setup step requires. Ordinary command/recipe configuration is serializable; put credentials in secret fields and keep credentials out of arguments.
 
@@ -377,7 +398,7 @@ billable targets; an accepted delete request is not proof billing stopped.
 
 `destroy` is restricted to owned resources. Save its `DeleteOperation` and inspect asynchronous provider cleanup until completed. Boat may report blocked cleanup even after a delete request is accepted; a missing Boat lookup does not prove deletion finished. Local deletion receipts persist outside the deleted workspace. SSH target deletion is currently unsupported; stopping its managed runs is supported.
 
-To add another cloud, implement `IProvider` and `IBackend`, including truthful capability and ownership descriptors. You may use native HTTP APIs, SSH or your own process transport. No common remote server is required. Register the adapter through the builder and run the conformance scenarios used by the supplied providers.
+To add another cloud, implement `IProvider`, `IBackend` and the capability traits the target supports, returning each from its accessor; the capability flags follow from those accessors, and the ownership in the descriptor must be truthful. Never return `lifecycle()` or `deletion()` for an attached target. You may use native HTTP APIs, SSH or your own process transport. No common remote server is required. Register the adapter through the builder and run the conformance scenarios used by the supplied providers.
 
 ## File browser primitives
 

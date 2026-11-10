@@ -98,6 +98,8 @@ async fn await_output(backend: &dyn IBackend, run: &RunRef, minimum: u64) -> Out
     timeout(WATCHDOG, async {
         loop {
             let page = backend
+                .runs()
+                .unwrap()
                 .read_output(run, OutputCursor::default(), PAGE_BYTES as u32)
                 .await
                 .unwrap();
@@ -105,7 +107,13 @@ async fn await_output(backend: &dyn IBackend, run: &RunRef, minimum: u64) -> Out
                 return page;
             }
             assert!(
-                backend.inspect_run(run).await.unwrap().is_active(),
+                backend
+                    .runs()
+                    .unwrap()
+                    .inspect_run(run)
+                    .await
+                    .unwrap()
+                    .is_active(),
                 "producer stopped before requested load"
             );
             sleep(POLL_INTERVAL).await;
@@ -129,7 +137,12 @@ async fn sample(provider: &LocalProvider, executable: &Path) -> Sample {
         output_limit_bytes: RETENTION_BYTES,
     };
     let started = Instant::now();
-    let run = backend.start(request.clone()).await.unwrap();
+    let run = backend
+        .runs()
+        .unwrap()
+        .start(request.clone())
+        .await
+        .unwrap();
     let launch_ms = started.elapsed().as_secs_f64() * 1000.0;
     await_output(backend.as_ref(), &run, 1).await;
     let launch_to_first_output_ms = started.elapsed().as_secs_f64() * 1000.0;
@@ -138,11 +151,16 @@ async fn sample(provider: &LocalProvider, executable: &Path) -> Sample {
     let backend = provider.connect(&descriptor.reference).await.unwrap();
     let reconnect_ms = started.elapsed().as_secs_f64() * 1000.0;
     let started = Instant::now();
-    assert_eq!(backend.start(request).await.unwrap().id, run.id);
+    assert_eq!(
+        backend.runs().unwrap().start(request).await.unwrap().id,
+        run.id
+    );
     let idempotent_retry_ms = started.elapsed().as_secs_f64() * 1000.0;
     await_output(backend.as_ref(), &run, LOAD_BYTES).await;
     let started = Instant::now();
     let page = backend
+        .runs()
+        .unwrap()
         .read_output(&run, OutputCursor::default(), PAGE_BYTES as u32)
         .await
         .unwrap();
@@ -151,11 +169,23 @@ async fn sample(provider: &LocalProvider, executable: &Path) -> Sample {
     assert!(!page.complete);
     assert!(page.stdout.len() + page.stderr.len() <= PAGE_BYTES);
     let observed = page.next;
-    assert!(backend.inspect_run(&run).await.unwrap().is_active());
+    assert!(backend
+        .runs()
+        .unwrap()
+        .inspect_run(&run)
+        .await
+        .unwrap()
+        .is_active());
     let started = Instant::now();
-    assert_eq!(backend.cancel(&run).await.unwrap(), RunState::Canceled);
+    assert_eq!(
+        backend.runs().unwrap().cancel(&run).await.unwrap(),
+        RunState::Canceled
+    );
     let cancel_ms = started.elapsed().as_secs_f64() * 1000.0;
-    assert_eq!(backend.inspect_run(&run).await.unwrap(), RunState::Canceled);
+    assert_eq!(
+        backend.runs().unwrap().inspect_run(&run).await.unwrap(),
+        RunState::Canceled
+    );
     assert_eq!(
         fs::read_to_string(Path::new(&descriptor.root).join("launches")).unwrap(),
         "once\n"
@@ -168,6 +198,8 @@ async fn sample(provider: &LocalProvider, executable: &Path) -> Sample {
     let mut first = true;
     loop {
         let page = backend
+            .runs()
+            .unwrap()
             .read_output(&run, cursor.clone(), PAGE_BYTES as u32)
             .await
             .unwrap();
@@ -200,6 +232,8 @@ async fn sample(provider: &LocalProvider, executable: &Path) -> Sample {
     assert_eq!(stderr_bytes, RETENTION_BYTES as usize / 2);
     assert!(cursor.stdout >= observed.stdout && cursor.stderr >= observed.stderr);
     let replay = backend
+        .runs()
+        .unwrap()
         .read_output(&run, cursor.clone(), PAGE_BYTES as u32)
         .await
         .unwrap();

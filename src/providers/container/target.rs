@@ -110,6 +110,12 @@ impl ContainerTarget {
 }
 #[async_trait]
 impl ITarget for ContainerTarget {
+    fn stops(&self) -> bool {
+        true
+    }
+    fn deletes(&self) -> bool {
+        true
+    }
     async fn invoke(&self, request: SupervisorRequest) -> Result<SupervisorValue> {
         let args = vec![
             "exec".into(),

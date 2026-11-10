@@ -54,6 +54,9 @@ impl SshTarget {
 }
 #[async_trait]
 impl ITarget for SshTarget {
+    fn stops(&self) -> bool {
+        true
+    }
     async fn invoke(&self, request: SupervisorRequest) -> Result<SupervisorValue> {
         let result = self
             .native(

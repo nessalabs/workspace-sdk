@@ -13,7 +13,7 @@ use tokio::time::{sleep, timeout};
 use workspace_sdk::{
     providers::{LocalConfig, LocalProvider},
     runtime::*,
-    BackendDescriptor, CreateRequest, IProvider, OutputCursor, SecretInput, WorkspaceId,
+    BackendDescriptor, CreateRequest, IBackend, IProvider, OutputCursor, SecretInput, WorkspaceId,
 };
 
 pub const INPUT_SECRET: &str = "pty-input-private-992c1\n";
@@ -67,12 +67,14 @@ impl Fixture {
         }
     }
     pub async fn host(&self) -> BackendRuntimeHost {
-        BackendRuntimeHost::new(
-            self.provider
-                .connect(&self.descriptor.reference)
-                .await
-                .unwrap(),
-        )
+        BackendRuntimeHost::new(self.backend().await)
+    }
+    /// A fresh connection to the fixture workspace, for its lifecycle.
+    pub async fn backend(&self) -> Arc<dyn IBackend> {
+        self.provider
+            .connect(&self.descriptor.reference)
+            .await
+            .unwrap()
     }
     pub fn command(&self, cwd: &str, args: &[&str]) -> RuntimeCommand {
         RuntimeCommand {
@@ -100,7 +102,7 @@ impl Fixture {
             Ok(backend) => backend,
             Err(error) => return vec![format!("cleanup reconnect failed: {error}")],
         };
-        let host = BackendRuntimeHost::new(backend);
+        let host = BackendRuntimeHost::new(backend.clone());
         let processes = self.processes.lock().unwrap().clone();
         let mut failures = Vec::new();
         for process in processes {
@@ -111,7 +113,7 @@ impl Fixture {
                 }
             }
         }
-        if let Err(error) = host.backend().destroy().await {
+        if let Err(error) = backend.deletion().unwrap().destroy().await {
             failures.push(format!("cleanup destroy failed: {error}"));
         }
         failures

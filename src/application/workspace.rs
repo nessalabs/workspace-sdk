@@ -5,7 +5,7 @@ use crate::{
         LaunchRequest, OperationRef, Ownership, PortAccess, PortRequest, ReadFile, RunId, RunRef,
         WorkspaceRef, WorkspaceState, WriteFile,
     },
-    ports::IBackend,
+    ports::{require, IBackend, IConnection, SocketForward},
     Error, Result,
 };
 use std::sync::Arc;
@@ -15,22 +15,26 @@ use std::sync::Arc;
 /// Cloning the handle does not create another target. The provider owns the
 /// resource’s changing lifecycle state; [`WorkspaceRef`] is the persistable value
 /// used to reconnect, and [`BackendDescriptor`] is a snapshot of its configuration.
+/// It never stops or deletes the target: only [`OwnedWorkspace`] does.
 #[derive(Clone)]
 pub struct Workspace {
+    /// Not public: it would reach the backend's stop and destroy.
     pub(crate) backend: Arc<dyn IBackend>,
 }
 impl Workspace {
     /// Read the backend’s descriptor without polling the remote lifecycle.
+    /// Its capabilities are derived from what the backend offers.
     pub fn descriptor(&self) -> BackendDescriptor {
-        self.backend.descriptor()
+        self.backend.described()
     }
     /// Return the stable, non-secret value needed to reconnect.
     pub fn reference(&self) -> WorkspaceRef {
         self.descriptor().reference
     }
-    /// Access the injected backend interface for lower-level operations.
-    pub fn backend(&self) -> Arc<dyn IBackend> {
-        self.backend.clone()
+    /// Runtime preparation bound to this workspace. The host gives no way to
+    /// stop or delete it.
+    pub fn runtime_host(&self) -> crate::runtime::BackendRuntimeHost {
+        crate::runtime::BackendRuntimeHost::new(self.backend.clone())
     }
     /// Make the target ready according to its provider’s supported lifecycle.
     pub async fn ensure_ready(&self) -> Result<()> {
@@ -63,10 +67,9 @@ impl Workspace {
     /// Start or reconnect to a managed process using the supplied stable launch identity.
     pub async fn start_with(&self, request: LaunchRequest) -> Result<Run> {
         request.execution.command.validate()?;
-        if !self.descriptor().capabilities.managed_runs {
-            return Err(Error::Unsupported("managed runs".into()));
-        }
-        let reference = self.backend.start(request).await?;
+        let reference = require(self.backend.runs(), "managed runs")?
+            .start(request)
+            .await?;
         Ok(Run {
             backend: self.backend.clone(),
             reference,
@@ -103,7 +106,9 @@ impl Workspace {
         &self,
         request: crate::ListDirectory,
     ) -> Result<crate::DirectoryPage> {
-        self.backend.list_directory(request).await
+        require(self.backend.file_browsing(), "file browsing")?
+            .list_directory(request)
+            .await
     }
     #[cfg(feature = "portability")]
     /// Read bytes tied to a revision. Keep its token across chunks and reject stale buffers.
@@ -111,16 +116,29 @@ impl Workspace {
         &self,
         request: crate::ReadVersionedFile,
     ) -> Result<crate::VersionedFileChunk> {
-        self.backend.read_versioned_file(request).await
+        require(self.backend.file_browsing(), "file browsing")?
+            .read_versioned_file(request)
+            .await
     }
     #[cfg(feature = "portability")]
     /// Publish only where the target enforces the requested precondition.
     pub async fn publish_file(&self, request: crate::PublishFile) -> Result<crate::PublishOutcome> {
-        self.backend.publish_file(request).await
+        require(self.backend.file_browsing(), "file browsing")?
+            .publish_file(request)
+            .await
     }
     /// Request access to an already-listening service with the specified access policy.
     pub async fn port(&self, request: PortRequest) -> Result<PortAccess> {
-        self.backend.port(request).await
+        require(self.backend.ports(), "ports")?.port(request).await
+    }
+    /// Open a new live connection into the workspace's machine, making
+    /// `forward` reachable inside it when given. It ends when the last handle
+    /// to it, and every stream from it, is dropped. See
+    /// [`crate::ports::Connections`].
+    pub async fn connection(&self, forward: Option<SocketForward>) -> Result<Arc<dyn IConnection>> {
+        require(self.backend.connections(), "live connections")?
+            .connection(forward)
+            .await
     }
 }
 
@@ -137,15 +155,21 @@ pub struct OwnedWorkspace {
 impl OwnedWorkspace {
     /// Request that this workspace stop; this does not imply deletion.
     pub async fn stop(&self) -> Result<()> {
-        self.workspace.backend.stop().await
+        require(self.workspace.backend.lifecycle(), "stop")?
+            .stop()
+            .await
     }
     /// Request deletion and return a receipt. Poll it until completion is confirmed.
     pub async fn destroy(&self) -> Result<DeleteOperation> {
-        self.workspace.backend.destroy().await
+        require(self.workspace.backend.deletion(), "destroy")?
+            .destroy()
+            .await
     }
     /// Refresh a previously recorded deletion operation.
     pub async fn inspect_delete(&self, reference: &OperationRef) -> Result<DeleteOperation> {
-        self.workspace.backend.inspect_delete(reference).await
+        require(self.workspace.backend.deletion(), "delete status")?
+            .inspect_delete(reference)
+            .await
     }
     /// Wrap a handle whose saved record says this SDK created it.
     pub(crate) fn from_owned(workspace: Workspace) -> Result<Self> {

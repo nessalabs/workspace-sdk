@@ -168,6 +168,18 @@ async fn explicit_provider_ids_keep_registration_and_reconnection_isolated() {
     assert_eq!(scoped.reference(), scoped_reference);
     assert!(!default.descriptor().capabilities.destroy);
     assert!(!scoped.descriptor().capabilities.destroy);
+    // Boat hosts authenticated ports only, and connects.
+    let capabilities = default.descriptor().capabilities;
+    assert!(capabilities.hosted_ports && !capabilities.private_ports);
+    assert!(matches!(
+        default
+            .port(workspace_sdk::PortRequest {
+                port: 8080,
+                policy: workspace_sdk::PortPolicy::Private,
+            })
+            .await,
+        Err(Error::Unsupported(_))
+    ));
     assert_eq!(sdk.list().unwrap().len(), 2);
 
     let duplicate = WorkspaceSdk::builder(Arc::new(MemoryStateRepository::default()))

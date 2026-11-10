@@ -69,7 +69,7 @@ preparation and `Machines`. Everything else is opt-in.
 | Feature | Default | Adds |
 | --- | --- | --- |
 | `boat` | yes | The Boat provider (`BoatProvider`) and the reexported `boat_client`. |
-| `portability` | no | Workspace portability: checkpoints (`checkpoint` engine), `SyncService` sync and handoff, `RecoveryService`, Git worktree helpers (`git`), `DirectoryObserver` and the file-browser and tree-transfer backend operations (`list_directory`, `read_versioned_file`, `publish_file`, `export_tree`, `import_tree`, `remove_transfer`) with their supervisor operations. |
+| `portability` | no | Workspace portability: checkpoints (`checkpoint` engine), `SyncService` sync and handoff, `RecoveryService`, Git worktree helpers (`git`), `DirectoryObserver` and the `FileBrowsing` (`list_directory`, `read_versioned_file`, `publish_file`) and `TreeTransfers` (`export_tree`, `import_tree`, `remove_transfer`) backend capabilities with their supervisor operations. |
 | `container` | no | The Docker/Podman-compatible `ContainerProvider`. |
 | `space` | no | The SPACE attachment provider (`SpaceProvider`). |
 | `testing` | no | `MemoryStateRepository`, for tests only. |
@@ -98,7 +98,7 @@ Generate browsable API documentation with `cargo doc --no-deps`. Public domain t
 
 | Area | Responsibility |
 | --- | --- |
-| Providers | Local trusted host, Boat, SPACE attachments, SSH, and Docker/Podman-compatible containers through injected `IProvider` / `IBackend` interfaces. |
+| Providers | Local trusted host, Boat, SPACE attachments, SSH, and Docker/Podman-compatible containers through injected `IProvider` / `IBackend` interfaces; optional operations are capability traits the backend hands out (`runs()`, `ports()`, `lifecycle()` and so on). |
 | Execution | Durable run identity, duplicate-launch protection, reconnection, bounded output, deadlines, and process-group cancellation. |
 | Files and checkpoints | Binary chunks, validated relative paths, filtered snapshots, three-way reconciliation, conflict preservation, and apply recovery. |
 | Synchronization | Empty-target initialization, reviewed return sync, and stopped-source handoff with an explicit continuation command. |

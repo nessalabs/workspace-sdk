@@ -305,7 +305,15 @@ async fn controller(phase: &str, root: &Path, supervisor: PathBuf) -> ProbeResul
         if let Err(error) = save(root, &state) {
             // Until ownership is durable, this live handle is the only way to
             // roll back creation. Cleanup failures must not erase the save error.
-            match timeout(Duration::from_secs(30), backend.destroy()).await {
+            match timeout(
+                Duration::from_secs(30),
+                backend
+                    .deletion()
+                    .expect("an owned Boat workspace can be deleted")
+                    .destroy(),
+            )
+            .await
+            {
                 Ok(Ok(deletion)) if deletion.state == DeleteState::Completed => {
                     eprintln!("initial state-save rollback: completed");
                 }
@@ -327,7 +335,7 @@ async fn controller(phase: &str, root: &Path, supervisor: PathBuf) -> ProbeResul
     assert_eq!(state.executable, fs::canonicalize(env::current_exe()?)?);
     let backend = provider.connect(&state.descriptor.reference).await?;
     assert_eq!(backend.descriptor(), state.descriptor);
-    let host = BackendRuntimeHost::new(backend);
+    let host = BackendRuntimeHost::new(backend.clone());
     let mut cleanup_failure = None;
     match phase {
         "start" => {
@@ -421,7 +429,7 @@ async fn controller(phase: &str, root: &Path, supervisor: PathBuf) -> ProbeResul
             } else {
                 failures.push("prior start did not save a process reference".into());
             }
-            let verification_host = BackendRuntimeHost::new(Arc::clone(host.backend()));
+            let verification_host = BackendRuntimeHost::new(Arc::clone(&backend));
             let mut verification_state = state.clone();
             let mut verification = tokio::spawn(async move {
                 verify_cleanup(&verification_host, &mut verification_state)
@@ -441,7 +449,15 @@ async fn controller(phase: &str, root: &Path, supervisor: PathBuf) -> ProbeResul
                     failures.push("cleanup verification deadline exceeded".into());
                 }
             }
-            let deleted = match timeout(Duration::from_secs(30), host.backend().destroy()).await {
+            let deleted = match timeout(
+                Duration::from_secs(30),
+                backend
+                    .deletion()
+                    .expect("an owned Boat workspace can be deleted")
+                    .destroy(),
+            )
+            .await
+            {
                 Ok(Ok(deletion)) if deletion.state == DeleteState::Completed => true,
                 other => {
                     failures.push(format!("owned deletion failed: {other:?}"));

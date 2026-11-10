@@ -11,7 +11,7 @@ preparation and `Machines`. Optional features add the rest:
 | Feature | Default | Adds |
 | --- | --- | --- |
 | `boat` | yes | The Boat provider (`BoatProvider`) and the reexported `boat_client`. |
-| `portability` | no | Workspace portability: checkpoints (`checkpoint` engine), `SyncService` sync and handoff, `RecoveryService`, Git worktree helpers (`git`), `DirectoryObserver` and the file-browser and tree-transfer backend operations (`list_directory`, `read_versioned_file`, `publish_file`, `export_tree`, `import_tree`, `remove_transfer`) with their supervisor operations. |
+| `portability` | no | Workspace portability: checkpoints (`checkpoint` engine), `SyncService` sync and handoff, `RecoveryService`, Git worktree helpers (`git`), `DirectoryObserver` and the `FileBrowsing` (`list_directory`, `read_versioned_file`, `publish_file`) and `TreeTransfers` (`export_tree`, `import_tree`, `remove_transfer`) backend capabilities with their supervisor operations. |
 | `container` | no | The Docker/Podman-compatible `ContainerProvider`. |
 | `space` | no | The SPACE attachment provider (`SpaceProvider`). |
 | `testing` | no | `MemoryStateRepository`, for tests only. |
@@ -34,7 +34,7 @@ supervisor with `portability`.
 | Execution domain | `src/domain/execution/` | Run identity, commands, transient input, state, and output values. |
 | Synchronization domain | `src/domain/synchronization/` | Typed session and handoff progress records. |
 | Application | `src/application/` | Open/reconnect, managed-run handles, sync, and handoff use cases. |
-| Core interfaces | `src/ports/` | `IProvider`, `IBackend`, and persistence/lease contracts. |
+| Core interfaces | `src/ports/` | `IProvider`, `IBackend` with its capability traits (`ManagedRuns`, `Terminals`, `PrivateState`, `Ports`, `Lifecycle`, `Deletion`, `Connections`, `FileBrowsing`, `TreeTransfers`), and persistence/lease contracts. |
 | Checkpoint context | `src/checkpoint/{domain,ports,infrastructure}/` | Immutable file artifacts, reconciliation, apply recovery, and native tree transport. |
 | Runtime preparation context | `src/runtime/` | Typed requirements, recipes, auth progress, services, and injected host/credential/store interfaces. |
 | Provider infrastructure | `src/providers/` | Native HTTP, SSH, local process, and container-engine adapters. |
@@ -43,7 +43,7 @@ supervisor with `portability`.
 
 The [domain model guide](domain-model.md) explains which objects carry identity, which are values, and which are observations. Related concepts share a file within a context; `RunId`, `RunRef`, and `RunState` belong together rather than becoming unrelated files in a flat folder.
 
-Application services depend on interfaces and domain values. Concrete providers implement the interfaces. Provider-specific options and reconnect locators are encoded from named structs only at the adapter registry boundary. Known supervisor operations and workflow records remain typed structs/enums throughout the implementation; JSON is their transport or persistence encoding.
+Application services depend on interfaces and domain values. Concrete providers implement the interfaces. `IBackend` holds only what every backend does; each optional operation group is a capability trait it hands out through an accessor returning `Option`, and the `Capabilities` flags are derived from those accessors, so a flag cannot disagree with what the backend does. A plain `Workspace` keeps its backend private, so only `OwnedWorkspace` reaches `Lifecycle` and `Deletion`, and providers never offer them for an attached target. Provider-specific options and reconnect locators are encoded from named structs only at the adapter registry boundary. Known supervisor operations and workflow records remain typed structs/enums throughout the implementation; JSON is their transport or persistence encoding.
 
 ## Why there is a supervisor
 

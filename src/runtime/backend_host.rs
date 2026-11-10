@@ -3,7 +3,8 @@ use crate::domain::{
     CommandSpec, ExecResult, ExecutionRequest, LaunchRequest, OutputCursor, OutputPage, RunId,
     RunRef, RunState, SecretEnvironment, SecretInput, WorkspacePath,
 };
-use crate::{Error, IBackend, Result};
+use crate::ports::{require, IBackend, ManagedRuns, PrivateState, Terminals};
+use crate::{Error, Result};
 use async_trait::async_trait;
 use sha2::{Digest, Sha256};
 use std::path::{Component, Path};
@@ -31,9 +32,16 @@ impl BackendRuntimeHost {
         Self { backend }
     }
 
-    /// Borrow the connected backend for explicit lifecycle or output operations.
-    pub fn backend(&self) -> &Arc<dyn IBackend> {
-        &self.backend
+    fn runs(&self) -> Result<&dyn ManagedRuns> {
+        require(self.backend.runs(), "managed runs")
+    }
+
+    fn private_state(&self) -> Result<&dyn PrivateState> {
+        require(self.backend.private_state(), "private runtime state")
+    }
+
+    fn terminals(&self) -> Result<&dyn Terminals> {
+        require(self.backend.terminals(), "terminals")
     }
 
     /// Adapt a project-directory command for the backend's ordinary execution API.
@@ -108,8 +116,8 @@ impl BackendRuntimeHost {
             output_limit_bytes,
         };
         match execution.private_cwd {
-            Some(cwd) => self.backend.start_private(request, cwd).await,
-            None => self.backend.start(request).await,
+            Some(cwd) => self.private_state()?.start_private(request, cwd).await,
+            None => self.runs()?.start(request).await,
         }
     }
 
@@ -122,7 +130,7 @@ impl BackendRuntimeHost {
         cursor: OutputCursor,
         limit: u32,
     ) -> Result<OutputPage> {
-        self.backend
+        self.runs()?
             .read_output(&self.run_ref(process)?, cursor, limit)
             .await
     }
@@ -160,7 +168,11 @@ impl BackendRuntimeHost {
 
     async fn execute(&self, execution: BackendExecution) -> Result<RuntimeOutput> {
         let output = match execution.private_cwd {
-            Some(cwd) => self.backend.exec_private(execution.request, cwd).await?,
+            Some(cwd) => {
+                self.private_state()?
+                    .exec_private(execution.request, cwd)
+                    .await?
+            }
             None => self.backend.exec(execution.request).await?,
         };
         runtime_output(output)
@@ -181,7 +193,7 @@ impl IRuntimeHost for BackendRuntimeHost {
         Ok(())
     }
     async fn inspect_resources(&self) -> Result<AvailableResources> {
-        let observed = self.backend.inspect_resources().await?;
+        let observed = self.private_state()?.inspect_resources().await?;
         Ok(AvailableResources {
             os: observed.os,
             architecture: observed.architecture,
@@ -220,7 +232,7 @@ impl IRuntimeHost for BackendRuntimeHost {
     }
 
     async fn ensure_private_directory(&self, path: &str) -> Result<()> {
-        self.backend
+        self.private_state()?
             .ensure_private_directory(self.private_path(path)?)
             .await
     }
@@ -231,7 +243,7 @@ impl IRuntimeHost for BackendRuntimeHost {
                 "private runtime file exceeds 64 KiB or contains NUL".into(),
             ));
         }
-        self.backend
+        self.private_state()?
             .write_private_file(self.private_path(path)?, value.expose().as_bytes())
             .await
     }
@@ -248,7 +260,7 @@ impl IRuntimeHost for BackendRuntimeHost {
         ))?;
         let run = if requires_terminal {
             let execution = self.adapt_execution(command)?;
-            self.backend
+            self.terminals()?
                 .start_terminal(
                     LaunchRequest {
                         id,
@@ -267,7 +279,7 @@ impl IRuntimeHost for BackendRuntimeHost {
 
     async fn inspect_process(&self, process: &RuntimeProcessRef) -> Result<RuntimeProcessState> {
         Ok(process_state(
-            self.backend.inspect_run(&self.run_ref(process)?).await?,
+            self.runs()?.inspect_run(&self.run_ref(process)?).await?,
         ))
     }
 
@@ -286,7 +298,7 @@ impl IRuntimeHost for BackendRuntimeHost {
         process: &RuntimeProcessRef,
         input: &SecretInput,
     ) -> Result<RuntimeInputOutcome> {
-        self.backend
+        self.terminals()?
             .write_terminal_input(&self.run_ref(process)?, input)
             .await
     }
@@ -295,13 +307,13 @@ impl IRuntimeHost for BackendRuntimeHost {
         process: &RuntimeProcessRef,
         size: RuntimeTerminalSize,
     ) -> Result<()> {
-        self.backend
+        self.terminals()?
             .resize_terminal(&self.run_ref(process)?, size)
             .await
     }
     async fn cancel_process(&self, process: &RuntimeProcessRef) -> Result<RuntimeProcessState> {
         Ok(process_state(
-            self.backend.cancel(&self.run_ref(process)?).await?,
+            self.runs()?.cancel(&self.run_ref(process)?).await?,
         ))
     }
 }

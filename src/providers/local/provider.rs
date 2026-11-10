@@ -85,7 +85,6 @@ impl LocalProvider {
         Ok(Arc::new(backend))
     }
     fn backend(&self, reference: WorkspaceRef, locator: Locator, base: PathBuf) -> ManagedBackend {
-        let owned = locator.ownership == Ownership::SdkOwned;
         ManagedBackend {
             descriptor: BackendDescriptor {
                 reference: reference.clone(),
@@ -93,14 +92,8 @@ impl LocalProvider {
                 control_root: locator.control.clone(),
                 isolation: Isolation::TrustedHost,
                 ownership: locator.ownership.clone(),
-                capabilities: Capabilities {
-                    managed_runs: true,
-                    file_transfer: true,
-                    stop: owned,
-                    destroy: owned,
-                    private_ports: true,
-                    hosted_ports: false,
-                },
+                // Derived from the backend's accessors when read.
+                capabilities: Capabilities::default(),
                 admission: None,
             },
             target: Arc::new(LocalTarget {
