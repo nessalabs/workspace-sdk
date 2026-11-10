@@ -1,10 +1,11 @@
 //! Portable file checkpoints, staged reconciliation, and explicit recovery.
 //! Blocking operations belong on an async application's blocking executor.
 //!
-//! The [`domain`] values are compiled in every build because saved workflow
-//! records refer to them, so a state file reads the same with or without the
-//! `portability` feature. The engine (`infrastructure`, `ports`) needs that
-//! feature.
+//! The whole [`domain`] module is compiled in every build on purpose. Saved
+//! workflow records refer to some of its values (checkpoint and reconciliation
+//! references, apply receipts), so a state file reads the same with or without
+//! the `portability` feature; the rest is kept with them so the module is not
+//! split by feature. The engine (`infrastructure`, `ports`) needs `portability`.
 
 pub mod domain;
 #[cfg(feature = "portability")]

@@ -1,0 +1,52 @@
+   Compiling workspace_sdk v0.2.0 (/workspace/workspace-sdk)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.23s
+     Running tests/checkpoint_engine.rs (target/debug/deps/checkpoint_engine-5063a5a0db771871)
+
+running 13 tests
+test chained_symlinks_cannot_escape_through_parent_segments ... ok
+test bundle_tampering_and_reference_traversal_are_rejected ... ok
+test apply_recovers_receipt_interruption_and_retries_without_overwriting_later_edits ... ok
+test external_symlinks_and_unresolved_lfs_fail_explicitly ... ok
+test conflicting_edits_preserve_all_originals_and_require_explicit_resolution ... ok
+test clean_merge_stages_then_explicit_apply_and_rollback_preserve_excluded_files ... ok
+test snapshots_export_and_capture_archives_without_losing_tracked_ignore_selection ... ok
+test source_history_and_attributes_do_not_enter_snapshot ... ok
+test portable_non_git_snapshot_preserves_binary_modes_symlinks_and_filters ... ok
+test tree_archive_validates_paths_symlinks_hashes_and_limits_before_writing ... ok
+test tracked_secrets_are_removed_and_git_index_is_untouched ... ok
+test apply_file_directory_transition_and_excluded_collision_are_safe ... ok
+test stale_destination_and_changed_review_cannot_be_applied ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+     Running tests/managed_edit_sessions.rs (target/debug/deps/managed_edit_sessions-0553bb20f4e1f27c)
+
+running 16 tests
+test candidate_revision_rejects_stale_and_cross_session_inputs_without_touching_live_files ... ok
+test caller_quiescence_and_shared_nonblocking_lease_are_executable_preconditions ... ok
+test completed_retry_preserves_later_edits_and_engine_receipt_survives_restart ... ok
+test changed_candidate_invalidates_review_and_external_change_after_review_is_preserved ... ok
+test create_replace_delete_rename_and_binary_apply_use_existing_checkpoint_publication ... ok
+test human_agent_conflicts_keep_original_sides_and_require_explicit_resolution ... ok
+test managed_edit_performance_samples ... ignored, manual synthetic local performance qualification
+test engine_limits_reject_oversized_live_capture_and_resolution_before_retaining_snapshots ... ok
+test oversized_mutation_paths_reject_before_candidate_allocation_or_snapshot_work ... ok
+test ignored_preexisting_human_destination_is_rejected_before_apply_or_rollback ... ok
+test interrupted_engine_receipt_blocks_new_work_and_uses_existing_recovery ... ok
+test policy_boundaries_and_failed_stage_keep_candidate_and_review_unchanged ... ok
+test root_replacement_rejects_the_old_session_and_releases_its_lease ... ok
+test nonoverlapping_sessions_reconcile_current_human_and_agent_changes ... ok
+test simultaneous_publications_have_one_winner_and_preserve_stale_writer_conflict ... ok
+test session_resource_and_attempt_limits_are_explicit ... ok
+
+test result: ok. 15 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.03s
+
+     Running tests/workspace_files_portable.rs (target/debug/deps/workspace_files_portable-4e4a5cde9968ea8b)
+
+running 3 tests
+test portable_descriptor_listing_never_follows_symlinks_or_special_files ... ok
+test portable_pages_read_tokens_and_external_reconciliation ... ok
+test portable_repeated_streams_close_and_nonportable_names_reject ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+

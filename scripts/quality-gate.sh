@@ -8,6 +8,7 @@ cargo clippy --locked --all-features --all-targets -- -D warnings
 cargo clippy --locked --all-targets -- -D warnings
 cargo clippy --locked --no-default-features --all-targets -- -D warnings
 cargo clippy --locked --no-default-features --features portability --all-targets -- -D warnings
+cargo clippy --locked --no-default-features --features container --all-targets -- -D warnings
 cargo build --locked --all-features --example pty_live_probe
 cargo test --locked --all-features
 cargo test --locked --no-default-features --features space --test space_provider_contract

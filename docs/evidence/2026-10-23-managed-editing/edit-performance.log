@@ -1,0 +1,11 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running tests/managed_edit_sessions.rs (target/debug/deps/managed_edit_sessions-0553bb20f4e1f27c)
+
+running 1 test
+managed_edit_performance sample=0 fixture_entries=257 fixture_bytes_at_least=1048576 staged_bytes=262144 begin_ms=1175 stage_ms=462 review_ms=3783 apply_ms=1526
+managed_edit_performance sample=1 fixture_entries=257 fixture_bytes_at_least=1048576 staged_bytes=262144 begin_ms=1173 stage_ms=455 review_ms=3900 apply_ms=1561
+managed_edit_performance sample=2 fixture_entries=257 fixture_bytes_at_least=1048576 staged_bytes=262144 begin_ms=1163 stage_ms=445 review_ms=3759 apply_ms=1525
+test managed_edit_performance_samples ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 20.95s
+
