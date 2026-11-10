@@ -6,6 +6,7 @@ mod error;
 mod locator;
 pub mod machines;
 mod provider;
+mod refusal;
 mod target;
 pub use configuration::{SandboxAttachOptions, SandboxCreateOptions};
 pub use provider::SandboxProvider;

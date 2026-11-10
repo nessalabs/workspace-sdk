@@ -45,12 +45,7 @@ pub(super) struct Machine {
 impl Machine {
     /// What the SDK saves in the workspace's record.
     pub(super) fn admission(&self) -> Admission {
-        Admission {
-            environment_id: self.admitted.id().into(),
-            version_id: self.admitted.version_id().into(),
-            version: self.admitted.version().to_string(),
-            name: self.admitted.name().into(),
-        }
+        admission(&self.admitted)
     }
     fn save(&self) -> SavedMachine {
         SavedMachine {
@@ -81,6 +76,16 @@ impl Machine {
         )
         .map_err(invalid)?;
         Ok(Self { spec, admitted })
+    }
+}
+
+/// What the SDK saves of the environment a machine was admitted under.
+pub(super) fn admission(admitted: &EnvironmentIdentity) -> Admission {
+    Admission {
+        environment_id: admitted.id().into(),
+        version_id: admitted.version_id().into(),
+        version: admitted.version().to_string(),
+        name: admitted.name().into(),
     }
 }
 

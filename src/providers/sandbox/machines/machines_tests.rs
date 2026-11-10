@@ -264,6 +264,8 @@ struct State {
     expected_key: String,
     /// Deletions asked; Boat refuses each.
     deleted: usize,
+    /// The workspace's ownership marker, readable only while the VM runs.
+    owner: Option<Value>,
 }
 struct Server {
     base: String,
@@ -296,6 +298,7 @@ async fn server() -> Server {
         create_status: 200,
         expected_key: KEY.into(),
         deleted: 0,
+        owner: None,
     }));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}/api/v1", listener.local_addr().unwrap());
@@ -305,6 +308,7 @@ async fn server() -> Server {
     let resume = state.clone();
     let commands = state.clone();
     let delete = state.clone();
+    let files = state.clone();
     let router = Router::new()
         .route("/api/v1/me", get(|| async move { Json(json!({"ok":true,"type":"me","user":{"id":"11111111-1111-4111-8111-111111111111"}})) }))
         .route("/api/v1/environments", get(move || { let env=env.lock().unwrap().environment.clone(); async move { Json(json!({"ok":true,"type":"environments.list","environments":[env]})) } }))
@@ -317,6 +321,7 @@ async fn server() -> Server {
             state.created+=1; if state.drift_on_create { state.environment["passGithub"]=json!(true); } let mut body=state.creation_receipt.as_ref().unwrap_or(&state.receipt).clone(); for field in ["ok","type","status"] {body.as_object_mut().unwrap().remove(field);} for (field,value) in state.creation_ack.as_object().unwrap() {body[field.as_str()]=value.clone();} body["ttlSeconds"]=json!(state.expected_ttl); let status=axum::http::StatusCode::from_u16(state.create_status).unwrap(); async move { (status, Json(body)) } }))
         .route("/api/v1/sandboxes/{id}", get(move || { let mut state=read.lock().unwrap(); state.info_reads+=1; if state.receipt["sandbox"]["state"]==json!("archiving") { if state.archiving_reads==0 { state.receipt["sandbox"]["state"]=json!("archived"); } else { state.archiving_reads-=1; } } let body=state.startup_receipts.pop_front().unwrap_or_else(|| state.read_override.as_ref().unwrap_or(&state.receipt).clone()); async { Json(body) } }).delete(move || { let mut state=delete.lock().unwrap(); state.deleted+=1; async { axum::http::StatusCode::FORBIDDEN } }))
         .route("/api/v1/sandboxes/{id}/resume", post(move |Json(request):Json<Value>| { let mut state=resume.lock().unwrap(); assert_eq!(request["ttlSeconds"],json!(state.expected_ttl)); state.resumed+=1; state.receipt["sandbox"]["wipePendingUntilRestart"]=json!(false); if state.drift_on_resume { state.environment["passSecrets"]=json!(true); } state.receipt["sandbox"]["state"]=json!("ready"); async move { Json(json!({"ok":true,"type":"sandbox.resumed","id":VM,"status":"ready"})) } }))
+        .route("/api/v1/sandboxes/{id}/files", get(move || { let state=files.lock().unwrap(); let running=state.receipt["sandbox"]["state"]==json!("ready"); let owner=state.owner.clone().filter(|_| running); async move { match owner { Some(owner) => { use base64::Engine; let content=base64::engine::general_purpose::STANDARD.encode(owner.to_string()); (axum::http::StatusCode::OK, Json(json!({"ok":true,"type":"file","content":content,"encoding":"base64"}))) } None => (axum::http::StatusCode::CONFLICT, Json(json!({"ok":false}))) } } }))
         .fallback(move || { commands.lock().unwrap().commands+=1; async { axum::http::StatusCode::FORBIDDEN } });
     let task = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
     let events = Arc::new(Events::default());
@@ -1355,7 +1360,8 @@ mod provider {
         assert_eq!((state.deleted, state.commands), (0, 0));
     }
 
-    /// A machine target as a reconnect builds it, already owned.
+    /// A machine target as a reconnect builds it: its ownership not yet
+    /// verified.
     fn woken(
         server: &Server,
         machine: crate::providers::sandbox::locator::Machine,
@@ -1370,8 +1376,9 @@ mod provider {
                 target: VM.into(),
             },
             workspace_id: WorkspaceId::new("fixture").unwrap(),
-            verified_owned: std::sync::atomic::AtomicBool::new(true),
+            verified_owned: std::sync::atomic::AtomicBool::new(false),
             wake: std::time::Duration::from_secs(5),
+            admitted_now: std::sync::atomic::AtomicBool::new(false),
             machine: Some((server.machines.clone(), machine)),
         }
     }
@@ -1458,5 +1465,79 @@ mod provider {
             without.connect(&reference).await,
             Err(Error::InvalidInput(_))
         ));
+    }
+
+    /// After a restart a stopped machine's marker cannot be read, so it is
+    /// woken and checked first, and its ownership verified once it runs.
+    /// (The fake cannot host a supervisor, so installing one fails after.)
+    #[tokio::test]
+    async fn a_stopped_machine_reconnected_after_a_restart_wakes_then_proves_ownership() {
+        use crate::providers::managed::ITarget;
+        let server = server().await;
+        let machine = made(&server).await;
+        {
+            let mut state = server.state.lock().unwrap();
+            state.receipt["sandbox"]["state"] = json!("archived");
+            state.owner = Some(json!({"version":1,"workspace_id":"fixture",
+                "root":"/work/fixture/project","control":"/work/fixture/control",
+                "ownership":"sdk_owned"}));
+        }
+        let target = woken(&server, machine);
+        let woke = target.ensure().await;
+        assert!(
+            !matches!(woke, Err(Error::Refused(_)) | Err(Error::State(_))),
+            "{woke:?}"
+        );
+        assert!(target
+            .verified_owned
+            .load(std::sync::atomic::Ordering::Acquire));
+        assert_eq!(server.state.lock().unwrap().resumed, 1);
+    }
+
+    /// A machine that is not this workspace's is never used once woken.
+    #[tokio::test]
+    async fn a_woken_machine_with_another_owner_is_not_used() {
+        use crate::providers::managed::ITarget;
+        let server = server().await;
+        let machine = made(&server).await;
+        server.state.lock().unwrap().owner = Some(json!({"version":1,
+            "workspace_id":"someone-else","root":"/work/fixture/project",
+            "control":"/work/fixture/control","ownership":"sdk_owned"}));
+        assert!(matches!(
+            woken(&server, machine).ensure().await,
+            Err(Error::Conflict(_))
+        ));
+    }
+
+    /// A provider with machines made every workspace it owns as one, so a
+    /// reference of its own that names none is refused.
+    #[tokio::test]
+    async fn a_provider_with_machines_refuses_its_own_reference_without_a_machine() {
+        let server = server().await;
+        let with = provider(&server);
+        let reference = |ownership| crate::domain::WorkspaceRef {
+            version: 1,
+            id: WorkspaceId::new("fixture").unwrap(),
+            provider: with.id(),
+            locator: crate::providers::sandbox::locator::encode(
+                &crate::providers::managed::Locator {
+                    root: "/work/fixture/project".into(),
+                    control: "/work/fixture/control".into(),
+                    ownership,
+                    target: VM.into(),
+                },
+                None,
+            )
+            .unwrap(),
+        };
+        assert!(matches!(
+            with.connect(&reference(crate::domain::Ownership::SdkOwned))
+                .await,
+            Err(Error::InvalidInput(_))
+        ));
+        assert!(with
+            .connect(&reference(crate::domain::Ownership::Attached))
+            .await
+            .is_ok());
     }
 }

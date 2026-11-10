@@ -39,6 +39,9 @@ pub(super) struct SandboxTarget {
     pub(super) locator: Locator,
     pub(super) workspace_id: WorkspaceId,
     pub(super) verified_owned: AtomicBool,
+    /// Whether creation has just checked the machine, so the first wake
+    /// does not check it again.
+    pub(super) admitted_now: AtomicBool,
     /// The Boat machine this is, checked on every wake through its machines.
     pub(super) machine: Option<(super::machines::BoatMachines, super::locator::Machine)>,
     /// How long one wake may take: every request and wait before the
@@ -284,15 +287,24 @@ impl ITarget for SandboxTarget {
     }
     async fn ensure(&self) -> Result<()> {
         if let Some((machines, machine)) = &self.machine {
+            if self.locator.ownership != Ownership::SdkOwned {
+                return Err(Error::Unsupported(
+                    "attached Sandbox lifecycle cannot be mutated".into(),
+                ));
+            }
+            if !self.admitted_now.swap(false, Ordering::AcqRel) {
+                machines
+                    .ready(&machine.spec, &self.locator.target, &machine.admitted)
+                    .await
+                    .map_err(|failed| {
+                        super::refusal::wake_failure(failed, &self.locator.target, machine)
+                    })?;
+            }
+            // Its marker can be read once it runs: a ready machine that is
+            // not this workspace's is never used.
             if !self.verified_owned.load(Ordering::Acquire) {
                 self.verify_ownership().await?;
             }
-            machines
-                .ready(&machine.spec, &self.locator.target, &machine.admitted)
-                .await
-                .map_err(|failed| {
-                    super::provider::wake_failure(failed, &self.locator.target, machine)
-                })?;
             return self.install_supervisor().await;
         }
         // Every request and wait of the wake spends one deadline; installing
@@ -503,6 +515,7 @@ mod tests {
             workspace_id: WorkspaceId::new("test").unwrap(),
             verified_owned: AtomicBool::new(false),
             wake: Duration::from_secs(5),
+            admitted_now: AtomicBool::new(false),
             machine: None,
         };
         (target, worker)

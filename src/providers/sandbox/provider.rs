@@ -5,6 +5,7 @@ use super::machines::{
 use super::{
     error::error,
     locator::{self, Machine},
+    refusal::{failure, final_kind},
     target::SandboxTarget,
     SandboxAttachOptions, SandboxCreateOptions,
 };
@@ -73,7 +74,9 @@ impl SandboxProvider {
     /// then keeps it rather than deleting it; its lifetime bounds the cost.
     ///
     /// The environment's posture changing after a machine was made refuses
-    /// it for good; fixing the posture later does not save it.
+    /// it for good; fixing the posture later does not save it. A machine
+    /// refused while it was already running is left running, for its owner
+    /// to stop: it may be in use.
     ///
     /// Every wake checks the machine again, as [`BoatMachines::ready`] does,
     /// with the spec and admission saved in its reference (not its
@@ -192,7 +195,7 @@ impl SandboxProvider {
                 ),
             });
         };
-        Err(refuse(machines, &spec, &created, &rejected, kind).await)
+        Err(refuse(machines, &created, &rejected, kind).await)
     }
     async fn open(
         &self,
@@ -232,6 +235,15 @@ impl SandboxProvider {
     ) -> Result<ManagedBackend> {
         let owned = locator.ownership == Ownership::SdkOwned;
         let machine = match (machine, &self.machines) {
+            // A provider with machines made every workspace it owns as one;
+            // a reference that names none would wake unchecked.
+            (None, Some(_)) if locator.ownership == Ownership::SdkOwned => {
+                return Err(Error::InvalidInput(
+                    "this provider's own workspaces are Boat machines, and this reference \
+                     names none"
+                        .into(),
+                ))
+            }
             (None, _) => None,
             (Some(machine), Some(machines)) => Some((machines.clone(), machine)),
             (Some(_), None) => {
@@ -266,6 +278,8 @@ impl SandboxProvider {
                 workspace_id: reference.id,
                 verified_owned: AtomicBool::new(creation_receipt),
                 wake: self.wake.duration(),
+                // Creation has just made it ready and checked it.
+                admitted_now: AtomicBool::new(creation_receipt && machine.is_some()),
                 machine,
             }),
         })
@@ -383,29 +397,10 @@ fn spec(options: &SandboxCreateOptions) -> Result<MachineSpec> {
     })
 }
 
-/// The refusal a cause is, when it is certain from the receipt and can never
-/// pass later; `None` for a check that may pass when asked again.
-fn final_kind(cause: AdmissionRefusal) -> Option<RefusalKind> {
-    match cause {
-        AdmissionRefusal::MissingEnvironment
-        | AdmissionRefusal::WrongEnvironment
-        | AdmissionRefusal::MissingVersion
-        | AdmissionRefusal::WrongVersion
-        // A retry would read the new environment and find the VM's receipt
-        // naming the old version, so this never passes either.
-        | AdmissionRefusal::EnvironmentChanged => Some(RefusalKind::EnvironmentMismatch),
-        AdmissionRefusal::EnvironmentUnavailable
-        | AdmissionRefusal::InvalidReceipt
-        | AdmissionRefusal::LifetimeNotEnforced => Some(RefusalKind::NotAdmitted),
-        AdmissionRefusal::ReceiptUnavailable | AdmissionRefusal::WipePending => None,
-    }
-}
-
 /// A refused machine: deleted first when this creation made it, and left as
 /// found when Boat replayed it, since it may be in use elsewhere.
 async fn refuse(
     machines: &BoatMachines,
-    spec: &MachineSpec,
     created: &Created,
     rejection: &AdmissionRejection,
     kind: RefusalKind,
@@ -424,63 +419,6 @@ async fn refuse(
         message: rejection.to_string(),
         cleanup,
         target: Some(created.vm().to_owned()),
-        admission: Some(
-            Machine {
-                spec: spec.clone(),
-                admitted: created.admission().clone(),
-            }
-            .admission(),
-        ),
+        admission: Some(locator::admission(created.admission())),
     }))
-}
-
-/// A machine failure with no refusal: the record stays pending, and asking
-/// again with the same key finishes it.
-fn failure(failure: MachineFailure) -> Error {
-    let provider = |message: &str| Error::Provider {
-        provider: super::branding::NAME.into(),
-        message: message.into(),
-    };
-    match failure {
-        MachineFailure::InvalidInput => {
-            Error::InvalidInput("Boat could not take the machine's spec or key".into())
-        }
-        MachineFailure::Missing => Error::NotFound(
-            "Boat does not know the image, or the machine its key names is gone; \
-             forget the unfinished workspace to start again"
-                .into(),
-        ),
-        MachineFailure::EnvironmentUnavailable => Error::State(
-            "the account's environment is ambiguous or passes more than agent credentials; \
-             fix or delete it"
-                .into(),
-        ),
-        MachineFailure::ProvisioningUncertain => {
-            provider("Boat may have made the machine; asking again finishes it")
-        }
-        MachineFailure::CleanupUncertain => provider("Boat did not confirm a deletion"),
-        MachineFailure::AdmissionRejected(rejection) => provider(&rejection.to_string()),
-        MachineFailure::Provider => provider("Boat failed, refused or timed out"),
-    }
-}
-
-/// A machine that failed its check on waking: refused when the cause is
-/// final, left for the next wake otherwise. `ready` stopped it if it woke it.
-pub(super) fn wake_failure(failed: MachineFailure, vm: &str, machine: &Machine) -> Error {
-    let MachineFailure::AdmissionRejected(rejection) = failed else {
-        return failure(failed);
-    };
-    match final_kind(rejection.cause()) {
-        Some(kind) => Error::Refused(Box::new(Refusal {
-            kind,
-            message: rejection.to_string(),
-            cleanup: RefusalCleanup::Kept,
-            target: Some(vm.to_owned()),
-            admission: Some(machine.admission()),
-        })),
-        None => Error::Provider {
-            provider: super::branding::NAME.into(),
-            message: format!("{rejection}; waking it again checks it again"),
-        },
-    }
 }
