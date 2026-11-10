@@ -1,10 +1,10 @@
 //! Optional operations a backend may offer, one trait per capability.
 //!
 //! A backend that has a capability hands it out through the matching
-//! [`super::IBackend`] accessor; one that lacks it returns `None` there. No
-//! method here refuses only because the backend lacks the capability. A
+//! [`super::IBackend`] accessor; one that lacks it returns `None` there. A
 //! capability may still refuse one particular request, such as a port policy
-//! the target cannot meet.
+//! the target cannot meet, and a supervisor built without `portability`
+//! refuses the file-browsing and tree-transfer operations with `Unsupported`.
 use super::{IConnection, SocketForward};
 use crate::{domain::*, Result};
 use async_trait::async_trait;

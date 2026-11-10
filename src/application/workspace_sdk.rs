@@ -262,6 +262,8 @@ impl WorkspaceSdk {
             .ok_or_else(|| Error::State(format!("workspace {id} has no target")))
     }
     /// List persisted descriptors without polling providers or discovering unrelated resources.
+    /// Their `capabilities` are the copy saved at the last connect and may be stale;
+    /// read capabilities from a connected [`crate::Workspace`].
     pub fn list(&self) -> Result<Vec<BackendDescriptor>> {
         self.repository.list()
     }

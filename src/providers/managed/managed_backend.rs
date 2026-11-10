@@ -452,8 +452,9 @@ impl Ports for ManagedBackend {
         }
         if !self.policies().contains(&request.policy) {
             return Err(Error::Unsupported(format!(
-                "{:?} port access on this target",
-                request.policy
+                "{:?} port access on this target; it offers {:?}",
+                request.policy,
+                self.policies()
             )));
         }
         self.target.port(request).await

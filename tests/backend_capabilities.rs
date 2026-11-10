@@ -70,6 +70,16 @@ async fn local_capabilities_are_the_accessors_present() {
         );
     }
     assert!(owned.lifecycle().is_some() && owned.deletion().is_some());
+    let expected = |owned| Capabilities {
+        managed_runs: true,
+        file_transfer: true,
+        stop: owned,
+        destroy: owned,
+        private_ports: true,
+        hosted_ports: false,
+    };
+    assert_eq!(owned.capabilities(), expected(true));
+    assert_eq!(attached.capabilities(), expected(false));
     owned.deletion().unwrap().destroy().await.unwrap();
 }
 

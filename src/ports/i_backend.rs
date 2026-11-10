@@ -72,7 +72,7 @@ pub trait IBackend: Send + Sync {
     }
 }
 
-impl dyn IBackend {
+impl<'a> dyn IBackend + 'a {
     /// The capability flags this backend reports, derived from its accessors.
     /// Port flags come from the policies its [`Ports`] reports.
     pub fn capabilities(&self) -> Capabilities {

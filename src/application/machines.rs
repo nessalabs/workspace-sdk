@@ -28,8 +28,11 @@ pub struct Machines {
 ///
 /// It gives the workspace's operations through `Deref`, but not the owned
 /// handle's stop or destroy: resting is [`Machines::rest_idle`]'s alone.
-/// [`Workspace`] has no public way to reach the backend's stop, so this holds
-/// at compile time. A holder can use the workspace:
+/// The handle gives no path to the backend's stop or delete, and the compiler
+/// checks that (code that also holds the provider can still connect and stop
+/// the target itself). A connection opened through the handle can outlive the
+/// use; once the use is dropped the machine may be rested under it. A holder
+/// can use the workspace:
 ///
 /// ```no_run
 /// async fn work(holder: workspace_sdk::MachineUse) {
@@ -40,19 +43,19 @@ pub struct Machines {
 ///
 /// but none of these compile:
 ///
-/// ```compile_fail
+/// ```compile_fail,E0599
 /// async fn rest(holder: workspace_sdk::MachineUse) {
 ///     holder.stop().await.unwrap();
 /// }
 /// ```
 ///
-/// ```compile_fail
+/// ```compile_fail,E0599
 /// fn reach(holder: &workspace_sdk::MachineUse) {
 ///     let _ = holder.backend();
 /// }
 /// ```
 ///
-/// ```compile_fail
+/// ```compile_fail,E0599
 /// fn reach(holder: &workspace_sdk::MachineUse) {
 ///     let _ = holder.runtime_host().backend();
 /// }
