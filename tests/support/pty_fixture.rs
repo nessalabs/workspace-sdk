@@ -13,7 +13,7 @@ use tokio::time::{sleep, timeout};
 use workspace_sdk::{
     providers::{LocalConfig, LocalProvider},
     runtime::*,
-    BackendDescriptor, IProvider, OpenRequest, OutputCursor, SecretInput, WorkspaceId,
+    BackendDescriptor, CreateRequest, IProvider, OutputCursor, SecretInput, WorkspaceId,
 };
 
 pub const INPUT_SECRET: &str = "pty-input-private-992c1\n";
@@ -56,11 +56,7 @@ impl Fixture {
         config.supervisor = env!("CARGO_BIN_EXE_workspace-supervisor").into();
         let provider = LocalProvider::new(config).unwrap();
         let backend = provider
-            .open(OpenRequest {
-                workspace_id: WorkspaceId::generate(),
-                config: Default::default(),
-                resources: Default::default(),
-            })
+            .create(CreateRequest::new(WorkspaceId::generate()))
             .await
             .unwrap();
         Self {

@@ -78,19 +78,18 @@ fn validate_host(value: &str) -> Result<()> {
     Ok(())
 }
 
-/// Per-workspace SSH options serialized into [`crate::OpenRequest`] `config`.
+/// Options serialized into [`crate::AttachRequest`] `config` for an existing
+/// remote project.
 ///
-/// The default creates a project under the configured remote task namespace.
-/// This creates directories only; it does not provision another host.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct SshOpenOptions {
-    /// Existing absolute, normalized remote project directory to attach to.
-    ///
-    /// `None` uses `<SshConfig::root>/<workspace_id>/project`. An attachment
-    /// keeps its private control directory under the provider's task namespace,
-    /// and disables workspace lifecycle mutation.
-    pub attach: Option<String>,
+/// Creating an SSH workspace takes no options: it makes
+/// `<SshConfig::root>/<workspace_id>/project` and does not provision another
+/// host. An attachment keeps its private control directory under the
+/// provider's task namespace and cannot stop or destroy the project.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SshAttachOptions {
+    /// Existing absolute, normalized remote project directory.
+    pub path: String,
 }
 
 #[cfg(test)]

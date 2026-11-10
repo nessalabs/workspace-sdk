@@ -1,5 +1,5 @@
 mod configuration;
 mod provider;
 mod target;
-pub use configuration::{LocalConfig, LocalOpenOptions};
+pub use configuration::{LocalAttachOptions, LocalConfig};
 pub use provider::LocalProvider;

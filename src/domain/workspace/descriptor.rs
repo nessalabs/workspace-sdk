@@ -22,6 +22,9 @@ pub struct BackendDescriptor {
     pub ownership: Ownership,
     /// Operations the connected backend advertises.
     pub capabilities: Capabilities,
+    /// What the provider admitted the target under, where it checks that.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub admission: Option<super::Admission>,
 }
 
 /// Observed lifecycle state of the workspace resource.

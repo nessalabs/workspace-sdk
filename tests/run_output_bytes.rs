@@ -11,13 +11,9 @@ use workspace_sdk::*;
 async fn binary_run(fixture: &Fixture, budget: u64) -> Run {
     let workspace = fixture
         .sdk
-        .open(
+        .create(
             &host("laptop"),
-            OpenRequest {
-                workspace_id: WorkspaceId::new("binary-output").unwrap(),
-                config: ProviderOptions::default(),
-                resources: ResourceRequirements::default(),
-            },
+            CreateRequest::new(WorkspaceId::new("binary-output").unwrap()),
         )
         .await
         .unwrap();
@@ -153,13 +149,9 @@ async fn binary_retention_reports_gaps_and_refuses_invalid_limits_cursors_and_ta
         }
         let other = fixture
             .sdk
-            .open(
+            .create(
                 &host("laptop"),
-                OpenRequest {
-                    workspace_id: WorkspaceId::new("other-output-target").unwrap(),
-                    config: ProviderOptions::default(),
-                    resources: ResourceRequirements::default(),
-                },
+                CreateRequest::new(WorkspaceId::new("other-output-target").unwrap()),
             )
             .await
             .unwrap();

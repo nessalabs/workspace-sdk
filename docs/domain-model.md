@@ -26,7 +26,8 @@ These are ownership boundaries inside one Rust library, not separate network ser
 | `WorkspaceRef` | Reconnect value containing workspace ID, provider ID, and provider-owned locator metadata. | Persist and reuse it; it carries no live connection or credentials. |
 | `BackendDescriptor` | Snapshot of roots, isolation, ownership, and supported operations. | A snapshot describes the connection; poll lifecycle separately. |
 | `WorkspaceState` | Lifecycle observation such as ready or stopped. | Observations change as the resource progresses. |
-| `OpenRequest` | Command to create or attach a workspace under a stable identity. | Retrying the same identity must retain the same request intent. |
+| `CreateRequest` / `AttachRequest` | Command to create a new target, or attach to an existing one, under a stable identity. | Retrying the same identity must retain the same request intent; create and attach never share an ID. |
+| `MachineRecord` | The one saved record of a workspace's target: `Provisioning` or `Attaching`, then `Ready` or `Refused`. | Saved before any provider effect; states only move forward; a refusal is final. |
 | `ProviderOptions` / `WorkspaceLocator` | Explicit schema-erasure values at the extensible provider boundary. | The owning adapter encodes/decodes a named struct; other contexts do not inspect an arbitrary map. |
 | `WorkspacePath` | Validated relative-path value. | Construct another value to choose another path. Lexical validation does not replace backend symlink checks. |
 | `Run` | Identity-bearing application handle to one process. | Process state changes while its ID stays stable. Dropping a handle does not stop it. |

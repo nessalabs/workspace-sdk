@@ -25,9 +25,9 @@ workspace_sdk = { path = "/path/to/workspace-sdk" }
 ```rust,no_run
 use std::{path::PathBuf, sync::Arc};
 use workspace_sdk::{
-    CommandSpec, OpenRequest, ProviderId, Result, WorkspaceId, WorkspaceSdk,
+    CommandSpec, CreateRequest, ProviderId, Result, WorkspaceId, WorkspaceSdk,
     infrastructure::FileStateRepository,
-    providers::{LocalConfig, LocalOpenOptions, LocalProvider},
+    providers::{LocalConfig, LocalProvider},
 };
 
 async fn run_workload(
@@ -42,11 +42,8 @@ async fn run_workload(
         .provider(Arc::new(LocalProvider::new(local)?))?
         .build()?;
 
-    let request = OpenRequest::new(
-        WorkspaceId::new("experiment-1")?,
-        &LocalOpenOptions::default(),
-    )?;
-    let workspace = sdk.open(&ProviderId::new("local")?, request).await?;
+    let request = CreateRequest::new(WorkspaceId::new("experiment-1")?);
+    let workspace = sdk.create(&ProviderId::new("local")?, request).await?;
     let run = workspace.start(CommandSpec::new("git").args(["--version"])).await?;
     let reference = run.reference(); // Persist this value to reconnect later.
     let _ = reference;
@@ -54,7 +51,7 @@ async fn run_workload(
 }
 ```
 
-Storage roots are explicit configuration. For Boat, construct `BoatOpenOptions::new(target_root)` and configure an `BoatProvider` with your own Boat client and supervisor deployment. Remote adapters use either a preinstalled supervisor or an explicitly supplied binary compiled for that target’s operating system and architecture.
+Storage roots are explicit configuration. For Boat, construct `BoatCreateOptions::new(target_root)` (or `BoatAttachOptions` for an existing Sandbox) and configure a `BoatProvider` with your own Boat client and supervisor deployment. Remote adapters use either a preinstalled supervisor or an explicitly supplied binary compiled for that target’s operating system and architecture.
 
 With the optional `space` feature, `SpaceProvider` attaches to an existing SPACE
 sandbox using explicit configuration and a preinstalled supervisor. See the

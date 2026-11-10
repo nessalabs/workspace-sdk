@@ -2,5 +2,5 @@ mod configuration;
 mod engine;
 mod provider;
 mod target;
-pub use configuration::{ContainerConfig, ContainerOpenOptions};
+pub use configuration::{ContainerAttachOptions, ContainerConfig};
 pub use provider::ContainerProvider;

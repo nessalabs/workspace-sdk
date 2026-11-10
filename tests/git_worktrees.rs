@@ -14,8 +14,8 @@ use tempfile::TempDir;
 use workspace_sdk::{
     git::{GitWorktree, GitWorktreeDiscovery, GitWorktreeHead},
     infrastructure::FileStateRepository,
-    providers::{LocalConfig, LocalOpenOptions, LocalProvider},
-    CommandSpec, Error, OpenRequest, Ownership, ProviderId, RunState, Workspace, WorkspaceId,
+    providers::{LocalAttachOptions, LocalConfig, LocalProvider},
+    AttachRequest, CommandSpec, Error, Ownership, ProviderId, RunState, Workspace, WorkspaceId,
     WorkspaceSdk,
 };
 
@@ -79,12 +79,12 @@ fn sdk(root: &Path) -> WorkspaceSdk {
         .unwrap()
 }
 async fn attach(sdk: &WorkspaceSdk, path: &Path, id: &str) -> Workspace {
-    sdk.open(
+    sdk.attach(
         &ProviderId::new("local").unwrap(),
-        OpenRequest::new(
+        AttachRequest::new(
             WorkspaceId::new(id).unwrap(),
-            &LocalOpenOptions {
-                attach: Some(path.to_owned()),
+            &LocalAttachOptions {
+                path: path.to_owned(),
             },
         )
         .unwrap(),
@@ -348,8 +348,18 @@ async fn discovered_existing_and_explicitly_created_worktrees_execute_independen
         );
     }
     assert!(!first_descriptor.capabilities.destroy && !second_descriptor.capabilities.destroy);
-    assert!(matches!(first.destroy().await, Err(Error::Unsupported(_))));
-    assert!(matches!(second.destroy().await, Err(Error::Unsupported(_))));
+    assert!(matches!(
+        sdk.connect_owned(&first.reference()).await,
+        Err(Error::Conflict(_))
+    ));
+    assert!(matches!(
+        first.backend().destroy().await,
+        Err(Error::Unsupported(_))
+    ));
+    assert!(matches!(
+        second.backend().destroy().await,
+        Err(Error::Unsupported(_))
+    ));
     assert!(repository.is_dir() && preexisting.is_dir() && created.is_dir());
     assert_eq!(
         sdk.list().unwrap().len(),

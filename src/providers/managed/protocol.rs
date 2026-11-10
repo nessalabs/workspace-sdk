@@ -1,5 +1,5 @@
 use crate::supervisor::protocol::{SupervisorResponse, SupervisorValue};
-use crate::{Error, ResourceRequirements, Result};
+use crate::{Error, ProviderOptions, ResourceRequirements, Result};
 
 pub(in crate::providers) const MAX_CHUNK: usize = 256 * 1024;
 pub(in crate::providers) fn quote(value: &str) -> String {
@@ -25,6 +25,20 @@ pub(in crate::providers) fn require_no_resources(resources: &ResourceRequirement
         ))
     } else {
         Ok(())
+    }
+}
+/// Refuse create options for an adapter whose create takes none, so a caller
+/// cannot pass attach-shaped options to `create` and get a silent default.
+pub(in crate::providers) fn require_no_create_options(
+    options: &ProviderOptions,
+    adapter: &str,
+) -> Result<()> {
+    if options.is_empty() {
+        Ok(())
+    } else {
+        Err(Error::InvalidInput(format!(
+            "{adapter} create takes no options; use attach for an existing target"
+        )))
     }
 }
 pub(in crate::providers) fn response(stdout: &str, success: bool) -> Result<SupervisorValue> {

@@ -17,16 +17,13 @@ async fn setup(temp: &TempDir) -> Workspace {
     .unwrap()
     .build()
     .unwrap();
-    sdk.open(
+    sdk.create(
         &ProviderId::new("local").unwrap(),
-        OpenRequest {
-            workspace_id: WorkspaceId::new("portable").unwrap(),
-            config: ProviderOptions::default(),
-            resources: ResourceRequirements::default(),
-        },
+        CreateRequest::new(WorkspaceId::new("portable").unwrap()),
     )
     .await
     .unwrap()
+    .into()
 }
 fn path(value: &str) -> WorkspacePath {
     WorkspacePath::new(value).unwrap()

@@ -294,23 +294,19 @@ impl RecoveryService {
                         .iter()
                         .find(|candidate| candidate.provider == attempt.provider)
                         .ok_or_else(|| Error::State("missing pinned recovery location".into()))?;
+                    // Recovery always restores into a fresh target it creates.
                     let workspace = self
                         .sdk
-                        .open(
+                        .create(
                             &attempt.provider,
-                            OpenRequest {
+                            CreateRequest {
                                 workspace_id: attempt.workspace_id,
                                 config: candidate.config.clone(),
                                 resources: candidate.resources.clone(),
+                                key: None,
                             },
                         )
                         .await?;
-                    if workspace.descriptor().ownership != Ownership::SdkOwned {
-                        return Err(Error::Conflict(
-                            "recovery requires a fresh SDK-owned workspace, not an attachment"
-                                .into(),
-                        ));
-                    }
                     self.sync
                         .restore_checkpoint(&attempt.checkpoint.checkpoint, &workspace, true)
                         .await?;

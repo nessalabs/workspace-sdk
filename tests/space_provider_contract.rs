@@ -7,7 +7,7 @@ mod support;
 use fixture::{Fault, Fixture, ATTACH, MANAGEMENT, SANDBOX, USER};
 use std::{fs, sync::Arc, time::Duration};
 use workspace_sdk::{
-    providers::{SpaceConfig, SpaceOpenOptions, SpaceProvider},
+    providers::{SpaceAttachOptions, SpaceConfig, SpaceProvider},
     *,
 };
 
@@ -31,10 +31,10 @@ fn provider(fixture: &Fixture) -> SpaceProvider {
 async fn open(fixture: &Fixture, root: &std::path::Path) -> Arc<dyn IBackend> {
     fs::create_dir_all(root).unwrap();
     provider(fixture)
-        .open(
-            OpenRequest::new(
+        .attach(
+            AttachRequest::new(
                 WorkspaceId::generate(),
-                &SpaceOpenOptions::new(SANDBOX, root.to_str().unwrap()),
+                &SpaceAttachOptions::new(SANDBOX, root.to_str().unwrap()),
             )
             .unwrap(),
         )
@@ -111,35 +111,31 @@ async fn invalid_options_and_resources_fail_before_any_network_request() {
         "/tmp/.workspace-sdk/project",
         "/tmp/.WORKSPACE-SDK/project",
     ] {
-        let request = OpenRequest::new(
+        let request = AttachRequest::new(
             WorkspaceId::generate(),
-            &SpaceOpenOptions::new(SANDBOX, root),
+            &SpaceAttachOptions::new(SANDBOX, root),
         )
         .unwrap();
         assert!(matches!(
-            provider(&fixture).open(request).await,
+            provider(&fixture).attach(request).await,
             Err(Error::InvalidInput(_))
         ));
     }
     for sandbox in ["", "bx_old", "sbx_../escape"] {
-        let request = OpenRequest::new(
+        let request = AttachRequest::new(
             WorkspaceId::generate(),
-            &SpaceOpenOptions::new(sandbox, "/tmp/project"),
+            &SpaceAttachOptions::new(sandbox, "/tmp/project"),
         )
         .unwrap();
         assert!(matches!(
-            provider(&fixture).open(request).await,
+            provider(&fixture).attach(request).await,
             Err(Error::InvalidInput(_))
         ));
     }
-    let mut request = OpenRequest::new(
-        WorkspaceId::generate(),
-        &SpaceOpenOptions::new(SANDBOX, "/tmp/project"),
-    )
-    .unwrap();
-    request.resources.cpu = Some(2);
     assert!(matches!(
-        provider(&fixture).open(request).await,
+        provider(&fixture)
+            .create(CreateRequest::new(WorkspaceId::generate()))
+            .await,
         Err(Error::Unsupported(_))
     ));
     assert!(fixture.requests().is_empty());
@@ -567,10 +563,10 @@ async fn parallel_same_claim_starts_execute_one_native_workload() {
         .unwrap(),
     );
     let backend = provider
-        .open(
-            OpenRequest::new(
+        .attach(
+            AttachRequest::new(
                 WorkspaceId::generate(),
-                &SpaceOpenOptions::new(SANDBOX, root.to_str().unwrap()),
+                &SpaceAttachOptions::new(SANDBOX, root.to_str().unwrap()),
             )
             .unwrap(),
         )

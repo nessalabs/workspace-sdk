@@ -1,12 +1,14 @@
-use super::repository_state::RepositoryState;
+use super::repository_state::{RepositoryState, VERSION};
+use crate::domain::ProviderId;
 use crate::{
     domain::RecoverySession,
     ports::{IRecoveryRepository, IWorkflowLease},
     WorkflowRecord,
 };
 use crate::{
-    ports::IWorkflowRepository, BackendDescriptor, Error, IWorkspaceRepository, OperationId,
-    Result, WorkspaceId,
+    domain::{MachineRecord, MachineState},
+    ports::IWorkflowRepository,
+    BackendDescriptor, Error, IWorkspaceRepository, OperationId, Result, WorkspaceId,
 };
 use fs2::FileExt;
 use std::io::ErrorKind;
@@ -64,10 +66,10 @@ impl FileStateRepository {
                     return Err(Error::State("invalid state file".into()));
                 }
                 let mut state: RepositoryState = serde_json::from_slice(&fs::read(path)?)?;
-                if !matches!(state.version, 1..=3) {
+                if !(1..=VERSION).contains(&state.version) {
                     return Err(Error::Unsupported("state repository version".into()));
                 }
-                state.version = 3;
+                state.version = VERSION;
                 state
             }
             Err(error) if error.kind() == ErrorKind::NotFound => RepositoryState::default(),
@@ -91,18 +93,35 @@ impl FileStateRepository {
     }
 }
 impl IWorkspaceRepository for FileStateRepository {
-    fn reserve(&self, id: &WorkspaceId, identity: &str) -> Result<()> {
-        self.access(true, |state| state.reserve(id, identity))
+    fn begin(
+        &self,
+        id: &WorkspaceId,
+        provider: &ProviderId,
+        request: &str,
+        initial: MachineState,
+    ) -> Result<MachineRecord> {
+        self.access(true, |state| state.begin(id, provider, request, initial))
+    }
+    fn advance(
+        &self,
+        id: &WorkspaceId,
+        expected_revision: u64,
+        next: MachineState,
+    ) -> Result<MachineRecord> {
+        self.access(true, |state| state.advance(id, expected_revision, next))
+    }
+    fn forget(&self, id: &WorkspaceId, expected_revision: u64) -> Result<()> {
+        self.access(true, |state| state.forget(id, expected_revision))
     }
     fn save(&self, descriptor: &BackendDescriptor) -> Result<()> {
         self.access(true, |state| state.save_workspace(descriptor))
     }
-    fn get(&self, id: &WorkspaceId) -> Result<Option<BackendDescriptor>> {
-        self.access(false, |state| Ok(state.workspaces.get(id).cloned()))
+    fn record(&self, id: &WorkspaceId) -> Result<Option<MachineRecord>> {
+        self.access(false, |state| Ok(state.machines.get(id).cloned()))
     }
-    fn list(&self) -> Result<Vec<BackendDescriptor>> {
+    fn records(&self) -> Result<Vec<MachineRecord>> {
         self.access(false, |state| {
-            Ok(state.workspaces.values().cloned().collect())
+            Ok(state.machines.values().cloned().collect())
         })
     }
 }
@@ -165,6 +184,21 @@ impl IRecoveryRepository for FileStateRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::{ProvisionKey, RequestOrigin};
+
+    /// Reserve an ID the way an attach does, for tests about the file itself.
+    fn local() -> ProviderId {
+        ProviderId::new("local").unwrap()
+    }
+    trait Reserve {
+        fn reserve(&self, id: &WorkspaceId, request: &str) -> Result<()>;
+    }
+    impl Reserve for FileStateRepository {
+        fn reserve(&self, id: &WorkspaceId, request: &str) -> Result<()> {
+            self.begin(id, &local(), request, MachineState::Attaching)
+                .map(drop)
+        }
+    }
     #[test]
     fn reservation_survives_store_reopen_and_rejects_different_request() {
         let temporary = tempfile::tempdir().unwrap();
@@ -311,27 +345,93 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let repository = FileStateRepository::new(temporary.path()).unwrap();
         let id = WorkspaceId::new("reserved-before-upgrade").unwrap();
-        let mut legacy = RepositoryState {
-            version: 1,
-            ..RepositoryState::default()
-        };
-        legacy.reserve(&id, "original-request").unwrap();
+        let legacy = serde_json::json!({
+            "version": 1,
+            "reservations": {"reserved-before-upgrade": "original-request"},
+            "workspaces": {},
+            "workflows": {},
+        });
         let bytes = serde_json::to_vec(&legacy).unwrap();
         let path = temporary.path().join("state.json");
         fs::write(&path, &bytes).unwrap();
 
         assert!(repository.list().unwrap().is_empty());
+        // An unfinished legacy reservation is a create that may have reached the
+        // provider: it reads as Provisioning under the key Boat was given.
+        let record = repository.record(&id).unwrap().unwrap();
+        assert_eq!(record.origin, RequestOrigin::Upgraded);
+        assert_eq!(
+            record.state,
+            MachineState::Provisioning {
+                key: ProvisionKey::for_workspace(&id)
+            }
+        );
+        // Reading never rewrites the file.
         assert_eq!(fs::read(&path).unwrap(), bytes);
+
+        // The first request adopts the upgraded record and saves it as v4.
+        let adopted = repository
+            .begin(
+                &id,
+                &local(),
+                "first-request",
+                MachineState::Provisioning {
+                    key: ProvisionKey::for_workspace(&id),
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            adopted.origin,
+            RequestOrigin::Request {
+                hash: "first-request".into()
+            }
+        );
+        let upgraded: RepositoryState = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert_eq!(upgraded.version, VERSION);
+        assert_eq!(upgraded.machines.get(&id), Some(&adopted));
+        // Once adopted, it is that request's record.
         assert!(matches!(
             repository.reserve(&id, "different-request"),
             Err(Error::Conflict(_))
         ));
-        assert_eq!(fs::read(&path).unwrap(), bytes);
-
-        repository.reserve(&id, "original-request").unwrap();
-        let upgraded: RepositoryState = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
-        assert_eq!(upgraded.version, 3);
-        assert_eq!(upgraded.reservations.get(&id).unwrap(), "original-request");
+    }
+    #[test]
+    fn a_corrupt_record_refuses_to_load() {
+        let reserved = |revision: u64, retired: serde_json::Value| {
+            serde_json::json!({
+                "version": VERSION,
+                "machines": {"bad": {
+                    "workspace_id": "bad",
+                    "origin": {"origin": "request", "hash": "h"},
+                    "revision": revision,
+                    "generation": revision,
+                    "state": {"state": "attaching"},
+                }},
+                "retired": retired,
+                "workflows": {},
+            })
+        };
+        let connected_pending = serde_json::json!({
+            "version": VERSION,
+            "machines": {"bad": {
+                "workspace_id": "bad",
+                "origin": {"origin": "connected"},
+                "revision": 1,
+                "generation": 1,
+                "state": {"state": "attaching"},
+            }},
+            "workflows": {},
+        });
+        assert!(
+            serde_json::from_value::<RepositoryState>(reserved(1, serde_json::json!({}))).is_ok()
+        );
+        for corrupt in [
+            reserved(0, serde_json::json!({})),
+            reserved(3, serde_json::json!({"bad": 3})),
+            connected_pending,
+        ] {
+            assert!(serde_json::from_value::<RepositoryState>(corrupt).is_err());
+        }
     }
     #[test]
     fn lease_excludes_another_repository_instance_until_dropped() {

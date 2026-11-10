@@ -6,5 +6,5 @@ mod configuration;
 mod events;
 mod provider;
 mod target;
-pub use configuration::{SpaceConfig, SpaceOpenOptions};
+pub use configuration::{SpaceAttachOptions, SpaceConfig};
 pub use provider::SpaceProvider;

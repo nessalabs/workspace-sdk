@@ -20,10 +20,10 @@ use workspace_sdk::{
     checkpoint::{ApplyOptions, GitCheckpointEngine},
     infrastructure::FileStateRepository,
     providers::{
-        SandboxOpenOptions, SandboxProvider, SupervisorArtifact, SupervisorDeployment,
+        SandboxAttachOptions, SandboxProvider, SupervisorArtifact, SupervisorDeployment,
         TargetPlatform,
     },
-    CommandSpec, Error, OpenRequest, OperationId, OutputCursor, ProviderId, ReadFile, Result,
+    AttachRequest, CommandSpec, Error, OperationId, OutputCursor, ProviderId, ReadFile, Result,
     RunState, SyncService, Workspace, WorkspaceId, WorkspacePath, WorkspaceSdk, WriteFile,
 };
 
@@ -222,10 +222,12 @@ async fn open(
     // The raw ID is durable before the SDK uploads or initializes anything.
     // This attachment cannot be lifecycle-deleted by the SDK; the raw ledger
     // owns cleanup for exactly the target created with this public request key.
-    let mut options = SandboxOpenOptions::new(root);
-    options.sandbox_id = Some(raw_target);
+    let options = SandboxAttachOptions {
+        root: root.into(),
+        sandbox_id: raw_target,
+    };
     let workspace = sdk
-        .open(&ProviderId::new("boat")?, OpenRequest::new(id, &options)?)
+        .attach(&ProviderId::new("boat")?, AttachRequest::new(id, &options)?)
         .await?;
     fixtures
         .ledger

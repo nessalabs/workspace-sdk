@@ -53,20 +53,19 @@ impl ContainerConfig {
     }
 }
 
-/// Per-workspace container options serialized into [`crate::OpenRequest`] `config`.
+/// Options serialized into [`crate::AttachRequest`] `config` for an existing
+/// running container that already has the configured supervisor.
 ///
-/// The default creates an SDK-owned container and named volume. Attachment
-/// instead requires an existing running container with the configured supervisor.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct ContainerOpenOptions {
-    /// Existing container name or identifier to attach to.
-    ///
-    /// `None` creates a container named `workspace-sdk-<workspace_id>`.
-    /// Attachments use `<root>/<workspace_id>/project` and a sibling
-    /// private `control` directory; the SDK does not start, stop, or delete the
-    /// attached container.
-    pub container_id: Option<String>,
+/// Creating a container workspace takes no options: it makes an SDK-owned
+/// container named `workspace-sdk-<workspace_id>` and a named volume.
+/// Attachments use `<root>/<workspace_id>/project` and a sibling private
+/// `control` directory; the SDK does not start, stop, or delete the attached
+/// container.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContainerAttachOptions {
+    /// Existing container name or identifier.
+    pub container_id: String,
 }
 
 #[cfg(test)]
