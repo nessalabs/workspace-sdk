@@ -83,7 +83,9 @@ impl SandboxProvider {
     /// variables, which only creation uses). A cause that can never pass
     /// refuses it ([`Error::Refused`]); the SDK's record stays Ready, so
     /// each later wake refuses it the same way. A provider made without
-    /// machines refuses to reconnect to a machine. Every call, attaching
+    /// machines refuses to reconnect to a machine, and a provider with machines refuses an SDK-owned
+    /// reference that names none, so a provider ID cannot switch from plain
+    /// workspaces to machines while its old workspaces remain. Every call, attaching
     /// and reconnecting included, uses the machines' account in its
     /// personal scope.
     pub fn from_machines(machines: BoatMachines) -> Self {
