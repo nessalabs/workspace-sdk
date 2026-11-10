@@ -451,3 +451,59 @@ fn supervisor_answers_an_operation_it_lacks_with_unsupported() {
         assert_eq!(answer["result"]["kind"], "unsupported", "{answer}");
     }
 }
+
+fn salted_fingerprint(control: &str, tag: Option<&[u8]>, request: &LaunchRequest) -> String {
+    use sha2::{Digest, Sha256};
+    use workspace_sdk::supervisor::protocol::{SupervisorExecution, WorkingDirectory};
+    let mut hash = Sha256::new();
+    hash.update(fs::read(format!("{control}/fingerprint-salt")).unwrap());
+    if let Some(tag) = tag {
+        hash.update(tag);
+    }
+    let execution = SupervisorExecution {
+        command: request.execution.command.clone(),
+        secrets: request.execution.secrets.clone(),
+        private_stdin: request.execution.private_stdin.clone(),
+        directory: WorkingDirectory::Project(WorkspacePath::root()),
+    };
+    hash.update(
+        serde_json::to_vec(&(execution, request.output_limit_bytes, None::<TerminalSize>)).unwrap(),
+    );
+    format!("{:x}", hash.finalize())
+}
+
+/// Deployed runs reconnect only while their claim fingerprint is encoded
+/// exactly as before, and a claim left by the removed pipe-input mode (which
+/// hashed an extra tag) never matches a new ordinary launch.
+#[tokio::test]
+async fn ordinary_claims_keep_their_fingerprint_and_old_piped_claims_never_match() {
+    let base = tempfile::tempdir().unwrap();
+    let backend = workspace(&base).await;
+    let control = backend.descriptor().control_root;
+    let ordinary = launch(RunId::new("ordinary").unwrap(), &["exit", "0"], 4096);
+    let run = backend.start(ordinary.clone()).await.unwrap();
+    terminal(backend.as_ref(), &run).await;
+    let claim_path = format!("{control}/runs/ordinary/claim.json");
+    let claim: serde_json::Value = serde_json::from_slice(&fs::read(&claim_path).unwrap()).unwrap();
+    assert_eq!(
+        claim["fingerprint"],
+        salted_fingerprint(&control, None, &ordinary)
+    );
+    assert!(claim.get("piped").is_none());
+    assert_eq!(backend.start(ordinary.clone()).await.unwrap(), run);
+
+    let old = launch(RunId::new("old-piped").unwrap(), &["exit", "0"], 4096);
+    let old_run = backend.start(old.clone()).await.unwrap();
+    terminal(backend.as_ref(), &old_run).await;
+    let old_claim = serde_json::json!({
+        "version": 1,
+        "fingerprint": salted_fingerprint(&control, Some(b"workspace-sdk-piped-v1"), &old),
+        "piped": true,
+    });
+    fs::write(
+        format!("{control}/runs/old-piped/claim.json"),
+        serde_json::to_vec(&old_claim).unwrap(),
+    )
+    .unwrap();
+    assert!(matches!(backend.start(old).await, Err(Error::Conflict(_))));
+}

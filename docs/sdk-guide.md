@@ -17,6 +17,10 @@ container provider needs `container`.
 Saved state reads and writes the same with or without `portability`. Deploy a
 supervisor built with `portability`; one built without it refuses the
 portability operations with `Error::Unsupported`, never a schema error.
+The six portability methods of `IBackend` exist only when the feature is on.
+A crate outside this one that overrides them must forward the feature, for
+example `portability = ["workspace_sdk/portability"]`, and gate its overrides
+on it.
 
 ## Register infrastructure explicitly
 

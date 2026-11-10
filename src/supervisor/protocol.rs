@@ -148,6 +148,7 @@ pub enum SupervisorOperation {
 impl SupervisorOperation {
     /// Payload-bearing operations require private provider transport. Exhaustive
     /// classification prevents a new input operation from falling into command history.
+    #[cfg(any(feature = "boat", feature = "space"))]
     pub(crate) fn requires_private_transport(&self) -> bool {
         match self {
             Self::Start { .. }
