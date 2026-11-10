@@ -61,5 +61,19 @@ No P1 or P2 was found. The reviewer checked these and found them sound:
 
 ## Round 2
 
-A fresh reviewer re-checked the round 1 fixes. Its findings are recorded
-below.
+A fresh agent re-checked commits ac6788d and 0fd2321 and found no P1 or P2.
+
+- It ran clippy with `-D warnings` on seven feature sets, and all were clean.
+- Only portability builds pull in `ignore` and `flate2`.
+- The restored evidence matches `origin/main` exactly.
+- The two docs fixes are accurate.
+- It judged the decisions to keep things as they are reasonable.
+
+To test the new fingerprint test, the reviewer added a tag to the
+ordinary-run hash in a scratch copy of the code. The test then failed.
+
+| Finding | Severity | Decision |
+| --- | --- | --- |
+| The expected hash is built from the crate's own `SupervisorExecution`, so a change to how that type serializes changes both sides and the test still passes | P3 | Kept. The deleted test had the same limit. A change to that type's serialization would be caught by its own wire tests and review. |
+
+No P1 or P2 is open. The gate is accepted once CI passes on both platforms.
