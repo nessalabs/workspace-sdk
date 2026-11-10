@@ -72,6 +72,7 @@ impl SpaceProvider {
                     file_transfer: true,
                     ..Capabilities::default()
                 },
+                admission: None,
             },
             target: Arc::new(SpaceTarget {
                 config: self.config.clone(),

@@ -22,6 +22,9 @@ pub enum Error {
     Timeout(String),
     #[error("credential required: {0}")]
     CredentialRequired(String),
+    /// The provider refused the target. The refusal is saved and final.
+    #[error("refused: {0}")]
+    Refused(Box<crate::domain::Refusal>),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]

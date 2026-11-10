@@ -1,5 +1,5 @@
 //! Commands and resource requirements for creating or attaching a workspace.
-use super::{ProviderOptions, WorkspaceId};
+use super::{ProviderOptions, ProvisionKey, WorkspaceId};
 use crate::Result;
 use serde::{Deserialize, Serialize};
 
@@ -30,6 +30,10 @@ impl CreateRequest {
             config: ProviderOptions::default(),
             resources: ResourceRequirements::default(),
         }
+    }
+    /// The idempotency key every attempt to create this workspace uses.
+    pub fn provision_key(&self) -> ProvisionKey {
+        ProvisionKey::for_workspace(&self.workspace_id)
     }
     /// Request a target using the selected provider's named create options.
     pub fn with_options<T: Serialize>(workspace_id: WorkspaceId, options: &T) -> Result<Self> {

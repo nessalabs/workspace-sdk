@@ -172,6 +172,7 @@ impl ContainerProvider {
                     destroy: owned,
                     ..Capabilities::default()
                 },
+                admission: None,
             },
             target: Arc::new(ContainerTarget {
                 config: self.config.clone(),

@@ -1,8 +1,8 @@
 use super::{OwnedWorkspace, Workspace, WorkspaceSdkBuilder};
 use crate::{
     domain::{
-        AttachRequest, BackendDescriptor, CreateRequest, Ownership, ProviderId, WorkspaceId,
-        WorkspaceRef,
+        AttachRequest, BackendDescriptor, CreateRequest, MachineRecord, MachineState, Ownership,
+        ProviderId, WorkspaceId, WorkspaceRef,
     },
     ports::{IBackend, IProvider, IWorkspaceRepository},
     Error, Result,
@@ -27,10 +27,13 @@ impl WorkspaceSdk {
     pub fn builder(repository: Arc<dyn IWorkspaceRepository>) -> WorkspaceSdkBuilder {
         WorkspaceSdkBuilder::new(repository)
     }
-    /// Create a new SDK-owned target, reserving request identity before side effects.
+    /// Create a new SDK-owned target.
     ///
-    /// Retries of the same request reconnect to the saved target; a different
-    /// request for the same workspace ID, including an attach, is a conflict.
+    /// The ID is reserved and saved as Provisioning before the provider is
+    /// asked for anything. A retry of the same request continues from the saved
+    /// state: Provisioning asks the provider again with the same key, Ready
+    /// reconnects, Refused returns the saved refusal. A different request for
+    /// the same ID, including an attach, is a conflict.
     pub async fn create(
         &self,
         provider: &ProviderId,
@@ -38,44 +41,89 @@ impl WorkspaceSdk {
     ) -> Result<OwnedWorkspace> {
         let adapter = self.provider(provider)?;
         let id = request.workspace_id.clone();
-        let identity = request_identity(&("create", provider, &request))?;
+        // Hashed as before the create/attach split, so saved creates still match.
+        let identity = request_identity(&(provider, &request))?;
+        let key = request.provision_key();
+        let record = self
+            .repository
+            .begin(&id, &identity, MachineState::Provisioning { key })?;
         let workspace = self
-            .admit(provider, &id, &identity, Ownership::SdkOwned, async {
+            .finish(provider, record, Ownership::SdkOwned, |state| async move {
+                if !matches!(state, MachineState::Provisioning { .. }) {
+                    return Err(Error::State("create found an attach record".into()));
+                }
                 adapter.create(request).await
             })
             .await?;
         Ok(OwnedWorkspace { workspace })
     }
-    /// Attach to an existing target, reserving request identity before side effects.
+    /// Attach to an existing target. The returned handle cannot stop or destroy it.
     ///
-    /// The returned handle cannot stop or destroy the target. Retries of the same
-    /// request reconnect; a different request for the same workspace ID conflicts.
+    /// The ID is reserved and saved as Attaching first. A retry of the same
+    /// request continues from the saved state; a different request conflicts.
     pub async fn attach(&self, provider: &ProviderId, request: AttachRequest) -> Result<Workspace> {
         let adapter = self.provider(provider)?;
         let id = request.workspace_id.clone();
         let identity = request_identity(&("attach", provider, &request))?;
-        self.admit(provider, &id, &identity, Ownership::Attached, async {
+        let record = self
+            .repository
+            .begin(&id, &identity, MachineState::Attaching)?;
+        self.finish(provider, record, Ownership::Attached, |state| async move {
+            let MachineState::Attaching = state else {
+                return Err(Error::State("attach found a create record".into()));
+            };
             adapter.attach(request).await
         })
         .await
     }
-    async fn admit(
+    /// Delete a record that never reached an outcome, after the provider has
+    /// confirmed it holds nothing for it. The next create starts again with the
+    /// same key. Ready and Refused records are kept.
+    pub fn forget_provisioning(&self, id: &WorkspaceId) -> Result<()> {
+        let record = self
+            .repository
+            .record(id)?
+            .ok_or_else(|| Error::NotFound(format!("workspace {id}")))?;
+        self.repository.forget(id, record.revision)
+    }
+    /// Load the saved record for `id`, whatever state it is in.
+    pub fn record(&self, id: &WorkspaceId) -> Result<Option<MachineRecord>> {
+        self.repository.record(id)
+    }
+    async fn finish<F, Fut>(
         &self,
         provider: &ProviderId,
-        id: &WorkspaceId,
-        identity: &str,
+        record: MachineRecord,
         ownership: Ownership,
-        open: impl Future<Output = Result<Arc<dyn IBackend>>>,
-    ) -> Result<Workspace> {
-        self.repository.reserve(id, identity)?;
-        if let Some(saved) = self.repository.get(id)? {
-            let workspace = self.connect(&saved.reference).await?;
-            workspace.ensure_ready().await?;
-            return Ok(workspace);
-        }
-        let backend = open.await?;
+        open: F,
+    ) -> Result<Workspace>
+    where
+        F: FnOnce(MachineState) -> Fut,
+        Fut: Future<Output = Result<Arc<dyn IBackend>>>,
+    {
+        let id = record.workspace_id.clone();
+        let pending = match record.state {
+            MachineState::Ready { descriptor } => return self.resume(&descriptor).await,
+            MachineState::Refused { refusal } => return Err(Error::Refused(Box::new(refusal))),
+            pending => pending,
+        };
+        let backend = match open(pending).await {
+            Ok(backend) => backend,
+            Err(Error::Refused(refusal)) => {
+                self.settle(
+                    &id,
+                    record.revision,
+                    MachineState::Refused {
+                        refusal: (*refusal).clone(),
+                    },
+                )?;
+                return Err(Error::Refused(refusal));
+            }
+            // No outcome: the record stays pending for a retry.
+            Err(error) => return Err(error),
+        };
         let descriptor = backend.descriptor();
-        if descriptor.reference.id != *id
+        if descriptor.reference.id != id
             || &descriptor.reference.provider != provider
             || descriptor.reference.version != 1
             || descriptor.ownership != ownership
@@ -84,10 +132,44 @@ impl WorkspaceSdk {
                 "provider returned a workspace outside the requested identity".into(),
             ));
         }
-        // Persist the creation receipt before a readiness timeout can interrupt us.
-        self.repository.save(&descriptor)?;
+        // Persist the outcome before a readiness timeout can interrupt us.
+        if let Some(winner) = self.settle(
+            &id,
+            record.revision,
+            MachineState::Ready {
+                descriptor: descriptor.clone(),
+            },
+        )? {
+            // Another caller finished the same request first; use its outcome.
+            return match winner.state {
+                MachineState::Ready { descriptor } => self.resume(&descriptor).await,
+                MachineState::Refused { refusal } => Err(Error::Refused(Box::new(refusal))),
+                _ => Err(Error::State("concurrent create left no outcome".into())),
+            };
+        }
         backend.ensure_ready().await?;
         Ok(Workspace { backend })
+    }
+    /// Save an outcome. If another caller saved one first, return its record.
+    fn settle(
+        &self,
+        id: &WorkspaceId,
+        revision: u64,
+        next: MachineState,
+    ) -> Result<Option<MachineRecord>> {
+        match self.repository.advance(id, revision, next) {
+            Ok(_) => Ok(None),
+            Err(Error::Conflict(message)) => match self.repository.record(id)? {
+                Some(record) if record.revision != revision => Ok(Some(record)),
+                _ => Err(Error::Conflict(message)),
+            },
+            Err(error) => Err(error),
+        }
+    }
+    async fn resume(&self, descriptor: &BackendDescriptor) -> Result<Workspace> {
+        let workspace = self.connect(&descriptor.reference).await?;
+        workspace.ensure_ready().await?;
+        Ok(workspace)
     }
     fn provider(&self, provider: &ProviderId) -> Result<&Arc<dyn IProvider>> {
         self.providers

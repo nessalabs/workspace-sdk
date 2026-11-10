@@ -6,16 +6,17 @@ Create a `WorkspaceSdk` with an injected `IWorkspaceRepository`, then register e
 
 The provider IDs default to `local`, `boat`, `ssh`, and `container`. Each adapter supports `with_id(ProviderId)` so one application can register multiple SSH hosts or cloud accounts. Credentials belong to configured providers and credential resolvers, never to `WorkspaceRef`. The pinned Boat client is reexported as `workspace_sdk::boat_client`, so consumers need no separate sibling dependency.
 
-| IProvider | Construction | Open configuration |
-| --- | --- | --- |
-| Local | `LocalProvider::new(LocalConfig::trusted_host(base_dir))` | `LocalOpenOptions { attach }`; otherwise creates an owned project. |
-| Boat | `BoatProvider::new(explicit_boat_api)` | `BoatOpenOptions::new(root)`: explicit target root, optional existing Boat ID, and new-Boat type/TTL/environment. |
-| SSH | `SshProvider::new(SshConfig::trusted_host(host, root))` | `SshOpenOptions { attach }`; existing host keys and SSH login must already work. |
-| Container | `ContainerProvider::new(ContainerConfig::new(engine, image, root))` | `ContainerOpenOptions { container_id }`; otherwise creates a labeled container/volume. |
+| IProvider | Construction | Create options | Attach options |
+| --- | --- | --- | --- |
+| Local | `LocalProvider::new(LocalConfig::trusted_host(base_dir))` | none; creates an owned project | `LocalAttachOptions { path }` |
+| Boat | `BoatProvider::new(explicit_boat_api)` | `BoatCreateOptions::new(root)`: target root and Boat type/TTL/environment | `BoatAttachOptions { root, sandbox_id }` |
+| SSH | `SshProvider::new(SshConfig::trusted_host(host, root))` | none; creates a project under the root | `SshAttachOptions { path }`; host keys and SSH login must already work |
+| Container | `ContainerProvider::new(ContainerConfig::new(engine, image, root))` | none; creates a labeled container/volume | `ContainerAttachOptions { container_id }` |
+| SPACE | `SpaceProvider::new(config)` (feature `space`) | create is refused | `SpaceAttachOptions::new(sandbox_id, root)` |
 
-Build `OpenRequest::new(workspace_id, &options)` from the provider’s named options struct. `ProviderOptions` erases the concrete type only for registry dispatch; the adapter decodes it immediately into its own schema. Resource requirements are validated or rejected; they are never silently treated as provisioned. Boat sizing currently uses an explicit Boat type. Runtime resource checks can verify the CPU, memory, disk, platform and GPU needs of an existing host.
+Create with `CreateRequest::new(workspace_id)` or `CreateRequest::with_options(workspace_id, &options)`, and attach with `AttachRequest::new(workspace_id, &options)`. `ProviderOptions` erases the concrete type only for registry dispatch; the adapter decodes it immediately into its own schema. Create refuses attach-shaped options rather than ignoring them. Resource requirements are validated or rejected; they are never silently treated as provisioned. Boat sizing currently uses an explicit Boat type. Runtime resource checks can verify the CPU, memory, disk, platform and GPU needs of an existing host.
 
-Local and SSH execution share the user's host permissions. Container isolation depends on the selected engine/image; the SDK does not claim a hardware security boundary. Attachments disable destructive target lifecycle operations.
+Local and SSH execution share the user's host permissions. Container isolation depends on the selected engine/image; the SDK does not claim a hardware security boundary. `create` returns an `OwnedWorkspace`, the only handle with `stop`, `destroy` and `inspect_delete`; `attach` returns a plain `Workspace`. Backends also refuse lifecycle calls on attachments.
 
 ## Deploy the Rust supervisor
 
@@ -27,7 +28,9 @@ The helper is Rust, so targets using a prebuilt artifact need no Python interpre
 
 ## Workspaces and runs
 
-`open` reserves a workspace ID for one creation request. Repeating that request reconnects its target; changing the request under the same ID returns a conflict. `workspace(id)` looks up a saved descriptor, and `connect(reference)` reconnects an externally saved reference without recreating missing state.
+Each workspace ID has one saved `MachineRecord`. `create` saves it as `Provisioning` (with the provider's idempotency key, derived from the ID) and `attach` as `Attaching`, both before the provider does anything. The record then becomes `Ready` with the target's descriptor, or `Refused` with a typed `Refusal` when the provider rejects the target; records never move back. Repeating the same request continues from the saved state: a pending create asks the provider again with the same key, Ready reconnects, and Refused returns the saved refusal without calling the provider. A different request under the same ID, including attaching where a create was reserved, returns a conflict. If a create never got an outcome and the provider confirms it holds nothing for the key, `forget_provisioning(id)` deletes the pending record. `record(id)` reads it in any state; `workspace(id)` and `owned_workspace(id)` reconnect a Ready target, and `connect(reference)` / `connect_owned(reference)` reconnect a saved reference without recreating missing state.
+
+`MemoryStateRepository` is only built with the `testing` feature: it forgets every record on drop, so a restarted caller would create a second target.
 
 Use `CommandSpec::new(program).args(...)`. A shell is used only if you explicitly choose `sh`, `bash`, or another shell as the program. Working directories and file API paths are workspace-relative and validated; arbitrary program execution remains as powerful as the chosen target's permissions.
 
@@ -49,8 +52,8 @@ Bare and unborn repositories are represented explicitly.
 
 The inventory is an observation, not ownership or a portable worktree identity.
 Refresh it before acting. To run work in a selected checkout, explicitly open an
-attachment using the correct provider's existing options: `LocalOpenOptions`
-accepts a path, while `SshOpenOptions` accepts a target-host path string. Continue
+attachment using the correct provider's attach options: `LocalAttachOptions`
+takes a path, while `SshAttachOptions` takes a target-host path string. Continue
 through the returned workspace's normal `exec` or managed-run API. Discovery does
 not attach automatically, prune directories, grant deletion permission, or turn
 an ordinary SDK-created directory into a Git worktree.

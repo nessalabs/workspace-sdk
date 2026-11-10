@@ -8,7 +8,6 @@ use crate::{
 };
 use async_trait::async_trait;
 use sandbox_client::{Api, CreateOptions, CreateSandboxRequest};
-use sha2::{Digest, Sha256};
 use std::sync::{atomic::AtomicBool, Arc};
 
 /// Uses an injected real Api. Construct its configuration explicitly; this
@@ -89,6 +88,7 @@ impl SandboxProvider {
                     private_ports: false,
                     hosted_ports: true,
                 },
+                admission: None,
             },
             target: Arc::new(SandboxTarget {
                 api: self.api.clone(),
@@ -106,6 +106,7 @@ impl IProvider for SandboxProvider {
         self.id.clone()
     }
     async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>> {
+        let key = request.provision_key();
         if request.resources != ResourceRequirements::default() {
             return Err(Error::Unsupported(
                 "Boat generic resource provisioning; choose an explicit sandbox_type in SandboxCreateOptions"
@@ -120,10 +121,6 @@ impl IProvider for SandboxProvider {
         let options: SandboxCreateOptions = request.config.decode()?;
         managed::validate_remote_path(&options.root)?;
         self.supervisor.validate()?;
-        let key = format!(
-            "workspace-sdk-{:x}",
-            Sha256::digest(request.workspace_id.as_str().as_bytes())
-        );
         let no_env = options.environment.is_none().then_some(true);
         let created = self
             .api
@@ -136,7 +133,7 @@ impl IProvider for SandboxProvider {
                     ..CreateSandboxRequest::default()
                 }),
                 &CreateOptions {
-                    idempotency_key: Some(key),
+                    idempotency_key: Some(key.as_str().to_owned()),
                     ..CreateOptions::default()
                 },
             )

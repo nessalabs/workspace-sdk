@@ -14,8 +14,13 @@ pub trait IProvider: Send + Sync {
     fn id(&self) -> ProviderId;
     /// Create and initialise a new SDK-owned target under the supplied stable ID.
     ///
-    /// The returned descriptor must report [`Ownership::SdkOwned`]. Providers that
-    /// cannot create targets refuse with `Unsupported`.
+    /// Every attempt for one workspace has the same [`CreateRequest::provision_key`];
+    /// a provider that provisions must use it as its idempotency key, so a retry
+    /// after an unknown outcome finds the first target instead of making a second. Return
+    /// [`crate::Error::Refused`] for a target that must never be used; any other
+    /// error leaves the attempt retryable. The returned descriptor must report
+    /// [`Ownership::SdkOwned`]. Providers that cannot create refuse with
+    /// `Unsupported`.
     async fn create(&self, request: CreateRequest) -> Result<Arc<dyn IBackend>>;
     /// Use an existing target without provisioning it or changing its project files.
     ///

@@ -18,6 +18,7 @@ pub mod file_browser;
 pub mod file_tree;
 pub mod files;
 pub mod identity;
+pub mod machine;
 pub mod open;
 pub mod path;
 pub mod ports;
@@ -31,6 +32,9 @@ pub use file_browser::*;
 pub use file_tree::{TreeExportReceipt, TreeImportReceipt, TreeTransfer};
 pub use files::{FileChunk, ReadFile, WriteFile};
 pub use identity::{ProviderId, WorkspaceId, WorkspaceRef};
+pub use machine::{
+    Admission, MachineRecord, MachineState, ProvisionKey, Refusal, RefusalCleanup, RefusalKind,
+};
 pub use open::{AttachRequest, CreateRequest, ResourceRequirements};
 pub use path::WorkspacePath;
 pub use ports::{PortAccess, PortPolicy, PortRequest};

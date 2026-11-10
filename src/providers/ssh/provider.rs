@@ -84,6 +84,7 @@ impl SshProvider {
                     stop: owned,
                     ..Capabilities::default()
                 },
+                admission: None,
             },
             target: Arc::new(SshTarget {
                 config: self.config.clone(),

@@ -5,8 +5,9 @@ use crate::{
     WorkflowRecord,
 };
 use crate::{
-    ports::IWorkflowRepository, BackendDescriptor, Error, IWorkspaceRepository, OperationId,
-    Result, WorkspaceId,
+    domain::{MachineRecord, MachineState},
+    ports::IWorkflowRepository,
+    BackendDescriptor, Error, IWorkspaceRepository, OperationId, Result, WorkspaceId,
 };
 use std::{
     collections::BTreeSet,
@@ -19,8 +20,33 @@ pub struct MemoryStateRepository {
     leases: Arc<Mutex<BTreeSet<OperationId>>>,
 }
 impl IWorkspaceRepository for MemoryStateRepository {
-    fn reserve(&self, id: &WorkspaceId, identity: &str) -> Result<()> {
-        self.state.lock().map_err(poisoned)?.reserve(id, identity)
+    fn begin(
+        &self,
+        id: &WorkspaceId,
+        request: &str,
+        initial: MachineState,
+    ) -> Result<MachineRecord> {
+        self.state
+            .lock()
+            .map_err(poisoned)?
+            .begin(id, request, initial)
+    }
+    fn advance(
+        &self,
+        id: &WorkspaceId,
+        expected_revision: u64,
+        next: MachineState,
+    ) -> Result<MachineRecord> {
+        self.state
+            .lock()
+            .map_err(poisoned)?
+            .advance(id, expected_revision, next)
+    }
+    fn forget(&self, id: &WorkspaceId, expected_revision: u64) -> Result<()> {
+        self.state
+            .lock()
+            .map_err(poisoned)?
+            .forget(id, expected_revision)
     }
     fn save(&self, descriptor: &BackendDescriptor) -> Result<()> {
         self.state
@@ -28,21 +54,21 @@ impl IWorkspaceRepository for MemoryStateRepository {
             .map_err(poisoned)?
             .save_workspace(descriptor)
     }
-    fn get(&self, id: &WorkspaceId) -> Result<Option<BackendDescriptor>> {
+    fn record(&self, id: &WorkspaceId) -> Result<Option<MachineRecord>> {
         Ok(self
             .state
             .lock()
             .map_err(poisoned)?
-            .workspaces
+            .machines
             .get(id)
             .cloned())
     }
-    fn list(&self) -> Result<Vec<BackendDescriptor>> {
+    fn records(&self) -> Result<Vec<MachineRecord>> {
         Ok(self
             .state
             .lock()
             .map_err(poisoned)?
-            .workspaces
+            .machines
             .values()
             .cloned()
             .collect())
@@ -109,9 +135,10 @@ mod tests {
     fn same_id_cannot_change_request_identity() {
         let repository = MemoryStateRepository::default();
         let id = WorkspaceId::new("one").unwrap();
-        repository.reserve(&id, "a").unwrap();
+        let attaching = || MachineState::Attaching;
+        repository.begin(&id, "a", attaching()).unwrap();
         assert!(matches!(
-            repository.reserve(&id, "b"),
+            repository.begin(&id, "b", attaching()),
             Err(Error::Conflict(_))
         ));
     }

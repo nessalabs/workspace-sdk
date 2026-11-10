@@ -235,7 +235,7 @@ fn old_typed_state_migrates_and_invalid_authority_is_not_discarded() {
             .unwrap();
         let stored: serde_json::Value =
             serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-        assert_eq!(stored["version"], 3);
+        assert_eq!(stored["version"], 4);
         assert!(stored["workflows"]["legacy-sync"].is_object());
     }
     let mut corrupted = seed();
