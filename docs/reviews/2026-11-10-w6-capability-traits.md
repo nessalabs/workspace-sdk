@@ -56,3 +56,15 @@ The adversarial review found no P1 or P2. It checked these and found them sound:
 The round 1 fixes are documentation, a lifetime bound, one error message and stronger assertions. None of them changes behaviour beyond the port refusal text.
 
 No P1 or P2 is open. The gate is accepted once CI passes on both platforms.
+
+## Round 2
+
+A fresh agent re-checked commit 9d1f36b and found nothing new at any severity. It checked the following:
+
+- It compiled `capabilities()` on a plain `&dyn IBackend` and on a non-`'static` one in a scratch crate.
+- It confirmed that each `compile_fail` snippet produces exactly one E0599, on the method it is meant to reject.
+- It checked the expected local flags against the code.
+- It ran clippy with all features and with no default features. Both were clean.
+- It ran rustdoc with `-D warnings`. It was clean.
+
+It found the decisions to keep things as they are reasonable. The plan to make `BoatMachines` stop and roll_back `pub(crate)` is tracked in the project's plan notes, together with the later slice that moves Nessa's VM records into the SDK.
