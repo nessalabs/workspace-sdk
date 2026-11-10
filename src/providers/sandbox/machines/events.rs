@@ -5,6 +5,7 @@ use super::diagnostics::Diagnostic;
 
 /// Why a caller stops a VM.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum StopCause {
     /// Nothing used it for the caller's idle time.
     Idle,

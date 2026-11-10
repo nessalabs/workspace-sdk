@@ -132,7 +132,12 @@ impl SandboxProvider {
             .create(&spec, key.as_str())
             .await
             .map_err(failure)?;
-        let rejected = match created.refusal() {
+        // A pending wipe is for `ready` to settle: resuming a stopped VM is
+        // the restart that ends it.
+        let refusal = created
+            .refusal()
+            .filter(|r| r.cause() != AdmissionRefusal::WipePending);
+        let rejected = match refusal {
             Some(rejection) => rejection.clone(),
             None => match machines
                 .ready(&spec, created.vm(), created.admission())
@@ -140,8 +145,14 @@ impl SandboxProvider {
             {
                 Ok(_) => return Ok((created.vm().to_owned(), admission(created.admission()))),
                 Err(MachineFailure::AdmissionRejected(rejection)) => rejection,
-                // `ready` stops a VM it woke and could not make ready.
-                Err(other) => return Err(failure(other)),
+                // `ready` stops a VM it woke; a fresh one this creation made
+                // is stopped too, and the retry wakes it again.
+                Err(other) => {
+                    if created.disposition() == Disposition::RollbackNewVm {
+                        let _ = machines.stop(created.vm(), StopCause::NotReady).await;
+                    }
+                    return Err(failure(other));
+                }
             },
         };
         let Some(kind) = final_kind(rejected.cause()) else {

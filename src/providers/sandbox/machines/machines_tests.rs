@@ -1,6 +1,5 @@
 //! Hostile provider responses cross real HTTP; no live account or VM is used.
 //! Ported with the tests of the application this logic came from.
-use super::super::*;
 use super::*;
 use axum::{
     routing::{get, post},
@@ -317,7 +316,7 @@ async fn server() -> Server {
             assert_eq!(request,json!({"type":"small","ttlSeconds":state.expected_ttl,"environment":"agents","env":{"WORKSPACE":"fixture-workspace"},"from":"bsh_fixture","snapshots":true}));
             state.created+=1; if state.drift_on_create { state.environment["passGithub"]=json!(true); } let mut body=state.creation_receipt.as_ref().unwrap_or(&state.receipt).clone(); for field in ["ok","type","status"] {body.as_object_mut().unwrap().remove(field);} for (field,value) in state.creation_ack.as_object().unwrap() {body[field.as_str()]=value.clone();} body["ttlSeconds"]=json!(state.expected_ttl); let status=axum::http::StatusCode::from_u16(state.create_status).unwrap(); async move { (status, Json(body)) } }))
         .route("/api/v1/sandboxes/{id}", get(move || { let mut state=read.lock().unwrap(); state.info_reads+=1; if state.receipt["sandbox"]["state"]==json!("archiving") { if state.archiving_reads==0 { state.receipt["sandbox"]["state"]=json!("archived"); } else { state.archiving_reads-=1; } } let body=state.startup_receipts.pop_front().unwrap_or_else(|| state.read_override.as_ref().unwrap_or(&state.receipt).clone()); async { Json(body) } }).delete(move || { let mut state=delete.lock().unwrap(); state.deleted+=1; async { axum::http::StatusCode::FORBIDDEN } }))
-        .route("/api/v1/sandboxes/{id}/resume", post(move |Json(request):Json<Value>| { let mut state=resume.lock().unwrap(); assert_eq!(request["ttlSeconds"],json!(state.expected_ttl)); state.resumed+=1; if state.drift_on_resume { state.environment["passSecrets"]=json!(true); } state.receipt["sandbox"]["state"]=json!("ready"); async move { Json(json!({"ok":true,"type":"sandbox.resumed","id":VM,"status":"ready"})) } }))
+        .route("/api/v1/sandboxes/{id}/resume", post(move |Json(request):Json<Value>| { let mut state=resume.lock().unwrap(); assert_eq!(request["ttlSeconds"],json!(state.expected_ttl)); state.resumed+=1; state.receipt["sandbox"]["wipePendingUntilRestart"]=json!(false); if state.drift_on_resume { state.environment["passSecrets"]=json!(true); } state.receipt["sandbox"]["state"]=json!("ready"); async move { Json(json!({"ok":true,"type":"sandbox.resumed","id":VM,"status":"ready"})) } }))
         .fallback(move || { commands.lock().unwrap().commands+=1; async { axum::http::StatusCode::FORBIDDEN } });
     let task = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
     let events = Arc::new(Events::default());
@@ -1322,8 +1321,9 @@ mod provider {
                 cause: StopCause::NotAdmitted
             }));
         {
+            // The stop archived it; the wipe stays pending until a restart.
             let mut state = server.state.lock().unwrap();
-            state.receipt["sandbox"]["wipePendingUntilRestart"] = json!(false);
+            state.receipt["sandbox"]["state"] = json!("archived");
             state.creation_ack["status"] = json!("ready");
         }
         let (vm, _) = provider
@@ -1332,7 +1332,7 @@ mod provider {
             .unwrap();
         assert_eq!(vm, VM);
         let state = server.state.lock().unwrap();
-        assert_eq!((state.created, state.deleted), (2, 0));
+        assert_eq!((state.created, state.deleted, state.resumed), (2, 0, 1));
     }
 
     /// A replayed machine whose check may pass later is left as found: it

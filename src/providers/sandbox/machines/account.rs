@@ -1,7 +1,7 @@
 //! One Boat account's VMs: made, made ready, stopped and rolled back.
 use super::{
     admission,
-    environment::{AdmissionRejection, EnvironmentIdentity},
+    environment::{AdmissionRefusal, AdmissionRejection, EnvironmentIdentity},
     events::{IMachineEvents, MachineEvent, StopCause},
     spec::{Budget, MachineFailure, MachineSpec},
 };
@@ -263,7 +263,8 @@ impl BoatMachines {
     /// changed since admission; [`MachineFailure::Provider`] when Boat fails,
     /// the VM does not become ready, or the budget runs out. A VM this call
     /// resumed is stopped again on any failure ([`StopCause::NotReady`]); one
-    /// it found running is left as it was.
+    /// it found running is left as it was. Another caller that starts using
+    /// the VM between its resume and that stop loses it.
     pub async fn ready(
         &self,
         spec: &MachineSpec,
@@ -290,6 +291,38 @@ impl BoatMachines {
         ready
     }
 
+    /// The check before waking `vm`. A wipe still pending on a stopped VM
+    /// ends with its restart, which resuming is, so it lets a stopped VM
+    /// through; the full check after it is ready decides.
+    async fn before_waking(
+        &self,
+        spec: &MachineSpec,
+        vm: &str,
+        admitted: &EnvironmentIdentity,
+    ) -> Result<SandboxInfoResponse, MachineFailure> {
+        match admission::check(&self.boat, spec, vm, admitted, None).await {
+            Err(MachineFailure::AdmissionRejected(rejection))
+                if rejection.cause() == AdmissionRefusal::WipePending =>
+            {
+                let found = self
+                    .boat
+                    .api
+                    .get(vm)
+                    .await
+                    .map_err(|_| MachineFailure::Provider)?;
+                if matches!(
+                    found.sandbox.state,
+                    SandboxState::Archived | SandboxState::Archiving
+                ) {
+                    Ok(found)
+                } else {
+                    Err(MachineFailure::AdmissionRejected(rejection))
+                }
+            }
+            checked => checked,
+        }
+    }
+
     async fn ready_by(
         &self,
         spec: &MachineSpec,
@@ -299,10 +332,10 @@ impl BoatMachines {
         resumed_it: &mut bool,
     ) -> Result<SandboxInfoResponse, MachineFailure> {
         let boat = &self.boat;
-        let mut found = admission::check(boat, spec, vm, admitted, None).await?;
+        let mut found = self.before_waking(spec, vm, admitted).await?;
         while found.sandbox.state == SandboxState::Archiving {
             tokio::time::sleep(Duration::from_secs(1)).await;
-            found = admission::check(boat, spec, vm, admitted, None).await?;
+            found = self.before_waking(spec, vm, admitted).await?;
         }
         let resumed = found.sandbox.state == SandboxState::Archived;
         if resumed {
