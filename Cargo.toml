@@ -36,13 +36,11 @@ thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "process", "time", "io-util", "fs", "sync", "signal"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 
-[dev-dependencies]
-workspace_sdk = { path = ".", features = ["testing"] }
-
 [[bin]]
 name = "workspace-supervisor"
 path = "src/bin/workspace-supervisor.rs"
 
 [dev-dependencies]
+workspace_sdk = { path = ".", features = ["testing"] }
 axum = "0.8"
 tokio = { version = "1", features = ["test-util"] }
