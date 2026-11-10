@@ -98,6 +98,9 @@ pub enum AdmissionRefusal {
     ReceiptUnavailable,
     /// The VM's lifetime is missing or longer than the spec allows.
     LifetimeNotEnforced,
+    /// Boat still has to wipe credentials the VM's image carried; it may
+    /// hold another account's logins until it restarts.
+    WipePending,
 }
 impl AdmissionRefusal {
     /// Its name in a record.
@@ -112,6 +115,30 @@ impl AdmissionRefusal {
             Self::InvalidReceipt => "invalid_receipt",
             Self::ReceiptUnavailable => "receipt_unavailable",
             Self::LifetimeNotEnforced => "lifetime_not_enforced",
+            Self::WipePending => "wipe_pending",
+        }
+    }
+    /// What it means, for people.
+    pub fn describe(self) -> &'static str {
+        match self {
+            Self::MissingEnvironment => "the machine's receipt names no environment",
+            Self::WrongEnvironment => "the machine runs in another environment",
+            Self::MissingVersion => "the machine's receipt names no environment version",
+            Self::WrongVersion => "the machine runs another version of its environment",
+            Self::EnvironmentChanged => {
+                "the account's environment changed after the machine was admitted"
+            }
+            Self::EnvironmentUnavailable => {
+                "the account's environment is gone or passes more than agent credentials"
+            }
+            Self::InvalidReceipt => {
+                "the machine's receipt could not be read strictly or grants too much"
+            }
+            Self::ReceiptUnavailable => "no usable receipt for the machine arrived in time",
+            Self::LifetimeNotEnforced => {
+                "the machine's lifetime is missing or longer than the one asked for"
+            }
+            Self::WipePending => "the machine still has credentials from its image to wipe",
         }
     }
 }
@@ -178,6 +205,22 @@ impl AdmissionRejection {
     /// What the receipt said, when it could be kept.
     pub fn observed(&self) -> Option<&ObservedEnvironment> {
         self.observed.as_ref()
+    }
+}
+impl std::fmt::Display for AdmissionRejection {
+    /// The cause in words, then what the receipt said: the name is kept only
+    /// when it is short plain ASCII, so it is safe to show.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.cause.describe())?;
+        if let Some(observed) = &self.observed {
+            match (&observed.name, observed.version) {
+                (Some(name), Some(version)) => write!(f, " (it names `{name}` version {version})"),
+                (Some(name), None) => write!(f, " (it names `{name}`)"),
+                (None, Some(version)) => write!(f, " (it names version {version})"),
+                (None, None) => Ok(()),
+            }?;
+        }
+        Ok(())
     }
 }
 

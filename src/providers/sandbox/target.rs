@@ -21,8 +21,6 @@ use std::{
 };
 use uuid::Uuid;
 
-/// How long a wake waits for a stopping sandbox to finish archiving.
-const ARCHIVE_WAIT: std::time::Duration = std::time::Duration::from_secs(120);
 /// How often a wake checks a stopping sandbox.
 const ARCHIVE_POLL: std::time::Duration = std::time::Duration::from_secs(1);
 
@@ -41,6 +39,8 @@ pub(super) struct SandboxTarget {
     pub(super) locator: Locator,
     pub(super) workspace_id: WorkspaceId,
     pub(super) verified_owned: AtomicBool,
+    /// How long one wake may take, every wait in it included.
+    pub(super) wake: std::time::Duration,
 }
 impl SandboxTarget {
     async fn native(&self, command: String) -> Result<CommandResponse> {
@@ -246,7 +246,7 @@ impl ITarget for SandboxTarget {
     async fn ensure(&self) -> Result<()> {
         // A stop returns once Boat accepts it, while the sandbox may still be
         // archiving; it can only be resumed once archived.
-        let deadline = tokio::time::Instant::now() + ARCHIVE_WAIT;
+        let deadline = tokio::time::Instant::now() + self.wake;
         let mut info = self.api.get(&self.locator.target).await.map_err(error)?;
         while info.sandbox.state == SandboxState::Archiving {
             if tokio::time::Instant::now() >= deadline {
@@ -269,10 +269,19 @@ impl ITarget for SandboxTarget {
                 .await
                 .map_err(error)?;
         }
+        // The client reads a zero wait as none at all, so a spent budget
+        // ends here.
+        let left = deadline.saturating_duration_since(tokio::time::Instant::now());
+        let left = u64::try_from(left.as_millis()).unwrap_or(u64::MAX);
+        if left == 0 {
+            return Err(Error::Timeout(
+                "the Sandbox did not become ready in time".into(),
+            ));
+        }
         wait_until_ready_with(
             &self.api,
             &self.locator.target,
-            WaitOptions::from_millis(180_000, 1_000),
+            WaitOptions::from_millis(left, 1_000),
         )
         .await
         .map_err(error)?;
@@ -477,6 +486,7 @@ mod tests {
             },
             workspace_id: WorkspaceId::new("test").unwrap(),
             verified_owned: AtomicBool::new(false),
+            wake: Duration::from_secs(5),
         };
         (target, worker)
     }
@@ -508,6 +518,23 @@ mod tests {
         assert_eq!(request.method, "POST");
         assert_eq!(request.route, "/sandboxes/bx_23456789/commands");
         serde_json::from_slice(&request.body).unwrap()
+    }
+
+    /// A wake spends one budget: an archive that never ends fails once it
+    /// is spent, not after a fixed wait of its own.
+    #[tokio::test]
+    async fn a_wake_gives_up_on_an_endless_archive_within_its_budget() {
+        let mut archiving: serde_json::Value =
+            serde_json::from_str(include_str!("machines/fixtures/boat-v1-sandbox.json")).unwrap();
+        archiving["sandbox"]["id"] = "bx_23456789".into();
+        archiving["sandbox"]["state"] = "archiving".into();
+        let (mut target, worker) = server(vec![archiving.to_string(); 3]);
+        target.wake = Duration::from_millis(1_500);
+        let started = std::time::Instant::now();
+        assert!(matches!(target.ensure().await, Err(Error::State(_))));
+        assert!(started.elapsed() < Duration::from_secs(5));
+        let requests = worker.join().unwrap();
+        assert!(requests.iter().all(|r| r.method == "GET"));
     }
 
     #[tokio::test]

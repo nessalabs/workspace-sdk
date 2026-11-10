@@ -126,7 +126,7 @@ async fn ready_snapshot_with_pending_wipe_is_still_refused_without_commands() {
     let receipt = server.machines.create(&spec(), KEY).await.unwrap();
     assert_eq!(
         receipt.refusal.unwrap().cause(),
-        AdmissionRefusal::InvalidReceipt
+        AdmissionRefusal::WipePending
     );
     let text = server.events.text();
     assert!(
@@ -261,6 +261,10 @@ struct State {
     archiving_reads: usize,
     /// The status the creation answers with.
     create_status: u16,
+    /// The idempotency key a creation must carry.
+    expected_key: String,
+    /// Deletions asked; Boat refuses each.
+    deleted: usize,
 }
 struct Server {
     base: String,
@@ -291,6 +295,8 @@ async fn server() -> Server {
         expected_ttl: Some(3600),
         archiving_reads: 0,
         create_status: 200,
+        expected_key: KEY.into(),
+        deleted: 0,
     }));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}/api/v1", listener.local_addr().unwrap());
@@ -299,17 +305,18 @@ async fn server() -> Server {
     let read = state.clone();
     let resume = state.clone();
     let commands = state.clone();
+    let delete = state.clone();
     let router = Router::new()
         .route("/api/v1/me", get(|| async move { Json(json!({"ok":true,"type":"me","user":{"id":"11111111-1111-4111-8111-111111111111"}})) }))
         .route("/api/v1/environments", get(move || { let env=env.lock().unwrap().environment.clone(); async move { Json(json!({"ok":true,"type":"environments.list","environments":[env]})) } }))
         .route("/api/v1/sandboxes", post(move |headers:axum::http::HeaderMap, Json(request):Json<Value>| {
             assert_eq!(headers.get("authorization").unwrap(),"Bearer fixture-token");
             assert_eq!(headers.get("x-boat-org").unwrap(),"personal");
-            assert_eq!(headers.get("idempotency-key").unwrap(),"creation-fixture-key");
             let mut state=create.lock().unwrap();
+            assert_eq!(headers.get("idempotency-key").unwrap(),state.expected_key.as_str());
             assert_eq!(request,json!({"type":"small","ttlSeconds":state.expected_ttl,"environment":"agents","env":{"WORKSPACE":"fixture-workspace"},"from":"bsh_fixture","snapshots":true}));
             state.created+=1; if state.drift_on_create { state.environment["passGithub"]=json!(true); } let mut body=state.creation_receipt.as_ref().unwrap_or(&state.receipt).clone(); for field in ["ok","type","status"] {body.as_object_mut().unwrap().remove(field);} for (field,value) in state.creation_ack.as_object().unwrap() {body[field.as_str()]=value.clone();} body["ttlSeconds"]=json!(state.expected_ttl); let status=axum::http::StatusCode::from_u16(state.create_status).unwrap(); async move { (status, Json(body)) } }))
-        .route("/api/v1/sandboxes/{id}", get(move || { let mut state=read.lock().unwrap(); state.info_reads+=1; if state.receipt["sandbox"]["state"]==json!("archiving") { if state.archiving_reads==0 { state.receipt["sandbox"]["state"]=json!("archived"); } else { state.archiving_reads-=1; } } let body=state.startup_receipts.pop_front().unwrap_or_else(|| state.read_override.as_ref().unwrap_or(&state.receipt).clone()); async { Json(body) } }))
+        .route("/api/v1/sandboxes/{id}", get(move || { let mut state=read.lock().unwrap(); state.info_reads+=1; if state.receipt["sandbox"]["state"]==json!("archiving") { if state.archiving_reads==0 { state.receipt["sandbox"]["state"]=json!("archived"); } else { state.archiving_reads-=1; } } let body=state.startup_receipts.pop_front().unwrap_or_else(|| state.read_override.as_ref().unwrap_or(&state.receipt).clone()); async { Json(body) } }).delete(move || { let mut state=delete.lock().unwrap(); state.deleted+=1; async { axum::http::StatusCode::FORBIDDEN } }))
         .route("/api/v1/sandboxes/{id}/resume", post(move |Json(request):Json<Value>| { let mut state=resume.lock().unwrap(); assert_eq!(request["ttlSeconds"],json!(state.expected_ttl)); state.resumed+=1; if state.drift_on_resume { state.environment["passSecrets"]=json!(true); } state.receipt["sandbox"]["state"]=json!("ready"); async move { Json(json!({"ok":true,"type":"sandbox.resumed","id":VM,"status":"ready"})) } }))
         .fallback(move || { commands.lock().unwrap().commands+=1; async { axum::http::StatusCode::FORBIDDEN } });
     let task = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
@@ -544,6 +551,11 @@ async fn mismatched_vm_receipts_retain_targets_without_admitting_them() {
         (
             "wipePendingUntilRestart",
             json!(true),
+            AdmissionRefusal::WipePending,
+        ),
+        (
+            "wipePendingUntilRestart",
+            json!("yes"),
             AdmissionRefusal::InvalidReceipt,
         ),
         (
@@ -858,7 +870,7 @@ async fn a_failing_event_sink_never_changes_an_outcome() {
     let receipt = machines.create(&spec(), KEY).await.unwrap();
     assert_eq!(
         receipt.refusal.unwrap().cause(),
-        AdmissionRefusal::InvalidReceipt
+        AdmissionRefusal::WipePending
     );
     assert_eq!(
         machines.stop(VM, StopCause::Closed).await,
@@ -1010,4 +1022,196 @@ async fn a_saved_creation_can_still_be_rolled_back_after_a_restart() {
         .err(),
         Some(MachineFailure::InvalidInput)
     );
+}
+
+/// The provider over these machines, as an application uses it.
+mod provider {
+    use super::*;
+    use crate::{
+        domain::{
+            CreateRequest, MachineState, ProvisionKey, RefusalCleanup, RefusalKind, WorkspaceId,
+        },
+        infrastructure::MemoryStateRepository,
+        providers::{SandboxCreateOptions, SandboxProvider},
+        Error, IProvider, WorkspaceSdk,
+    };
+
+    fn options() -> SandboxCreateOptions {
+        let mut options = SandboxCreateOptions::new("/work");
+        options.image = Some("bsh_fixture".into());
+        options.environment = Some("agents".into());
+        options.sandbox_type = Some("small".into());
+        options.variables = [("WORKSPACE".into(), "fixture-workspace".into())].into();
+        options
+    }
+    fn request(options: &SandboxCreateOptions) -> CreateRequest {
+        CreateRequest::with_options(WorkspaceId::new("fixture").unwrap(), options).unwrap()
+    }
+    fn provider(server: &Server) -> SandboxProvider {
+        let unused = sandbox_client::ClientConfig::new("other-account").unwrap();
+        server.state.lock().unwrap().expected_key =
+            ProvisionKey::for_workspace(&WorkspaceId::new("fixture").unwrap())
+                .as_str()
+                .into();
+        SandboxProvider::new(Api::new(unused).unwrap()).with_machines(server.machines.clone())
+    }
+    async fn refusal(server: &Server) -> crate::domain::Refusal {
+        match provider(server).create(request(&options())).await {
+            Err(Error::Refused(refusal)) => *refusal,
+            Err(other) => panic!("not refused: {other}"),
+            Ok(_) => panic!("not refused"),
+        }
+    }
+
+    #[test]
+    fn a_machine_needs_an_image_environment_and_type_and_nothing_else_takes_them() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let server = runtime.block_on(server());
+        let with = provider(&server);
+        assert!(with.check_create(&request(&options())).is_ok());
+        for strip in 0..3 {
+            let mut partial = options();
+            match strip {
+                0 => partial.image = None,
+                1 => partial.environment = None,
+                _ => partial.sandbox_type = None,
+            }
+            assert!(matches!(
+                with.check_create(&request(&partial)),
+                Err(Error::InvalidInput(_))
+            ));
+        }
+        let mut unsafe_name = options();
+        unsafe_name.image = Some("../x".into());
+        assert!(matches!(
+            with.check_create(&request(&unsafe_name)),
+            Err(Error::InvalidInput(_))
+        ));
+        let without = SandboxProvider::new(
+            Api::new(sandbox_client::ClientConfig::new("fixture-only").unwrap()).unwrap(),
+        );
+        assert!(matches!(
+            without.check_create(&request(&options())),
+            Err(Error::InvalidInput(_))
+        ));
+        let mut plain = SandboxCreateOptions::new("/work");
+        plain.sandbox_type = Some("small".into());
+        assert!(without.check_create(&request(&plain)).is_ok());
+        // An option left out keeps the request it was before.
+        assert_eq!(
+            serde_json::to_value(&plain).unwrap(),
+            json!({"root":"/work","sandbox_type":"small","ttl_seconds":3600,"environment":null})
+        );
+    }
+
+    #[tokio::test]
+    async fn a_machine_in_another_environment_is_refused_with_why_and_rolled_back() {
+        let server = server().await;
+        {
+            let mut state = server.state.lock().unwrap();
+            state.receipt["sandbox"]["environment"] = json!("elsewhere");
+        }
+        let refusal = refusal(&server).await;
+        assert_eq!(refusal.kind, RefusalKind::EnvironmentMismatch);
+        assert_eq!(refusal.target.as_deref(), Some(VM));
+        // Boat never confirms a deletion.
+        assert_eq!(refusal.cleanup, RefusalCleanup::Unknown);
+        assert!(
+            refusal.message.contains("another environment")
+                && refusal.message.contains("`elsewhere`"),
+            "{}",
+            refusal.message
+        );
+        let admitted = refusal.admission.unwrap();
+        assert_eq!(admitted.name, "agents");
+        assert_eq!(admitted.version, "2");
+        let state = server.state.lock().unwrap();
+        assert_eq!((state.created, state.deleted, state.commands), (1, 1, 0));
+    }
+
+    #[tokio::test]
+    async fn a_pending_wipe_is_its_own_reason_and_its_deletion_stays_uncertain() {
+        let server = server().await;
+        server.state.lock().unwrap().receipt["sandbox"]["wipePendingUntilRestart"] = json!(true);
+        let refusal = refusal(&server).await;
+        assert_eq!(refusal.kind, RefusalKind::PendingWipe);
+        // Even a refused deletion may have been made before its answer.
+        assert_eq!(refusal.cleanup, RefusalCleanup::Unknown);
+        assert_eq!(server.state.lock().unwrap().deleted, 1);
+    }
+
+    #[tokio::test]
+    async fn a_replayed_machine_that_is_refused_is_never_deleted() {
+        let server = server().await;
+        {
+            let mut state = server.state.lock().unwrap();
+            state.creation_ack["status"] = json!("ready");
+            state.receipt["sandbox"]["environmentVersion"] = json!(9);
+        }
+        let refusal = refusal(&server).await;
+        assert_eq!(refusal.kind, RefusalKind::EnvironmentMismatch);
+        assert_eq!(refusal.cleanup, RefusalCleanup::Kept);
+        assert!(refusal.message.contains("version 9"), "{}", refusal.message);
+        assert_eq!(server.state.lock().unwrap().deleted, 0);
+    }
+
+    #[tokio::test]
+    async fn an_unusable_receipt_is_refused_as_not_admitted() {
+        let server = server().await;
+        server.state.lock().unwrap().receipt["sandbox"]["setupStatus"] = json!("running");
+        assert_eq!(refusal(&server).await.kind, RefusalKind::NotAdmitted);
+    }
+
+    /// The SDK saves the refusal, so asking again answers it without making
+    /// another machine.
+    #[tokio::test]
+    async fn the_sdk_keeps_a_refusal_and_never_asks_boat_again() {
+        let server = server().await;
+        server.state.lock().unwrap().receipt["sandbox"]["environment"] = json!("elsewhere");
+        let provider = Arc::new(provider(&server));
+        let id = provider.id();
+        let sdk = WorkspaceSdk::builder(Arc::new(MemoryStateRepository::default()))
+            .provider(provider)
+            .unwrap()
+            .build()
+            .unwrap();
+        for _ in 0..2 {
+            match sdk.create(&id, request(&options())).await {
+                Err(Error::Refused(refusal)) => {
+                    assert_eq!(refusal.kind, RefusalKind::EnvironmentMismatch)
+                }
+                _ => panic!("not refused"),
+            }
+        }
+        let record = sdk
+            .record(&WorkspaceId::new("fixture").unwrap())
+            .unwrap()
+            .unwrap();
+        assert!(matches!(record.state, MachineState::Refused { .. }));
+        assert_eq!(server.state.lock().unwrap().created, 1);
+    }
+
+    /// Boat failing before it names a machine leaves the record pending, so
+    /// the same key finishes it.
+    #[tokio::test]
+    async fn an_uncertain_creation_stays_pending_for_the_same_key() {
+        let server = server().await;
+        server.state.lock().unwrap().create_status = 500;
+        let provider = Arc::new(provider(&server));
+        let id = provider.id();
+        let sdk = WorkspaceSdk::builder(Arc::new(MemoryStateRepository::default()))
+            .provider(provider)
+            .unwrap()
+            .build()
+            .unwrap();
+        assert!(matches!(
+            sdk.create(&id, request(&options())).await,
+            Err(Error::Provider { .. })
+        ));
+        let record = sdk
+            .record(&WorkspaceId::new("fixture").unwrap())
+            .unwrap()
+            .unwrap();
+        assert!(matches!(record.state, MachineState::Provisioning { .. }));
+    }
 }

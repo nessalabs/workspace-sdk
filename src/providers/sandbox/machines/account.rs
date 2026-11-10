@@ -151,6 +151,11 @@ impl BoatMachines {
         self
     }
 
+    /// The account's client, in its personal scope.
+    pub(in crate::providers::sandbox) fn api(&self) -> &Api {
+        &self.boat.api
+    }
+
     fn deadline(&self) -> Result<Instant, MachineFailure> {
         Instant::now()
             .checked_add(self.budget.duration())

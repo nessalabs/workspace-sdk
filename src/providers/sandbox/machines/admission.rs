@@ -566,6 +566,14 @@ async fn receipt(
                 _ => "other",
             };
             boat.record(MachineEvent::CredentialWipePending { startup_phase });
+            if observed == Some(&Value::Bool(true)) {
+                Diagnostic::field(Stage::InfoValidation, scope, field, problem, observed)
+                    .emit(boat);
+                return Err(MachineFailure::AdmissionRejected(AdmissionRejection::new(
+                    AdmissionRefusal::WipePending,
+                    None,
+                )));
+            }
         }
         return Err(invalid_receipt(
             boat,
