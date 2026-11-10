@@ -1,3 +1,4 @@
+use crate::domain::ProviderId;
 use crate::domain::{MachineRecord, MachineState, ProvisionKey, RecoverySession, RequestOrigin};
 use crate::{
     BackendDescriptor, Error, HandoffReceipt, OperationId, Result, SyncSession, WorkflowRecord,
@@ -201,12 +202,14 @@ impl RepositoryState {
     pub(super) fn begin(
         &mut self,
         id: &WorkspaceId,
+        provider: &ProviderId,
         request: &str,
         initial: MachineState,
     ) -> Result<MachineRecord> {
         let (record, changed) = MachineRecord::begin(
             self.machines.get(id),
             id,
+            provider,
             request,
             initial,
             self.retired.get(id).copied(),

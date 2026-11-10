@@ -21,6 +21,11 @@ use std::{
 };
 use uuid::Uuid;
 
+/// How long a wake waits for a stopping sandbox to finish archiving.
+const ARCHIVE_WAIT: std::time::Duration = std::time::Duration::from_secs(120);
+/// How often a wake checks a stopping sandbox.
+const ARCHIVE_POLL: std::time::Duration = std::time::Duration::from_secs(1);
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SandboxOwnerRecord {
@@ -239,7 +244,19 @@ impl ITarget for SandboxTarget {
         result
     }
     async fn ensure(&self) -> Result<()> {
-        let info = self.api.get(&self.locator.target).await.map_err(error)?;
+        // A stop returns once Boat accepts it, while the sandbox may still be
+        // archiving; it can only be resumed once archived.
+        let deadline = tokio::time::Instant::now() + ARCHIVE_WAIT;
+        let mut info = self.api.get(&self.locator.target).await.map_err(error)?;
+        while info.sandbox.state == SandboxState::Archiving {
+            if tokio::time::Instant::now() >= deadline {
+                return Err(Error::State(
+                    "Sandbox is still archiving; try again once it has stopped".into(),
+                ));
+            }
+            tokio::time::sleep(ARCHIVE_POLL).await;
+            info = self.api.get(&self.locator.target).await.map_err(error)?;
+        }
         if info.sandbox.state == SandboxState::Archived {
             if self.locator.ownership == Ownership::Attached {
                 return Err(Error::State(

@@ -1,4 +1,5 @@
 use super::repository_state::{RepositoryState, VERSION};
+use crate::domain::ProviderId;
 use crate::{
     domain::RecoverySession,
     ports::{IRecoveryRepository, IWorkflowLease},
@@ -95,10 +96,11 @@ impl IWorkspaceRepository for FileStateRepository {
     fn begin(
         &self,
         id: &WorkspaceId,
+        provider: &ProviderId,
         request: &str,
         initial: MachineState,
     ) -> Result<MachineRecord> {
-        self.access(true, |state| state.begin(id, request, initial))
+        self.access(true, |state| state.begin(id, provider, request, initial))
     }
     fn advance(
         &self,
@@ -185,12 +187,16 @@ mod tests {
     use crate::domain::{ProvisionKey, RequestOrigin};
 
     /// Reserve an ID the way an attach does, for tests about the file itself.
+    fn local() -> ProviderId {
+        ProviderId::new("local").unwrap()
+    }
     trait Reserve {
         fn reserve(&self, id: &WorkspaceId, request: &str) -> Result<()>;
     }
     impl Reserve for FileStateRepository {
         fn reserve(&self, id: &WorkspaceId, request: &str) -> Result<()> {
-            self.begin(id, request, MachineState::Attaching).map(drop)
+            self.begin(id, &local(), request, MachineState::Attaching)
+                .map(drop)
         }
     }
     #[test]
@@ -367,6 +373,7 @@ mod tests {
         let adopted = repository
             .begin(
                 &id,
+                &local(),
                 "first-request",
                 MachineState::Provisioning {
                     key: ProvisionKey::for_workspace(&id),

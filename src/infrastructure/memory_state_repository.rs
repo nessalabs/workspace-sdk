@@ -1,4 +1,5 @@
 use super::repository_state::RepositoryState;
+use crate::domain::ProviderId;
 use crate::{
     domain::RecoverySession,
     ports::{IRecoveryRepository, IWorkflowLease},
@@ -23,13 +24,14 @@ impl IWorkspaceRepository for MemoryStateRepository {
     fn begin(
         &self,
         id: &WorkspaceId,
+        provider: &ProviderId,
         request: &str,
         initial: MachineState,
     ) -> Result<MachineRecord> {
         self.state
             .lock()
             .map_err(poisoned)?
-            .begin(id, request, initial)
+            .begin(id, provider, request, initial)
     }
     fn advance(
         &self,
@@ -136,9 +138,10 @@ mod tests {
         let repository = MemoryStateRepository::default();
         let id = WorkspaceId::new("one").unwrap();
         let attaching = || MachineState::Attaching;
-        repository.begin(&id, "a", attaching()).unwrap();
+        let local = ProviderId::new("local").unwrap();
+        repository.begin(&id, &local, "a", attaching()).unwrap();
         assert!(matches!(
-            repository.begin(&id, "b", attaching()),
+            repository.begin(&id, &local, "b", attaching()),
             Err(Error::Conflict(_))
         ));
     }

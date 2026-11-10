@@ -10,13 +10,15 @@ use crate::{domain::*, Result};
 /// [`MachineRecord::refresh`] and [`MachineRecord::check_forget`]. Revisions
 /// must never repeat for an ID, even after a forget.
 pub trait IWorkspaceRepository: Send + Sync {
-    /// Reserve `id` for `request` before any side effect, saving `initial`.
+    /// Reserve `id` for `request` to `provider` before any side effect, saving
+    /// `initial`, as [`MachineRecord::begin`] decides.
     ///
     /// If the ID already holds a record for the same request, return it
     /// unchanged; if it holds any other record, return `Conflict`.
     fn begin(
         &self,
         id: &WorkspaceId,
+        provider: &ProviderId,
         request: &str,
         initial: MachineState,
     ) -> Result<MachineRecord>;

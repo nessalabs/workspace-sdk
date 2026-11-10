@@ -1,5 +1,6 @@
 //! The saved record of one workspace's target: one place, one set of states.
 use super::{BackendDescriptor, Ownership, WorkspaceId};
+use crate::domain::ProviderId;
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -266,7 +267,8 @@ impl MachineRecord {
         }
         Ok(())
     }
-    /// Reserve `id` for `request`, given the record already saved for it.
+    /// Reserve `id` for `request` to `provider`, given the record already saved
+    /// for it.
     ///
     /// Returns the record to use and whether it must be saved. The same request
     /// continues from its saved record; an upgraded record is adopted by the
@@ -277,6 +279,7 @@ impl MachineRecord {
     pub fn begin(
         saved: Option<&Self>,
         id: &WorkspaceId,
+        provider: &ProviderId,
         request: &str,
         initial: MachineState,
         retired: Option<u64>,
@@ -324,10 +327,16 @@ impl MachineRecord {
             ))),
             RequestOrigin::Upgraded => {
                 // An upgraded unfinished reservation does not say whether it was
-                // a create or an attach, so either may take it over.
+                // a create or an attach, or for which provider, so any request
+                // may take it over. An upgraded target is kept only by a
+                // request of its own kind to its own provider.
                 let state = if saved.state.is_pending() {
                     initial
-                } else if saved.state.intended_ownership() == Some(wanted) {
+                } else if saved.state.intended_ownership() == Some(wanted)
+                    && saved
+                        .descriptor()
+                        .is_some_and(|descriptor| &descriptor.reference.provider == provider)
+                {
                     saved.state.clone()
                 } else {
                     return Err(Error::Conflict(format!(

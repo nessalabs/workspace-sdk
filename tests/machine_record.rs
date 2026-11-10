@@ -655,3 +655,41 @@ async fn an_upgraded_ready_target_is_kept_by_a_fitting_request_only() {
     assert_eq!(again.descriptor(), created);
     assert_eq!(provider.calls(), 0);
 }
+
+#[tokio::test]
+async fn an_upgraded_target_is_kept_only_by_its_own_provider() {
+    let temp = TempDir::new().unwrap();
+    let workspace = id("upgraded-provider");
+    let (sdk, _) = sdk(temp.path(), &[]);
+    let descriptor = sdk
+        .create(&local(), CreateRequest::new(workspace.clone()))
+        .await
+        .unwrap()
+        .descriptor();
+    let upgraded = MachineRecord {
+        workspace_id: workspace.clone(),
+        origin: RequestOrigin::Upgraded,
+        revision: 1,
+        generation: 1,
+        state: MachineState::Ready { descriptor },
+    };
+    let pending = || MachineState::Provisioning {
+        key: ProvisionKey::for_workspace(&workspace),
+    };
+    let container = ProviderId::new("container").unwrap();
+    assert!(matches!(
+        MachineRecord::begin(
+            Some(&upgraded),
+            &workspace,
+            &container,
+            "c",
+            pending(),
+            None
+        ),
+        Err(Error::Conflict(_))
+    ));
+    let (kept, saved) =
+        MachineRecord::begin(Some(&upgraded), &workspace, &local(), "l", pending(), None).unwrap();
+    assert!(saved);
+    assert_eq!(kept.state, upgraded.state);
+}

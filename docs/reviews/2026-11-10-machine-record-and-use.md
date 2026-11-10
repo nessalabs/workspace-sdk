@@ -119,6 +119,13 @@ P3s left as they are:
 
 Accepted: the review gate is passed. No P1 or P2 is open.
 
+## Codex review on the ready pull request
+
+| Finding | Resolution |
+| --- | --- |
+| P2: an upgraded Ready record was adopted by any request of the same kind, even one to another provider, and was then resumed without the provider check. | Fixed. `begin` takes the provider, and an upgraded target is kept only by a request of its own kind to its own provider. An upgraded pending record does not say which provider it was for, so any request may still take it over. Test: `an_upgraded_target_is_kept_only_by_its_own_provider`. |
+| P2: Boat's stop returns while the sandbox is still archiving, so a hold right after a rest failed instead of waking it. | Fixed in the sandbox target. A wake waits up to 120 s for archiving to finish and then resumes. There is no fake Boat API to test this with; W3 brings the caller's budget and a test double. |
+
 ## Remaining limitations
 
 - Boat key lifetime and rollback of a created target belong to W3 (adversarial round-1 P2-3).

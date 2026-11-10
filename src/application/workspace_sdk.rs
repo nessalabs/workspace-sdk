@@ -45,6 +45,7 @@ impl WorkspaceSdk {
         let identity = request_identity(&("create", provider, &request))?;
         let record = self.repository.begin(
             &request.workspace_id,
+            provider,
             &identity,
             MachineState::Provisioning {
                 key: request.provision_key(),
@@ -73,9 +74,12 @@ impl WorkspaceSdk {
         let adapter = self.provider(provider)?;
         adapter.check_attach(&request)?;
         let identity = request_identity(&("attach", provider, &request))?;
-        let record =
-            self.repository
-                .begin(&request.workspace_id, &identity, MachineState::Attaching)?;
+        let record = self.repository.begin(
+            &request.workspace_id,
+            provider,
+            &identity,
+            MachineState::Attaching,
+        )?;
         self.finish(
             provider,
             record,
