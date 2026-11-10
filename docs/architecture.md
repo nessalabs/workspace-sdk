@@ -2,6 +2,30 @@
 
 Workspace SDK is a Rust library with an explicit native Rust supervisor executable. Applications own cloud accounts, target paths, credential stores, UI, and agent logic. The SDK coordinates work through injected interfaces.
 
+## Features
+
+The default build (`boat`) holds providers, workspace create and attach,
+runs, terminals, file reads and writes, ports, private state, runtime
+preparation and `Machines`. Optional features add the rest:
+
+| Feature | Default | Adds |
+| --- | --- | --- |
+| `boat` | yes | The Boat provider (`BoatProvider`) and the reexported `boat_client`. |
+| `portability` | no | Workspace portability: checkpoints (`checkpoint` engine), `SyncService` sync and handoff, `RecoveryService`, Git worktree helpers (`git`), `DirectoryObserver` and the file-browser and tree-transfer backend operations (`list_directory`, `read_versioned_file`, `publish_file`, `export_tree`, `import_tree`, `remove_transfer`) with their supervisor operations. |
+| `container` | no | The Docker/Podman-compatible `ContainerProvider`. |
+| `space` | no | The SPACE attachment provider (`SpaceProvider`). |
+| `testing` | no | `MemoryStateRepository`, for tests only. |
+
+Two things do not depend on features. The state file: the synchronization
+records and the checkpoint values they refer to (`src/domain/synchronization/`,
+`src/checkpoint/domain/`) are compiled in every build, so any build reads and
+rewrites a file with workflow records unchanged; only the services, engine and
+workflow repository ports are gated. The supervisor protocol: a supervisor
+answers an operation name it was not built with as `Unsupported`
+(`SupervisorRequest::decode`), so a client built with `portability` talking to
+a supervisor built without it gets a clear refusal. CI builds the shipped
+supervisor with `portability`.
+
 ## Boundaries and dependency direction
 
 | Layer / context | Source | Responsibility |
@@ -90,18 +114,3 @@ The client's handoff journal records callback progress; callers still implement 
 
 The active product is the Rust library plus Rust supervisor. The TypeScript package, its JSONL client CLI, and obsolete spike harnesses have been removed. Historical evidence is retained with its original scope; it is not proof of the rewritten supervisor. Registry publication and additional language bindings remain separate later work.
 
-## Managed local editing
-
-`application/edit` stages immutable candidate archives under session-qualified
-revisions and delegates all validation, merge, resolution and publication to
-`ICheckpointEngine`. Its effective limits are exposed through that port and
-checked before session capture. `IEditCoordinator` isolates the local root/lease
-seam; `LocalEditCoordinator` reuses the existing workflow lease repository with
-a canonical-root key and directory-identity check. It serializes participating
-SDK controllers only. Actual unmanaged-writer quiescence is caller-owned.
-
-The checkpoint owner preflights uncaptured destination collisions before apply
-intent/mutation, protecting ignored files from rollback removal. Live observations
-use descriptor-relative POSIX directory enumeration on Linux/macOS. Native
-exclusive creation still requires Linux anonymous-file support. UI, polling and
-writer pause/resume remain host responsibilities. See [managed editing](state/managed-editing.md).

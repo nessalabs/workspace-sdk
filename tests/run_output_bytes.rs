@@ -1,3 +1,4 @@
+#![cfg(feature = "portability")]
 //! Real native output bytes; text decoding and PTY emulation are not involved.
 // Reuse the ownership/lease cleanup fixture; continuation helpers are unused here.
 #[allow(dead_code)]

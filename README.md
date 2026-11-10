@@ -9,8 +9,8 @@ The SDK is organized around workspace management, execution, synchronization, an
 Build the native supervisor first:
 
 ```sh
-cargo build --locked --no-default-features --bin workspace-supervisor
-cargo run --locked --no-default-features --example local_workflow -- target/debug/workspace-supervisor
+cargo build --locked --no-default-features --features portability --bin workspace-supervisor
+cargo run --locked --no-default-features --features portability --example local_workflow -- target/debug/workspace-supervisor
 ```
 
 The example owns temporary directories, runs a small workload, reviews/applies file changes, and removes its workspace. Local execution deliberately uses trusted host permissions. It does not create a sandbox.
@@ -59,6 +59,27 @@ sandbox using explicit configuration and a preinstalled supervisor. See the
 
 Requirements: Rust 1.89+ to build, a supported POSIX target for process supervision, and Git for checkpoint operations. The SDK does not require a Rust toolchain on a target using a prebuilt supervisor. Your workload can have its own runtime requirements.
 
+## Features
+
+The default build holds what an application needs to run work on a machine:
+providers, `WorkspaceSdk` create and attach, `Workspace` and `OwnedWorkspace`,
+runs, terminals, file reads and writes, ports, private state, runtime
+preparation and `Machines`. Everything else is opt-in.
+
+| Feature | Default | Adds |
+| --- | --- | --- |
+| `boat` | yes | The Boat provider (`BoatProvider`) and the reexported `boat_client`. |
+| `portability` | no | Workspace portability: checkpoints (`checkpoint` engine), `SyncService` sync and handoff, `RecoveryService`, Git worktree helpers (`git`), `DirectoryObserver` and the file-browser and tree-transfer backend operations (`list_directory`, `read_versioned_file`, `publish_file`, `export_tree`, `import_tree`, `remove_transfer`) with their supervisor operations. |
+| `container` | no | The Docker/Podman-compatible `ContainerProvider`. |
+| `space` | no | The SPACE attachment provider (`SpaceProvider`). |
+| `testing` | no | `MemoryStateRepository`, for tests only. |
+
+The state file has one format in every build: a build without `portability`
+keeps saved sync, handoff and recovery records as they are. Build the
+supervisor you deploy with `portability`, so it serves clients built with or
+without it. A supervisor built without it answers those operations with
+`Error::Unsupported`.
+
 ## Find the model and API
 
 - [Browsable system map and lifecycle decisions](docs/state/README.md): workspace ownership, execution, sync, runtime preparation, and verification limits.
@@ -103,14 +124,10 @@ Run `scripts/quality-gate.sh` for the mechanical and local performance checks.
 Acceptance additionally requires separate independent code-quality/design and
 adversarial agent reviews under [the coding standards](coding_standards.md).
 
-The [file browser contract](docs/state/files.md) covers the qualified first slice: bounded directory pages, revision-bound binary reads, caller-driven reconciliation and exclusive creation on Linux. Portable observations also target macOS; [managed local editing](docs/state/managed-editing.md) stages create/replace/delete/rename through existing checkpoint review and caller-quiescent publication. Unattended live replacement and automatic collaborative text merging remain outside this scope.
+The [file browser contract](docs/state/files.md) covers the qualified first slice: bounded directory pages, revision-bound binary reads, caller-driven reconciliation and exclusive creation on Linux. Portable observations also target macOS. Unattended live replacement and automatic collaborative text merging remain outside this scope.
 
 See [recovery at an expected checkpoint](docs/recovery-expected-head.md) for exact-head admission and retry behavior.
 
 See [retained byte output](docs/run-output-bytes.md) for binary-safe paging and retention limits.
-
-See [managed pipe input](docs/managed-pipe-input.md) for transient input, explicit EOF, and retry ownership.
-
-See [clean child environment](docs/managed-clean-environment.md) for explicit piped launch environment clearing.
 
 See [retained fingerprint verification](docs/retained-fingerprint-inspection.md) for proof-only inspection and engine compatibility.

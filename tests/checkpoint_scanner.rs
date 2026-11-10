@@ -1,3 +1,4 @@
+#![cfg(feature = "portability")]
 //! Public capture/archive selection and bound contracts. These tests make no
 //! allocation, RSS or speed claim about directory traversal.
 use std::{fs, path::Path};

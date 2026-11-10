@@ -8,7 +8,8 @@ use async_trait::async_trait;
 /// Providers implement this contract using their native transport. Domain values
 /// cross this boundary; wire-level serialization belongs inside the adapter.
 /// Optional operations default to `Unsupported` rather than silently weakening
-/// the requested behavior.
+/// the requested behavior. The file-browser and tree-transfer operations exist
+/// only with the `portability` feature; implementations gate them the same way.
 pub trait IBackend: Send + Sync {
     /// Return connection metadata without polling remote resource state.
     fn descriptor(&self) -> BackendDescriptor;
@@ -22,26 +23,32 @@ pub trait IBackend: Send + Sync {
     async fn read_file(&self, request: ReadFile) -> Result<FileChunk>;
     /// Write a bounded binary chunk, preserving the requested executable mode.
     async fn write_file(&self, request: WriteFile) -> Result<()>;
+    #[cfg(feature = "portability")]
     /// List one directory without recursively loading content. Unsupported providers refuse.
     async fn list_directory(&self, _request: ListDirectory) -> Result<DirectoryPage> {
         Err(Error::Unsupported("directory listing".into()))
     }
+    #[cfg(feature = "portability")]
     /// Read with target-side revision checks; never silently fall back to chunk reads.
     async fn read_versioned_file(&self, _request: ReadVersionedFile) -> Result<VersionedFileChunk> {
         Err(Error::Unsupported("revision-bound file reads".into()))
     }
+    #[cfg(feature = "portability")]
     /// Publish according to an enforced precondition. Never retry an unknown outcome.
     async fn publish_file(&self, _request: PublishFile) -> Result<PublishOutcome> {
         Err(Error::Unsupported("conditional file publication".into()))
     }
+    #[cfg(feature = "portability")]
     /// Export a filtered tree to this transfer’s scoped staging file.
     async fn export_tree(&self, _transfer: &TreeTransfer) -> Result<TreeExportReceipt> {
         Err(Error::Unsupported("file-tree export".into()))
     }
+    #[cfg(feature = "portability")]
     /// Restore the staged tree to an empty destination or resume an identical import.
     async fn import_tree(&self, _transfer: &TreeTransfer) -> Result<TreeImportReceipt> {
         Err(Error::Unsupported("file-tree import".into()))
     }
+    #[cfg(feature = "portability")]
     /// Remove only the temporary directory belonging to this transfer.
     async fn remove_transfer(&self, _transfer: &TreeTransfer) -> Result<()> {
         Err(Error::Unsupported("file-tree transfer cleanup".into()))
@@ -72,24 +79,6 @@ pub trait IBackend: Send + Sync {
     }
     /// Start or reconnect to the exact request identified by its stable run ID.
     async fn start(&self, request: LaunchRequest) -> Result<RunRef>;
-    /// Start or reconnect to an explicitly piped run; reject launch-time stdin.
-    async fn start_piped(&self, _request: LaunchRequest) -> Result<RunRef> {
-        Err(Error::Unsupported("piped managed launch".into()))
-    }
-    /// Start a piped run with an absolute executable and no inherited child
-    /// environment. Apply explicit public values and then secrets after clearing.
-    /// Providers must reject unsupported clearing rather than inherit silently.
-    async fn start_piped_with_clean_environment(&self, _request: LaunchRequest) -> Result<RunRef> {
-        Err(Error::Unsupported("clean environment piped launch".into()))
-    }
-    /// Submit one transient bounded input request. Never replay an unknown result.
-    async fn write_input(&self, _run: &RunRef, _input: &SecretInput) -> Result<InputOutcome> {
-        Err(Error::Unsupported("managed pipe input".into()))
-    }
-    /// Idempotently close only the identified piped run's stdin endpoint.
-    async fn close_input(&self, _run: &RunRef) -> Result<InputCloseOutcome> {
-        Err(Error::Unsupported("managed input EOF".into()))
-    }
     /// Start a terminal under the same durable run identity. `private_cwd` selects
     /// private control state; otherwise the command's project-relative cwd applies.
     /// The supervisor owns the terminal independently of this backend handle.

@@ -3,6 +3,7 @@ pub mod application;
 pub mod checkpoint;
 pub mod domain;
 mod error;
+#[cfg(feature = "portability")]
 pub mod git;
 pub mod infrastructure;
 pub mod ports;

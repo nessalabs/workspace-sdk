@@ -13,8 +13,9 @@
 
 pub mod deletion;
 pub mod descriptor;
-pub mod edit_session;
+#[cfg(feature = "portability")]
 pub mod file_browser;
+#[cfg(feature = "portability")]
 pub mod file_tree;
 pub mod files;
 pub mod identity;
@@ -27,8 +28,9 @@ pub mod resources;
 
 pub use deletion::{DeleteOperation, DeleteState, OperationId, OperationRef};
 pub use descriptor::{BackendDescriptor, Capabilities, Isolation, Ownership, WorkspaceState};
-pub use edit_session::{EditChange, EditRevision};
+#[cfg(feature = "portability")]
 pub use file_browser::*;
+#[cfg(feature = "portability")]
 pub use file_tree::{TreeExportReceipt, TreeImportReceipt, TreeTransfer};
 pub use files::{FileChunk, ReadFile, WriteFile};
 pub use identity::{ProviderId, WorkspaceId, WorkspaceRef};

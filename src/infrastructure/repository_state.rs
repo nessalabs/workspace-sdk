@@ -1,5 +1,7 @@
 use crate::domain::ProviderId;
-use crate::domain::{MachineRecord, MachineState, ProvisionKey, RecoverySession, RequestOrigin};
+#[cfg(feature = "portability")]
+use crate::domain::RecoverySession;
+use crate::domain::{MachineRecord, MachineState, ProvisionKey, RequestOrigin};
 use crate::{
     BackendDescriptor, Error, HandoffReceipt, OperationId, Result, SyncSession, WorkflowRecord,
     WorkspaceId,
@@ -7,7 +9,7 @@ use crate::{
 use serde::{de::Error as DeserializeError, Deserializer};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::{mem::discriminant, result::Result as StdResult};
+use std::result::Result as StdResult;
 
 pub(super) const VERSION: u32 = 4;
 
@@ -143,6 +145,7 @@ fn upgrade(
     Ok(machines)
 }
 impl RepositoryState {
+    #[cfg(feature = "portability")]
     pub(super) fn save_workflow(
         &mut self,
         id: &OperationId,
@@ -159,7 +162,7 @@ impl RepositoryState {
             ));
         }
         if let Some(previous) = self.workflows.get(id) {
-            if discriminant(previous) != discriminant(receipt) {
+            if std::mem::discriminant(previous) != std::mem::discriminant(receipt) {
                 return Err(Error::Conflict(
                     "workflow ID cannot change its domain kind".into(),
                 ));
@@ -168,6 +171,7 @@ impl RepositoryState {
         self.workflows.insert(id.clone(), receipt.clone());
         Ok(())
     }
+    #[cfg(feature = "portability")]
     pub(super) fn load_recovery(&self, id: &OperationId) -> Result<Option<RecoverySession>> {
         self.workflows
             .get(id)
@@ -176,6 +180,7 @@ impl RepositoryState {
             .transpose()
     }
 
+    #[cfg(feature = "portability")]
     pub(super) fn compare_exchange_recovery(
         &mut self,
         id: &OperationId,
@@ -325,6 +330,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "portability")]
     #[test]
     fn workflow_key_and_kind_cannot_be_rebound() {
         let mut state = RepositoryState::default();
@@ -334,8 +340,16 @@ mod tests {
             .save_workflow(&OperationId::new("other").unwrap(), &session.clone().into())
             .is_err());
         state.save_workflow(&id, &session.clone().into()).unwrap();
-        let handoff = HandoffReceipt {
-            id: id.clone(),
+        assert!(matches!(
+            state.save_workflow(&id, &handoff(id.clone()).into()),
+            Err(Error::Conflict(_))
+        ));
+    }
+
+    fn handoff(id: OperationId) -> HandoffReceipt {
+        let session = session();
+        HandoffReceipt {
+            id,
             identity: "inputs".into(),
             source: RunRef {
                 workspace: session.workspace.clone(),
@@ -345,11 +359,51 @@ mod tests {
             checkpoint: session.baseline,
             phase: HandoffPhase::Captured,
             destination_run: None,
-        };
-        assert!(matches!(
-            state.save_workflow(&id, &handoff.into()),
-            Err(Error::Conflict(_))
-        ));
+        }
+    }
+
+    /// Saved workflows are part of the file in every build. A build without
+    /// `portability` never reads them, but each write of the file (any machine
+    /// record change) must keep every one exactly as it was.
+    #[test]
+    fn saved_workflows_survive_a_write_by_any_build() {
+        let recovery = crate::domain::synchronization::recovery::tests::seed();
+        let workflows: BTreeMap<OperationId, WorkflowRecord> = [
+            WorkflowRecord::from(session()),
+            handoff(OperationId::new("handoff").unwrap()).into(),
+            recovery.into(),
+        ]
+        .into_iter()
+        .map(|record| (record.id().clone(), record))
+        .collect();
+        let saved = serde_json::json!({
+            "version": VERSION,
+            "machines": {},
+            "retired": {},
+            "workflows": workflows,
+        });
+        let temporary = tempfile::tempdir().unwrap();
+        std::fs::write(
+            temporary.path().join("state.json"),
+            serde_json::to_vec(&saved).unwrap(),
+        )
+        .unwrap();
+        let repository = crate::infrastructure::FileStateRepository::new(temporary.path()).unwrap();
+        let id = WorkspaceId::new("written").unwrap();
+        crate::IWorkspaceRepository::begin(
+            &repository,
+            &id,
+            &ProviderId::new("local").unwrap(),
+            "request",
+            MachineState::Attaching,
+        )
+        .unwrap();
+        let written: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(temporary.path().join("state.json")).unwrap())
+                .unwrap();
+        assert_eq!(written["workflows"], saved["workflows"]);
+        assert_eq!(written["workflows"].as_object().unwrap().len(), 3);
+        assert!(written["machines"]["written"].is_object());
     }
 
     #[derive(Serialize)]

@@ -1,3 +1,4 @@
+#![cfg(feature = "portability")]
 //! Conditional recovery binds the acknowledged head under the SDK effect lease.
 // Shared native fixture also serves the broader continuation suite.
 #[allow(dead_code)]

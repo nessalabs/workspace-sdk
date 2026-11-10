@@ -1,14 +1,14 @@
 use super::repository_state::{RepositoryState, VERSION};
 use crate::domain::ProviderId;
+#[cfg(feature = "portability")]
 use crate::{
     domain::RecoverySession,
-    ports::{IRecoveryRepository, IWorkflowLease},
-    WorkflowRecord,
+    ports::{IRecoveryRepository, IWorkflowLease, IWorkflowRepository},
+    OperationId, WorkflowRecord,
 };
 use crate::{
     domain::{MachineRecord, MachineState},
-    ports::IWorkflowRepository,
-    BackendDescriptor, Error, IWorkspaceRepository, OperationId, Result, WorkspaceId,
+    BackendDescriptor, Error, IWorkspaceRepository, Result, WorkspaceId,
 };
 use fs2::FileExt;
 use std::io::ErrorKind;
@@ -125,6 +125,7 @@ impl IWorkspaceRepository for FileStateRepository {
         })
     }
 }
+#[cfg(feature = "portability")]
 impl IWorkflowRepository for FileStateRepository {
     fn acquire(&self, id: &OperationId) -> Result<Box<dyn IWorkflowLease>> {
         let directory = self.root.join("leases");
@@ -162,6 +163,7 @@ impl IWorkflowRepository for FileStateRepository {
     }
 }
 
+#[cfg(feature = "portability")]
 impl IRecoveryRepository for FileStateRepository {
     fn acquire_recovery(&self, id: &OperationId) -> Result<Box<dyn IWorkflowLease>> {
         IWorkflowRepository::acquire(self, id)
@@ -433,6 +435,7 @@ mod tests {
             assert!(serde_json::from_value::<RepositoryState>(corrupt).is_err());
         }
     }
+    #[cfg(feature = "portability")]
     #[test]
     fn lease_excludes_another_repository_instance_until_dropped() {
         let temporary = tempfile::tempdir().unwrap();

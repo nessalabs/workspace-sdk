@@ -1,3 +1,4 @@
+#![cfg(feature = "portability")]
 //! Real retained workspace admission; modeled corruption affects transport replies only.
 #[allow(dead_code)]
 #[path = "support/recovery_continuation_fixture.rs"]

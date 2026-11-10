@@ -28,7 +28,7 @@ pub struct CaptureOptions {
 /// Resource limits applied by the configured local Git checkpoint engine.
 ///
 /// All values must be positive when supplied to
-/// [`crate::checkpoint::GitCheckpointEngine::with_limits`]. Limits bound selected
+/// `GitCheckpointEngine::with_limits`. Limits bound selected
 /// content, manifests, bundles, and archive decoding. The JSON tree envelope's
 /// encoded limit is derived from base64 expansion plus the metadata allowance.
 /// Native target-side transfers use their own fixed default bounds; customizing

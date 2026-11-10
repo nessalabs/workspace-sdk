@@ -1,3 +1,4 @@
+#![cfg(feature = "portability")]
 //! Shared authority contracts at real memory and fsync-backed repository boundaries.
 use std::sync::{Arc, Barrier};
 use workspace_sdk::{

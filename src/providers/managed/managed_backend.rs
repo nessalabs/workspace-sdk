@@ -51,29 +51,8 @@ impl ManagedBackend {
             Ok(())
         }
     }
-    async fn launch(
-        &self,
-        request: LaunchRequest,
-        directory: WorkingDirectory,
-        piped: bool,
-        clean_environment: bool,
-    ) -> Result<RunRef> {
+    async fn launch(&self, request: LaunchRequest, directory: WorkingDirectory) -> Result<RunRef> {
         request.execution.command.validate()?;
-        if clean_environment
-            && !std::path::Path::new(&request.execution.command.program).is_absolute()
-        {
-            return Err(Error::InvalidInput(
-                "clean environment launch requires an absolute executable".into(),
-            ));
-        }
-        if piped
-            && (request.execution.command.stdin.is_some()
-                || request.execution.private_stdin.is_some())
-        {
-            return Err(Error::InvalidInput(
-                "piped launch cannot include initial stdin".into(),
-            ));
-        }
         if !(2..=16 * 1024 * 1024).contains(&request.output_limit_bytes) {
             return Err(Error::InvalidInput(
                 "run output retention must be 2 bytes..=16 MiB".into(),
@@ -96,24 +75,10 @@ impl ManagedBackend {
             private_stdin: request.execution.private_stdin,
             directory,
         };
-        let operation = if clean_environment {
-            SupervisorOperation::StartPipedCleanEnvironment {
-                id: request.id,
-                execution: Box::new(execution),
-                output_limit_bytes: request.output_limit_bytes,
-            }
-        } else if piped {
-            SupervisorOperation::StartPiped {
-                id: request.id,
-                execution: Box::new(execution),
-                output_limit_bytes: request.output_limit_bytes,
-            }
-        } else {
-            SupervisorOperation::Start {
-                id: request.id,
-                execution: Box::new(execution),
-                output_limit_bytes: request.output_limit_bytes,
-            }
+        let operation = SupervisorOperation::Start {
+            id: request.id,
+            execution: Box::new(execution),
+            output_limit_bytes: request.output_limit_bytes,
         };
         self.target
             .invoke(self.protocol_request(operation))
@@ -135,8 +100,6 @@ impl ManagedBackend {
                     output_limit_bytes: 1024 * 1024,
                 },
                 directory,
-                false,
-                false,
             )
             .await?;
         let state = loop {
@@ -231,60 +194,10 @@ impl IBackend for ManagedBackend {
     }
     async fn start(&self, request: LaunchRequest) -> Result<RunRef> {
         let cwd = request.execution.command.cwd.clone();
-        self.launch(request, WorkingDirectory::Project(cwd), false, false)
-            .await
-    }
-    async fn start_piped(&self, request: LaunchRequest) -> Result<RunRef> {
-        let cwd = request.execution.command.cwd.clone();
-        self.launch(request, WorkingDirectory::Project(cwd), true, false)
-            .await
-    }
-    async fn start_piped_with_clean_environment(&self, request: LaunchRequest) -> Result<RunRef> {
-        let cwd = request.execution.command.cwd.clone();
-        self.launch(request, WorkingDirectory::Project(cwd), true, true)
-            .await
-    }
-    async fn write_input(&self, run: &RunRef, input: &SecretInput) -> Result<InputOutcome> {
-        self.validate_run(run)?;
-        if input.expose().is_empty() || input.expose().len() > 65536 {
-            return Err(Error::InvalidInput(
-                "managed input must contain 1..=65536 bytes".into(),
-            ));
-        }
-        let outcome = match self
-            .target
-            .invoke(self.protocol_request(SupervisorOperation::PipeInput {
-                id: run.id.clone(),
-                input: Some(input.clone()),
-            }))
-            .await
-        {
-            Ok(SupervisorValue::InputRejected(fault)) => return Err(fault.into_error()),
-            Ok(value) => value.input().unwrap_or(InputOutcome::Unknown),
-            Err(_) => return Ok(InputOutcome::Unknown),
-        };
-        if matches!(outcome, InputOutcome::Accepted { bytes } if bytes > input.expose().len()) {
-            return Ok(InputOutcome::Unknown);
-        }
-        Ok(outcome)
-    }
-    async fn close_input(&self, run: &RunRef) -> Result<InputCloseOutcome> {
-        self.validate_run(run)?;
-        match self
-            .target
-            .invoke(
-                self.protocol_request(SupervisorOperation::PipeCloseInput { id: run.id.clone() }),
-            )
-            .await
-        {
-            Ok(SupervisorValue::InputCloseRejected(fault)) => Err(fault.into_error()),
-            Ok(SupervisorValue::InputClosed(outcome)) => Ok(outcome),
-            Ok(_) | Err(_) => Ok(InputCloseOutcome::Unknown),
-        }
+        self.launch(request, WorkingDirectory::Project(cwd)).await
     }
     async fn start_private(&self, request: LaunchRequest, cwd: WorkspacePath) -> Result<RunRef> {
-        self.launch(request, WorkingDirectory::Control(cwd), false, false)
-            .await
+        self.launch(request, WorkingDirectory::Control(cwd)).await
     }
     async fn start_terminal(
         &self,
@@ -399,6 +312,7 @@ impl IBackend for ManagedBackend {
             .await?
             .empty()
     }
+    #[cfg(feature = "portability")]
     async fn list_directory(&self, request: ListDirectory) -> Result<DirectoryPage> {
         request.validate()?;
         let expected_request = request.clone();
@@ -414,6 +328,7 @@ impl IBackend for ManagedBackend {
             _ => Err(Error::State("invalid directory response".into())),
         }
     }
+    #[cfg(feature = "portability")]
     async fn read_versioned_file(&self, request: ReadVersionedFile) -> Result<VersionedFileChunk> {
         request.validate()?;
         let offset = request.offset;
@@ -436,6 +351,7 @@ impl IBackend for ManagedBackend {
             _ => Err(Error::State("invalid versioned file response".into())),
         }
     }
+    #[cfg(feature = "portability")]
     async fn publish_file(&self, request: PublishFile) -> Result<PublishOutcome> {
         request.validate()?;
         match self
@@ -450,6 +366,10 @@ impl IBackend for ManagedBackend {
             }
             Ok(SupervisorValue::PublishOutcome(outcome)) => Ok(outcome),
             Ok(SupervisorValue::PublishRejected(fault)) => Err(fault.into_error()),
+            // Only a supervisor refusing the request before dispatch reports
+            // Unsupported (an unknown operation or protocol version), so nothing
+            // was published. Every other failure leaves the outcome unknown.
+            Err(Error::Unsupported(message)) => Err(Error::Unsupported(message)),
             Ok(_) | Err(_) => Ok(PublishOutcome::Unknown),
         }
     }
@@ -518,6 +438,7 @@ impl IBackend for ManagedBackend {
             .await?
             .run()
     }
+    #[cfg(feature = "portability")]
     async fn export_tree(&self, transfer: &TreeTransfer) -> Result<TreeExportReceipt> {
         self.target
             .invoke(self.protocol_request(SupervisorOperation::ExportTree {
@@ -526,6 +447,7 @@ impl IBackend for ManagedBackend {
             .await?
             .tree_export()
     }
+    #[cfg(feature = "portability")]
     async fn import_tree(&self, transfer: &TreeTransfer) -> Result<TreeImportReceipt> {
         self.target
             .invoke(self.protocol_request(SupervisorOperation::ImportTree {
@@ -534,6 +456,7 @@ impl IBackend for ManagedBackend {
             .await?
             .tree_import()
     }
+    #[cfg(feature = "portability")]
     async fn remove_transfer(&self, transfer: &TreeTransfer) -> Result<()> {
         self.target
             .invoke(self.protocol_request(SupervisorOperation::RemoveTransfer {
