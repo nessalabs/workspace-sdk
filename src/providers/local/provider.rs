@@ -125,11 +125,17 @@ impl IProvider for LocalProvider {
     fn check_attach(&self, request: &AttachRequest) -> Result<()> {
         // Reading the path changes nothing, and a missing one can never attach.
         let options: LocalAttachOptions = request.config.decode()?;
-        let missing = || Error::InvalidInput("a local attach path must be a directory".into());
-        if !options.path.canonicalize().map_err(|_| missing())?.is_dir() {
-            return Err(Error::InvalidInput(
-                "a local attach path must be a directory".into(),
-            ));
+        let not_directory =
+            || Error::InvalidInput("a local attach path must be a directory".into());
+        let path = options
+            .path
+            .canonicalize()
+            .map_err(|error| match error.kind() {
+                std::io::ErrorKind::NotFound => not_directory(),
+                _ => error.into(),
+            })?;
+        if !path.is_dir() {
+            return Err(not_directory());
         }
         Ok(())
     }

@@ -123,7 +123,9 @@ impl Machines {
                 // From here it may be awake. If this wake fails, panics or is
                 // cancelled, the rest path must still stop it, so the idle
                 // clock runs until a use is recorded. A clock that is already
-                // running is kept, so failing wakes cannot keep pushing it back.
+                // running, even from before the last rest, is kept: failing
+                // wakes cannot push it back, and a failed wake of a machine
+                // that was idle long enough is stopped on the next pass.
                 lifecycle.awake = Some(workspace.clone());
                 lock(&entry.uses)
                     .idle_since

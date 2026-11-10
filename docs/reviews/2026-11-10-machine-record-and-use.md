@@ -67,7 +67,7 @@ New separate agents reviewed `a968b79..d748636` (W2 fixes and W5).
 | P1-A | `settle` treated any settled record as the winner, so a request whose record was forgotten could adopt another request's target. The round-1 test passed only because `from_owned` refused the attach. | Fixed in part here, and completed in round 3. A winner must have the reserved record's origin; anything else is "forgotten while its request ran". The test now uses a second process with its own targets, so the late create really succeeds at the provider, and it asserts that message. |
 | P1-B | `MachineRecord::validate` was never called. | Fixed. Decoding runs it on every v4 and upgraded record, together with the forgotten revision: a record's revision must be above it. Test: `a_corrupt_record_refuses_to_load`. |
 | P2-A | A reference reconnected on an unknown ID minted a record that `owned_workspace` trusted. | Fixed. `MachineRecord::created_here` requires a non-`Connected` origin, and `owned_record` uses it. `Machines::hold` checks it before keeping anything. Test: `a_reconnected_target_is_never_treated_as_created_here`. |
-| P2-B | The provision key had two authorities, and a different create after a forget reused the old key. | Fixed. The record's key is the authority. It is `ProvisionKey::for_generation(id, last forgotten revision)`, and generation 0 is the old key. The SDK hands the saved key to the provider through `CreateRequest::provision_key`. Test: `a_create_after_a_forget_never_reuses_the_forgotten_key`. |
+| P2-B | The provision key had two authorities, and a different create after a forget reused the old key. | Fixed. The record's key is the authority. It is `ProvisionKey::after_forgetting(id, last forgotten revision)`, and generation 0 is the old key. The SDK hands the saved key to the provider through `CreateRequest::provision_key`. Test: `a_create_after_a_forget_never_reuses_the_forgotten_key`. |
 | P2-C | Stores still held the revision compare-and-swap, the next revision and how a Connected record is built. | Fixed. `MachineRecord::advance(expected_revision, next)`, `first_revision` and `connected` decide them. Stores only lock and save. |
 | P2-D | `MachineUse` exposed stop and destroy, and kept two ways to reach the workspace. | Fixed. It dereferences to `Workspace` only. |
 | P2-E | One slow wake or stop stalled the whole rest pass. | Fixed for wakes: `rest_idle` skips a machine whose lock is busy, because it is being opened. A stop that hangs still blocks that machine's next hold; see limitations. |
@@ -106,7 +106,18 @@ New separate agents reviewed `d748636..4418a19`. Both found the same gap. The de
 
 ## Round 4
 
-Pending.
+New separate agents reviewed `4418a19..ef2330e`. Neither found a P1 or P2. Both checked that `generation` agrees with key derivation, upgrade, validate, advance, refresh and connected records. They also checked that no interleaving of forget, re-begin, Upgraded adoption or concurrent same-request callers adopts an outcome that is not the caller's own. The adversarial reviewer confirmed that the new test fails without the generation check and leaves nothing running.
+
+P3s applied:
+- `ProvisionKey::for_generation` is renamed `after_forgetting(id, retired)`, so "generation" means only the record's field.
+- The validate message names the generation.
+- The idle-clock comment says a clock from before the last rest is kept.
+- A local attach maps only a missing path to InvalidInput; other I/O errors stay I/O.
+
+P3s left as they are:
+- `validate` does not re-derive the saved Provisioning key. Only a hand-edited file can disagree.
+
+Accepted: the review gate is passed. No P1 or P2 is open.
 
 ## Remaining limitations
 

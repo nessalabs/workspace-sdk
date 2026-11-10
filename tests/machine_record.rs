@@ -457,7 +457,7 @@ async fn a_create_after_a_forget_never_reuses_the_forgotten_key() {
     };
     assert_eq!(
         key,
-        &ProvisionKey::for_generation(&workspace, first.revision)
+        &ProvisionKey::after_forgetting(&workspace, first.revision)
     );
     // Its retry keeps the record's key, and the provider got only saved keys.
     sdk.create(&local(), CreateRequest::new(workspace.clone()))

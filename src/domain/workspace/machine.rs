@@ -21,15 +21,16 @@ impl ProvisionKey {
             Sha256::digest(workspace_id.as_str().as_bytes())
         ))
     }
-    /// The key for `workspace_id` after `generation` records were forgotten,
-    /// counted by the last forgotten revision. Generation 0 is the key older
-    /// versions used, [`Self::for_workspace`].
-    pub fn for_generation(workspace_id: &WorkspaceId, generation: u64) -> Self {
+    /// The key for a new record of `workspace_id` when `retired` is the last
+    /// revision of a forgotten record for it (0 when none was forgotten, which
+    /// gives [`Self::for_workspace`], the key older versions used). A record's
+    /// key is `after_forgetting(id, record.generation - 1)`.
+    pub fn after_forgetting(workspace_id: &WorkspaceId, retired: u64) -> Self {
         let key = Self::for_workspace(workspace_id);
-        if generation == 0 {
+        if retired == 0 {
             return key;
         }
-        Self(format!("{}-{generation}", key.0))
+        Self(format!("{}-{retired}", key.0))
     }
     /// The key as the provider receives it.
     pub fn as_str(&self) -> &str {
@@ -247,7 +248,7 @@ impl MachineRecord {
     pub fn validate(&self, retired: Option<u64>) -> Result<()> {
         if self.generation < Self::first_revision(retired) || self.revision < self.generation {
             return Err(Error::State(
-                "machine record revision is not above every forgotten one".into(),
+                "machine record generation is not above every forgotten revision".into(),
             ));
         }
         if self
@@ -291,7 +292,7 @@ impl MachineRecord {
         // made after a forget never reuses a forgotten record's key.
         let initial = match initial {
             MachineState::Provisioning { .. } => MachineState::Provisioning {
-                key: ProvisionKey::for_generation(id, next_revision - 1),
+                key: ProvisionKey::after_forgetting(id, next_revision - 1),
             },
             other => other,
         };
