@@ -37,6 +37,129 @@ Persist `RunRef`; reconnect the workspace and call `workspace.run(reference.id)`
 
 Output cursors are absolute byte offsets. A page's `gap` signals that older bytes were evicted from the bounded tail. Logs contain UTF-8 text with replacement characters for invalid sequences; use the binary file API for binary artifacts. A process may print secrets into its output, so apply your application's output access/retention policy.
 
+## Git worktrees
+
+`git::GitWorktrees::new(anchor, git_executable)?.discover().await` reads
+the repository visible from an existing `Workspace`. It executes the explicit
+Git program through that workspace's backend, using the stable
+[`worktree list --porcelain -z` format](https://git-scm.com/docs/git-worktree#_porcelain_format).
+An inventory carries its anchor `WorkspaceRef` and target-host paths, branch or
+detached HEAD state, and lock/prune annotations. Spaces and newlines are preserved.
+Bare and unborn repositories are represented explicitly.
+
+The inventory is an observation, not ownership or a portable worktree identity.
+Refresh it before acting. To run work in a selected checkout, explicitly open an
+attachment using the correct provider's existing options: `LocalOpenOptions`
+accepts a path, while `SshOpenOptions` accepts a target-host path string. Continue
+through the returned workspace's normal `exec` or managed-run API. Discovery does
+not attach automatically, prune directories, grant deletion permission, or turn
+an ordinary SDK-created directory into a Git worktree.
+
+The command requests a ten-second execution deadline and disables inherited Git
+repository redirects and inline configuration overrides. Host global/system
+configuration and `safe.directory` checks remain in effect. Failed, timed-out,
+truncated or malformed results produce no partial inventory. Acceptance is bounded
+to 256 KiB combined stdout/stderr, 256 worktrees, 16 KiB per path and 4 KiB per
+reason/reference. Backend capture limits apply before these acceptance checks.
+The text execution port is lossy, so discovery rejects replacement characters and
+supports only unambiguous UTF-8 metadata. Backend execution errors propagate;
+captured Git stderr is not copied into discovery's own diagnostics.
+`GitWorktreeDiscovery` remains a compatible alias for this same binding.
+
+To create a checkout, choose and persist a `GitWorktreeCreateRequest` before
+calling `GitWorktrees::start_create`. The request contains a workspace-qualified
+`RunRef`, an absolute POSIX target-host path, a full new `refs/heads/` reference,
+and a pinned full nonzero 40- or 64-hex commit object ID. Before managed creation,
+a `rev-parse --verify --end-of-options OID^{commit}` invocation must
+return exactly that full ID. Abbreviations, hex-named references and annotated tag
+object IDs that peel to another commit are rejected. Verification and creation
+set `GIT_NO_REPLACE_OBJECTS=1` so replacement refs cannot change the pinned tree.
+Path and reference bounds match discovery: 16 KiB and
+4 KiB. Paths reject NUL, replacement characters, empty components, `.` and `..`;
+spaces and newlines remain literal arguments. The default deadline is 120 seconds
+and output retention is 256 KiB; accepted bounds are 1–3600 seconds and 2 bytes–16 MiB.
+
+```rust
+use workspace_sdk::{git::{GitWorktrees, GitWorktreeCreateRequest}, RunRef};
+
+let git = GitWorktrees::new(anchor.clone(), "git")?;
+let request = GitWorktreeCreateRequest::new(
+    RunRef { workspace: anchor.reference(), id: run_id },
+    target_host_path,
+    "refs/heads/new-work",
+    pinned_oid,
+)?;
+// Persist request before launch; preserve all fields when retrying a lost reply.
+let run = git.start_create(request.clone()).await?;
+```
+
+Creation uses the existing `Workspace::start_with` claim and returns the ordinary
+`Run`. Built-in native managed backends prevent duplicate starts of the same
+request and reject incompatible reuse of its run ID. Custom backends must honor
+that launch contract. A successful start call does not establish Git success:
+inspect or wait for the run, read its bounded output, or cancel it explicitly.
+A waiting timeout leaves the process running. A transport error or `Lost` state
+leaves its outcome uncertain; reconnect or retry the exact saved request instead
+of choosing a new run ID. There is no inventory preflight on a create retry, so
+an already successful path and branch do not prevent reconnecting to the claim.
+Commit verification repeats before the creation claim on every `start_create`,
+requires the repository and executable to remain available, and requests a
+ten-second deadline with a 256 KiB combined output acceptance bound, checked
+after the backend's own capture and allocation limits. It requests
+no branch/worktree changes, but Git may fetch promised objects or write configured
+diagnostics; these effects are outside the creation claim. Verification checks a
+point in time and does not atomically bind the later command to a repository
+namespace. To inspect an existing run without repeating verification, use
+`anchor.run(request.run.id.clone())`.
+
+The command uses Git's non-resetting `worktree add -b` behavior, described in the
+[Git worktree documentation](https://git-scm.com/docs/git-worktree). Branch
+validation follows [Git reference rules](https://git-scm.com/docs/git-check-ref-format).
+Creation never adds force/reset options or issues rollback or deletion. Git may
+reuse an existing empty directory. Git's own failure/signal cleanup may remove
+an in-progress worktree, while partial files or a new branch may also remain.
+The caller must keep the repository stable and serialize access to an exclusive,
+quiescent destination, including against external creators. The caller must
+trust the target Git executable, hooks, filters and host configuration: they run
+with the host's authority and may change files or expose output. Execution is
+bound to the workspace connection; concurrent external replacement of its
+repository is not prevented. After confirmed zero exit, discover afresh and explicitly attach
+the desired path through the existing provider. Creation does not grant deletion
+permission or add a separate worktree registry, attachment, or cleanup lifecycle.
+
+To remove a checkout, separately authorize its deletion and persist a
+`GitWorktreeRemoveRequest::new(run_ref, target_host_path)` before calling
+`GitWorktrees::start_remove(request.clone())`. It uses the same qualified run
+identity, path syntax, deadline and output bounds as creation, and returns an
+ordinary managed `Run`. It executes the literal argv
+`git --no-pager -c status.showUntrackedFiles=all worktree remove -- PATH`.
+The explicit setting keeps ordinary untracked-file checks effective even if host
+configuration hides them. Git's dirty, locked, main-worktree and populated
+submodule safeguards remain enabled. **Git can delete ignored files even without
+force.** Failed or interrupted removal can partially delete files; no rollback or
+blanket local-data preservation is promised. There is no force, unlock, prune,
+reset, branch deletion, automatic cleanup or provider attachment destruction.
+
+Stop all processes and users of the target before removal, and maintain exclusive,
+quiescent access through terminal resolution or uncertainty. Creation and inventory
+paths do not establish ownership or deletion permission. Pure lexical checks reject
+a target equal to, or containing, the anchor's project or control directory, and
+refuse malformed descriptor paths. The caller must additionally keep the anchor,
+control storage and common Git repository metadata stable and physically outside
+the removal subtree, including aliases and symlinks. These syntax checks do not
+resolve physical aliases or prevent concurrent external repository replacement.
+
+Removal performs no mutable existence or inventory preflight. Retry the exact
+persisted request and run ID after an uncertain reply: built-in native backends
+reconnect the existing launch claim even if its old target was removed and a new
+checkout now occupies the path. A fresh ID authorizes a new execution; never use
+one merely because the old outcome is unknown. Custom backends must honor the
+managed launch contract. As with creation, successful start handling is not Git
+success, waiting timeouts do not cancel, and transport errors or `Lost` remain
+uncertain. Inspect the run before interpreting the outcome and discover afresh
+after confirmed success. This operation does not change `Workspace::destroy`
+permissions or introduce a worktree ownership registry.
+
 ## Credentials and preparation
 
 Inject `ICredentialResolver`, `IRuntimeHost`, and `IPreparationStore` into `PreparationService`. `BackendRuntimeHost::new(workspace.backend())` connects runtime preparation to any registered workspace backend.
@@ -72,7 +195,7 @@ For conflicts, edit the review directory and call `ICheckpointEngine::accept_res
 
 Apply records a recovery checkpoint before changing files. Keep the returned recovery reference. `ICheckpointEngine::rollback` requires exclusive access and restores the selected pre-apply files; it can overwrite later selected-file edits, so review them first. An interrupted apply is recovered under the same reconciliation identity. Conflicts, incomplete restores and unknown run outcomes remain visible errors.
 
-Mandatory exclusions include Git metadata, credentials, agent auth state, `.env*`, private keys, common dependency/build caches and SDK control state. `.gitignore` handles untracked files and `.workspaceignore` adds project-specific exclusions. Local captures report excluded paths. Binary content, executable bits and safe relative symlinks are supported; submodules, unresolved LFS pointers, special files and escaping symlinks fail explicitly.
+Mandatory exclusions include Git metadata, credentials, agent auth state, `.env*`, private keys, common dependency/build caches and SDK control state. `.gitignore` handles untracked files and `.workspaceignore` adds project-specific exclusions. Local captures report excluded paths. If Git probing fails or reports a non-worktree while a `.git` entry exists at the capture root or any ancestor, capture and tree export refuse rather than silently omit tracked files that match ignore rules. Ordinary directories without such markers retain their existing ignore behavior, including the prior behavior for bare repositories without a `.git` marker. Keep source files and Git metadata quiescent: these conservative marker checks do not atomically bind repository identity or prevent concurrent metadata replacement. This does not reconstruct Git history, branches or indexes. Binary content, executable bits and safe relative symlinks are supported; submodules, unresolved LFS pointers, special files and escaping symlinks fail explicitly.
 
 `export`/`import` move immutable Git checkpoint bundles between controllers. `export_checkpoint_archive`/`capture_archive` preserve an already-selected file tree over provider transfers, including tracked files that match `.gitignore`.
 
@@ -83,6 +206,23 @@ Once admitted, initialization, sync-back, handoff, and direct checkpoint transfe
 Initialization, sync-back, and handoff can be reconciled through their saved workflow IDs. Direct `capture_workspace` and `restore_checkpoint` have no pollable workflow handle. If a UI needs to stop waiting, retain the application's spawned task and await it before resuming writers or shutting down; do not abort that task and assume cleanup completed. The service and its clones serialize these accepted operations. Separate service instances coordinate workflow IDs through the shared repository; direct transfers require application coordination.
 
 This survives observer cancellation, not process death or runtime shutdown. Cleanup transport errors remain best effort. Reconcile target evidence before retrying an uncertain remote operation. Checkpoint Git subprocess output is collected before manifest-size validation, so archive bounds do not provide a global subprocess-memory bound.
+
+## Checkpoint durability
+
+Checkpoint capture/import acknowledge publication only after syncing the owned
+artifact files, directories and final directory entry. Export also validates and
+syncs existing artifacts before acknowledging readiness. Directory sync errors
+are returned; a post-rename error can leave a visible checkpoint whose publication
+is uncertain. Retry the same import or inspect/export that identity to validate
+and sync it. Do not delete uncertain artifacts merely to permit a retry.
+
+The storage filesystem must support file/directory sync and atomic rename.
+Constructor setup syncs canonical directory ancestry through the filesystem root,
+including when retrying previously interrupted setup. This is not proof that a
+remote mount or disk controller honors persistence. Store both artifacts and
+recovery authority independently of a host you need to survive. Full validation,
+Git tree reads and artifact syncing add work proportional to checkpoint size and
+entry count; this is a durability change, not an incremental sync optimization.
 
 ## Handoff
 
@@ -102,6 +242,109 @@ let receipt = sync.handoff(
 The service captures files, restores the target, and launches the continuation under a deterministic run ID. Persisted phases make retries resume the same operation. Failures keep the source stopped. `Lost` source state prevents duplication.
 
 This is portable file state plus an explicit continuation command. It does not migrate VM memory or automatically translate Codex, Claude or OpenCode conversation stores. The runnable [local workflow example](../examples/local_workflow.rs) demonstrates the shared sync path; the opt-in [Boat integration test](../tests/boat_live.rs) exercises Boat-to-Boat handoff with a deterministic worker.
+
+The ignored Boat test creates two billable fixtures only when explicitly selected.
+It records creation intent, a stable API idempotency key and the returned provider
+ID in a durable ledger before native SDK bootstrap. The fixture is created through
+the raw Boat API, then connected through the SDK attachment path. This keeps the
+cleanup handle available if readiness, supervisor upload or initialization fails;
+it qualifies attachment, files and native runs rather than the SDK-owned creation
+path. It does not fix the production provider's creation/bootstrap persistence gap.
+
+Keep the ledger beside `BOAT_SDK_REPORT` until cleanup is confirmed. A failed or
+uncertain creation retains its original identity; do not start another fixture to
+hide the uncertainty. These tests do not establish the server's idempotency-key
+retention period, so an old uncertain creation requires provider reconciliation
+rather than an assumption that replay remains safe forever. A nonblocking
+per-ledger lifetime lock prevents the live test and cleanup-only process from
+overwriting each other's ownership records. Repeated error classifications are
+deduplicated so retries do not grow the ledger indefinitely. The cleanup-only ignored test
+`cleanup_registered_boat_fixtures` loads `BOAT_FIXTURE_LEDGER` and retries cleanup
+without provisioning, uploading artifacts or launching workloads. Credentials may
+be supplied through the hidden PTY prompt; keep them out of source, report files
+and command arguments. Confirm the deletion operation belongs to the recorded
+target and reaches `completed`. A blocked or pending operation, an accepted stop,
+or a missing resource lookup is not confirmation. Incomplete cleanup fails the
+live test even if all functional checks passed. Review unresolved cleanup with
+the account owner before running another billable fixture.
+
+Select one ignored entrypoint explicitly, rather than running every ignored Boat
+test together:
+
+```sh
+cargo test --locked --all-features --test boat_live native_rust_box_workflow -- --ignored --exact --nocapture
+cargo test --locked --all-features --test boat_live cleanup_registered_boat_fixtures -- --ignored --exact --nocapture
+```
+
+## Explicit recovery and placement
+
+`RecoveryService` adds a durable placement decision around the existing workspace,
+checkpoint transfer, and native process APIs. Configure it with an `Arc<WorkspaceSdk>`,
+an `Arc<SyncService>`, and an `Arc<dyn IRecoveryRepository>`. The file and memory
+repositories implement this port. Keep both the authority repository and immutable
+checkpoint artifacts outside projects and on storage that survives the host you
+intend to recover from. A directory on the failed laptop is not an offsite backup.
+
+1. Capture a complete checkpoint at a consistent boundary. Call `create` with its
+   reference and priority-ordered `RecoveryCandidate` values, for example laptop,
+   development machine, then Boat. Each provider must be registered separately.
+   The candidate configuration must create a fresh target, not attach a live project.
+2. Call `recover` with a stable `RecoveryRequest` ID, `expected_previous_epoch: 0`,
+   caller-observed available providers, a continuation command, and a safety mode.
+   The first available candidate in the stored priority order wins. Its epoch,
+   target, checkpoint and deterministic workspace/run IDs are saved before opening
+   a target. An open failure remains pinned: retry it rather than silently moving
+   possibly accepted work elsewhere.
+3. Keep that request ID and expected epoch when retrying. Progress is
+   `Preparing → Restored → LaunchRequested → Started`. Once launch intent is
+   durable, changed nonsecret commands conflict. The native salted claim checks
+   transient credentials on launch retries; a completed `Started` retry simply
+   returns its historical reference and does not authenticate new credentials.
+   Retry never restores over files
+   changed by an already accepted run. `Started` means the native claim was accepted,
+   not that the workload completed successfully.
+4. After the run is terminal and **all** writers are stopped, `publish(id, epoch,
+   true)` captures a new complete checkpoint and conditionally advances the head.
+   Failed capture or stale epoch never advances it. This quiescence assertion does
+   not stop editors or unmanaged writers for you.
+   Publication is a new capture on every call. After an ambiguous publication
+   response, inspect the committed generation and checkpoint before retrying;
+   another call can create another complete generation and retained artifact.
+5. To move again, submit a new request against the current epoch. Every move gets a
+   fresh isolated workspace, even when returning to the laptop. Old directories
+   remain available for inspection or reviewed reconciliation. Their identities are
+   not recycled. Updating availability on an existing request does not preempt it.
+
+`RecoverySafety::ConfirmedStopped` queries the previous run and refuses running,
+lost, or unreachable work. `ExternallyFenced` is an explicit application assertion:
+the caller guarantees that the old process cannot perform unfenced external
+effects. The SDK cannot verify that promise. Epoch checks protect canonical
+checkpoint publication; they do not stop an old process or prevent it from sending
+an API request. A network timeout alone is not evidence that it stopped. An
+unfinished attempt cannot be replaced by a new epoch, even with this assertion;
+resolve its pinned launch uncertainty first.
+
+The repository uses a nonexpiring, fail-fast session lease across provider work,
+plus short atomic revision checks for authority writes. Concurrent operations on
+that session return a conflict; they do not steal a live controller's lease.
+All controllers must share the same authority implementation and lock semantics.
+Once polled, create/recover/publish continue in an owned Tokio task if their caller
+is dropped or times out. The task keeps its session lease through effects and
+transfer cleanup. Read session state and retry the same identity to reconcile;
+dropping a caller is not a stop command. Providers must bound their own operations.
+Runtime or process loss can still interrupt work and leave transfer staging or
+unpublished artifacts; there is no aggregate garbage collector for crash orphans.
+This is explicit placement, not an automatic health monitor or a distributed
+expiring ownership service. File repository format 3 reads format 1/2 records;
+older binaries cannot read format 3. Back up authority state before upgrading and
+do not run old binaries against the upgraded repository.
+
+Checkpoint transfer still uses bounded full archives, with time and memory
+proportional to selected project data. There is no incremental transfer or
+deduplication claim. Periodic capture, remote artifact replication, health policy,
+native agent conversation conversion, and abandoned cloud resource cleanup remain
+application responsibilities. Poll deletion receipts to completion when cleaning up
+billable targets; an accepted delete request is not proof billing stopped.
 
 ## Deletion and extension
 

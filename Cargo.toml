@@ -11,6 +11,7 @@ publish = false
 [features]
 default = ["boat"]
 boat = ["dep:sandbox_client"]
+space = ["dep:reqwest"]
 
 [dependencies]
 pty-runtime = { git = "https://github.com/nessalabs/pty-runtime", rev = "c68837e2b7bf1c9009e1a4587a1a58107ec0425c", default-features = false }
@@ -19,6 +20,7 @@ base64 = "0.22"
 sandbox_client = { package = "boat_client", path = "vendor/sandbox-client", optional = true }
 fs2 = "0.4"
 ignore = "0.4"
+reqwest = { version = "0.12.28", default-features = false, features = ["json", "rustls-tls"], optional = true }
 libc = "0.2"
 semver = "1"
 serde = { version = "1", features = ["derive"] }

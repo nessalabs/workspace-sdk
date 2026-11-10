@@ -72,6 +72,24 @@ pub trait IBackend: Send + Sync {
     }
     /// Start or reconnect to the exact request identified by its stable run ID.
     async fn start(&self, request: LaunchRequest) -> Result<RunRef>;
+    /// Start or reconnect to an explicitly piped run; reject launch-time stdin.
+    async fn start_piped(&self, _request: LaunchRequest) -> Result<RunRef> {
+        Err(Error::Unsupported("piped managed launch".into()))
+    }
+    /// Start a piped run with an absolute executable and no inherited child
+    /// environment. Apply explicit public values and then secrets after clearing.
+    /// Providers must reject unsupported clearing rather than inherit silently.
+    async fn start_piped_with_clean_environment(&self, _request: LaunchRequest) -> Result<RunRef> {
+        Err(Error::Unsupported("clean environment piped launch".into()))
+    }
+    /// Submit one transient bounded input request. Never replay an unknown result.
+    async fn write_input(&self, _run: &RunRef, _input: &SecretInput) -> Result<InputOutcome> {
+        Err(Error::Unsupported("managed pipe input".into()))
+    }
+    /// Idempotently close only the identified piped run's stdin endpoint.
+    async fn close_input(&self, _run: &RunRef) -> Result<InputCloseOutcome> {
+        Err(Error::Unsupported("managed input EOF".into()))
+    }
     /// Start a terminal under the same durable run identity. `private_cwd` selects
     /// private control state; otherwise the command's project-relative cwd applies.
     /// The supervisor owns the terminal independently of this backend handle.
@@ -105,6 +123,17 @@ pub trait IBackend: Send + Sync {
         cursor: OutputCursor,
         limit: u32,
     ) -> Result<OutputPage>;
+    /// Read byte-preserving retained output at independent absolute cursors.
+    /// No input or process mutation occurs. Unsupported providers must refuse;
+    /// converting lossy text output back into bytes cannot satisfy this contract.
+    async fn read_output_bytes(
+        &self,
+        _run: &RunRef,
+        _cursor: OutputCursor,
+        _limit: u32,
+    ) -> Result<OutputBytesPage> {
+        Err(Error::Unsupported("byte-preserving run output".into()))
+    }
     /// Stop the identified managed process group; never signal an unrelated or guessed PID.
     async fn cancel(&self, run: &RunRef) -> Result<RunState>;
     /// Return service access satisfying the requested policy, or reject unsupported access.

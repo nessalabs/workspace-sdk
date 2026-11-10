@@ -1718,6 +1718,7 @@ dependencies = [
  "ignore",
  "libc",
  "pty-runtime",
+ "reqwest",
  "semver",
  "serde",
  "serde_json",

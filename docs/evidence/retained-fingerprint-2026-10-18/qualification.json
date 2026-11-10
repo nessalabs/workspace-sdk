@@ -1,0 +1,103 @@
+{
+  "status": "ACCEPTED: exact-source full mechanical/performance gate and both independent final reviews passed",
+  "scope": "Built-in Git archive fingerprint without discarded proof checkpoints during retained admission; compatibilitydefaultstillcapturesonce",
+  "source": {
+    "README.md": "169155e67d95cb6d9c46de9b42efd4e82d90703ef78c7290de7f1ae7d9e84919",
+    "docs/research/layerfs-learning.md": "2ec36fe65247d7f829070c98ce9ec72505744dd06df7552d80159d7825a4b30f",
+    "src/application/recovery_service/continuation.rs": "6b3ae12f02cde5e4cedba6fddde5db12ba213fe316f966e851339174d1e2b69b",
+    "src/application/sync/sync_service.rs": "555625e1843d8254a00adf2c56687758efbb9ff7a19e7c44bdde974a298895a9",
+    "src/checkpoint/infrastructure/archive.rs": "bfd2ea20cbb5ac354df53a92d1fbe88d89777470e3857d0886038bc99ee6284c",
+    "src/checkpoint/infrastructure/checkpoint_engine_adapter.rs": "d3fcc847858dfb70f56b38bc283cda32256dcc9dc2b4f714345d8f58e6c93fb9",
+    "src/checkpoint/ports/i_checkpoint_engine.rs": "6b76fc55c3f489be32029187ab5b6c48ee468f78865d85e7263819b6db47efbe",
+    "docs/retained-fingerprint-inspection.md": "ccce148d6e3754b9aa84935a48944c31c26b56d1468d3f8c2fc05371fb2be299",
+    "tests/checkpoint_archive_fingerprint.rs": "11b3d95b2b2afca3aad3bda092792de06a80a4cee74b87fb8c281cc609a4a7f0",
+    "tests/retained_fingerprint_inspection.rs": "86019168849d390887c0a967c93e3146e6fe3b3a856d0e888ec7e223668fe297"
+  },
+  "local_checks": {
+    "affected": "179 passing cases across completed successful binaries:145lib+3engine+7remote+11retained insecondcommand;3correctednative+10workflow infourthcommand. Notone179casegreencommand.",
+    "restored": "Restoredsupervisorrebuild then6new tests --nocapture PASS:3engine3.22s/3native6.70s;outer17.195s",
+    "clippy": "Allfeatures/alltargets-DwarningsPASS10.10s",
+    "docs": "Strictallfeatures/no-depsPASS4.12s",
+    "fmt": "PASS"
+  },
+  "initial_failed_attempts": [
+    "First focused command failed to compile a new integration test accessing a private fixture field; corrected to public engine construction; no tests ran.",
+    "Second command completed166 passing cases in earlier binaries, then new native cases1/3passed. Two new oracles overspecified whole-session equality and the layer rejecting a bad file cursor. Production source was unchanged.",
+    "Third command passed2/3 newnative cases; the intended phase-oracle edit had silently missed formatted source and repeated the same whole-session assertion failure. Exact patch then verified independently.",
+    "Fourth command passed corrected3native+10workflow; invariant-specific checks retain exact identities/head/provenance/editedbytes, prelaunch-only phases, no successor/artifact. All failed logs and native fixtures retained."
+  ],
+  "fault_probes": [
+    {
+      "name": "capture-in-admission",
+      "path": "src/application/recovery_service/continuation.rs",
+      "test": "retained_admission_creates_no_discarded_checkpoint_while_publication_still_does",
+      "subject": "controller-linked application/checkpoint code; actual cargo test builds mutated library",
+      "original_sha256": "6b3ae12f02cde5e4cedba6fddde5db12ba213fe316f966e851339174d1e2b69b",
+      "mutated_sha256": "ed17c6ff7032dc98c56dfd5609b3a9d5e8e859f795bcfe04f5fa9114d1f042c4",
+      "test_exit": 101,
+      "assertion_failure": true,
+      "exact_source_restored": true
+    },
+    {
+      "name": "skip-transfer-binding",
+      "path": "src/application/sync/sync_service.rs",
+      "test": "proof_inspection_preserves_transfer_binding_and_cleans_staging_on_failure",
+      "subject": "controller-linked application/checkpoint code; actual cargo test builds mutated library",
+      "original_sha256": "555625e1843d8254a00adf2c56687758efbb9ff7a19e7c44bdde974a298895a9",
+      "mutated_sha256": "196c883a607576276cebe30de8d947a5bb75e45865b9e846124c573dff7f8992",
+      "test_exit": 101,
+      "assertion_failure": true,
+      "exact_source_restored": true
+    },
+    {
+      "name": "trust-archive-metadata",
+      "path": "src/checkpoint/infrastructure/archive.rs",
+      "test": "malformed_archive_fingerprints_fail_complete_validation_without_artifacts",
+      "subject": "controller-linked application/checkpoint code; actual cargo test builds mutated library",
+      "original_sha256": "bfd2ea20cbb5ac354df53a92d1fbe88d89777470e3857d0886038bc99ee6284c",
+      "mutated_sha256": "3e703c1be49618cd7adbd6c91ae67bdbba2d799a08e3f4d6dac6051ee32804a3",
+      "test_exit": 101,
+      "assertion_failure": true,
+      "exact_source_restored": true
+    }
+  ],
+  "limits": [
+    "Git override only: no controller checkpoint/Gitpacking for archivefingerprint. Compatibility default stillcaptures once and maypersist for oldcustomengines.",
+    "Full archive download, bounded buffering/decoding and target export unchanged; canonical export and target capture may still invokeGit.",
+    "No bandwidth/peakmemory/COW/deduptransfer improvement established; observations are not a statistical baseline.",
+    "Best-effort staging cleanup is attempted; no claim of confirmed targetcleanup if backend cleanupfails.",
+    "Existing predecessor/quiescence/epoch/head/lease/retry and uncertainowner rules remain; no liveprovider or physical failure claim."
+  ],
+  "research_credit": "docs/research/layerfs-learning.md: pinnedMITsource/designstudy, no copiedcode ornewdependency",
+  "cloud": {
+    "run": "https://github.com/nessalabs/workspace-sdk/actions/runs/39172464481",
+    "source_commit": "741474ea91f797221ae26650f16ccad78d62e7b3",
+    "ubuntu_24_04": "success",
+    "macos_15": "success",
+    "script": "scripts/quality-gate.sh",
+    "new_test_executions": {
+      "validated_fingerprint_matches_capture_without_git_or_artifact_publication": 4,
+      "malformed_archive_fingerprints_fail_complete_validation_without_artifacts": 4,
+      "compatibility_default_captures_once_with_default_options_and_propagates_errors": 4,
+      "retained_admission_creates_no_discarded_checkpoint_while_publication_still_does": 4,
+      "divergence_and_prelaunch_retry_still_refuse_without_artifacts_or_successors": 4,
+      "proof_inspection_preserves_transfer_binding_and_cleans_staging_on_failure": 4
+    },
+    "total_new_test_executions": 24,
+    "performance": "3managed/15PTYsamplesperOS; actualperformance.json; notstatisticalbaseline",
+    "raw_log_sha256": "47a511c3d0efb9843e5df06ef17bc94e6f73d16b702e07d324041ccfbf65c7a9",
+    "metadata_sha256": "36579d98ff7d6ffd6b10081efa8771ff13ea7a5ee3998d0a8b800c5e8be4c533"
+  },
+  "reviews": [
+    {
+      "path": "docs/reviews/retained-fingerprint-quality.md",
+      "sha256": "e2f5506449b7f5b863fab4baffcfbe02b6b60a63babfd0463dcc8e4882319b1e",
+      "decision": "FINAL PASS; no unresolved P1/P2"
+    },
+    {
+      "path": "docs/reviews/retained-fingerprint-adversarial.md",
+      "sha256": "d5e0e3f587c99eb8bbff83b1c0bb173fd6ddf0f9f8d067f2ec3f022729803d4b",
+      "decision": "FINAL PASS; no unresolved P1/P2"
+    }
+  ]
+}

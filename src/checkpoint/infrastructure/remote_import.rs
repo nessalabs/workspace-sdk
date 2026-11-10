@@ -1,15 +1,15 @@
 use super::archive::{archive_limit, decode_tree};
 use super::file_tree::{digest, Tree, TreeFile};
-use super::filesystem::{read_regular, safe_target};
+use super::filesystem::{read_regular, safe_target, sync_publication_ancestors, PublicationStep};
 use super::path_policy::{mandatory_exclusion, relative_path};
-use super::remote_storage::{atomic_bytes, checked_path, IMPORT_RECEIPT};
+use super::remote_storage::{atomic_bytes_with, checked_path, IMPORT_RECEIPT};
 use super::remote_tree::preflight_filesystem;
 use super::scanner::scan;
 use crate::checkpoint::domain::{CheckpointLimits, EntryKind};
 use crate::{Error, Result, TreeImportReceipt};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use std::fs::{self, File};
+use std::fs;
 use std::io::{ErrorKind, Write};
 #[cfg(unix)]
 use std::os::unix::fs::{symlink, PermissionsExt};
@@ -69,6 +69,14 @@ pub(super) fn read_receipt(
 }
 
 pub(super) fn import_locked(root: &Path, archive: &Path) -> Result<TreeImportReceipt> {
+    import_locked_with(root, archive, |step| step.perform())
+}
+
+fn import_locked_with(
+    root: &Path,
+    archive: &Path,
+    mut perform: impl FnMut(&PublicationStep) -> Result<()>,
+) -> Result<TreeImportReceipt> {
     let limits = CheckpointLimits::default();
     let bytes = read_regular(archive, archive_limit(&limits))?;
     let tree = decode_tree(&bytes, &limits)?;
@@ -112,6 +120,7 @@ pub(super) fn import_locked(root: &Path, archive: &Path) -> Result<TreeImportRec
             missing.push(file);
         }
     }
+    let receipt_path = checked_path(root, IMPORT_RECEIPT, false)?;
     if previous
         .as_ref()
         .is_some_and(|receipt| receipt.status == ImportStatus::Complete)
@@ -119,6 +128,9 @@ pub(super) fn import_locked(root: &Path, archive: &Path) -> Result<TreeImportRec
         if !missing.is_empty() {
             return Err(Error::Conflict("restored tree changed after import".into()));
         }
+        // A visible Complete receipt can follow a failed directory fsync.
+        // Re-verify above, then repeat the durability boundary before ACK.
+        sync_imported_tree(root, &tree, Some(&receipt_path), &mut perform)?;
         return Ok(TreeImportReceipt {
             files: tree.files.len(),
         });
@@ -130,27 +142,37 @@ pub(super) fn import_locked(root: &Path, archive: &Path) -> Result<TreeImportRec
         selected_paths: selected,
         status: ImportStatus::Pending,
     };
-    let receipt_path = checked_path(root, IMPORT_RECEIPT, false)?;
-    save_receipt(&receipt_path, &receipt, &limits)?;
+    save_receipt(&receipt_path, &receipt, &limits, &mut perform)?;
     for file in missing {
-        publish_file(root, archive.parent().unwrap(), file)?;
+        publish_file(root, archive.parent().unwrap(), file, &mut perform)?;
     }
     validate_complete(root, &tree, &limits)?;
+    // Matching files on a Pending retry may have been published immediately
+    // before an earlier fsync failure. Matching bytes alone are not durability.
+    sync_imported_tree(root, &tree, None, &mut perform)?;
     receipt.status = ImportStatus::Complete;
-    save_receipt(&receipt_path, &receipt, &limits)?;
+    save_receipt(&receipt_path, &receipt, &limits, &mut perform)?;
     Ok(TreeImportReceipt {
         files: tree.files.len(),
     })
 }
 
-fn save_receipt(path: &Path, receipt: &ImportJournal, limits: &CheckpointLimits) -> Result<()> {
+fn save_receipt(
+    path: &Path,
+    receipt: &ImportJournal,
+    limits: &CheckpointLimits,
+    perform: &mut impl FnMut(&PublicationStep) -> Result<()>,
+) -> Result<()> {
     let bytes = serde_json::to_vec(receipt)?;
     if bytes.len() as u64 > limits.max_manifest_bytes {
         return Err(Error::InvalidInput(
             "tree import receipt exceeds metadata limit".into(),
         ));
     }
-    atomic_bytes(path, &bytes)
+    atomic_bytes_with(path, &bytes, &mut *perform)?;
+    // A prior creation failure can leave a visible metadata directory whose
+    // own name is not durable. Finish intent ancestry before publishing files.
+    sync_publication_ancestors(path.parent().unwrap(), perform)
 }
 
 fn matches_existing(root: &Path, file: &TreeFile, limits: &CheckpointLimits) -> Result<bool> {
@@ -186,7 +208,12 @@ fn matches_existing(root: &Path, file: &TreeFile, limits: &CheckpointLimits) -> 
     Ok(true)
 }
 
-fn publish_file(root: &Path, staging: &Path, file: &TreeFile) -> Result<()> {
+fn publish_file(
+    root: &Path,
+    staging: &Path,
+    file: &TreeFile,
+    perform: &mut impl FnMut(&PublicationStep) -> Result<()>,
+) -> Result<()> {
     let target = safe_target(root, &file.entry.path)?;
     if file.entry.kind == EntryKind::Symlink {
         #[cfg(unix)]
@@ -211,16 +238,55 @@ fn publish_file(root: &Path, staging: &Path, file: &TreeFile) -> Result<()> {
         temporary.as_file().sync_all()?;
         // Hard-link publication refuses to replace a path created after preflight.
         fs::hard_link(temporary.path(), &target)?;
+        perform(&PublicationStep::SyncFile(target.clone()))?;
     }
     let mut parent = target.parent();
     while let Some(directory) = parent {
-        File::open(directory)?.sync_all()?;
+        perform(&PublicationStep::SyncDirectory(directory.to_owned()))?;
         if directory == root {
             break;
         }
         parent = directory.parent();
     }
     Ok(())
+}
+
+/// Flush only verified selected regular files; symlinks require their parents,
+/// never an open of the link or its target. Repeat this on both retry states.
+fn sync_imported_tree(
+    root: &Path,
+    tree: &Tree,
+    receipt: Option<&Path>,
+    perform: &mut impl FnMut(&PublicationStep) -> Result<()>,
+) -> Result<()> {
+    for file in tree.files.values() {
+        let path = checked_path(root, &file.entry.path, false)?;
+        if file.entry.kind == EntryKind::File {
+            perform(&PublicationStep::SyncFile(path.clone()))?;
+        }
+        for parent in path
+            .ancestors()
+            .skip(1)
+            .take_while(|parent| *parent != root)
+        {
+            perform(&PublicationStep::SyncDirectory(parent.to_owned()))?;
+        }
+    }
+    if let Some(path) = receipt {
+        perform(&PublicationStep::SyncFile(path.to_owned()))?;
+        for parent in path
+            .ancestors()
+            .skip(1)
+            .take_while(|parent| *parent != root)
+        {
+            perform(&PublicationStep::SyncDirectory(parent.to_owned()))?;
+        }
+    }
+    // Walk parents directly rather than copying all path prefixes into a set.
+    // Shared parents may repeat; only one copied prefix is retained at a time.
+    // Include the project root even for an empty tree, then its canonical
+    // ancestry: an earlier interrupted import may have left entries unsynced.
+    sync_publication_ancestors(root, perform)
 }
 
 fn validate_complete(root: &Path, expected: &Tree, limits: &CheckpointLimits) -> Result<()> {
@@ -233,3 +299,7 @@ fn validate_complete(root: &Path, expected: &Tree, limits: &CheckpointLimits) ->
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "remote_import_tests.rs"]
+mod tests;

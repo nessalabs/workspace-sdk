@@ -7,6 +7,8 @@ mod managed;
 mod native_command;
 #[cfg(feature = "boat")]
 mod sandbox;
+#[cfg(feature = "space")]
+mod space;
 mod ssh;
 mod supervisor_deployment;
 mod system_command_runner;
@@ -16,6 +18,8 @@ pub use local::{LocalConfig, LocalOpenOptions, LocalProvider};
 pub use native_command::NativeCommand;
 #[cfg(feature = "boat")]
 pub use sandbox::{SandboxOpenOptions, SandboxProvider};
+#[cfg(feature = "space")]
+pub use space::{SpaceConfig, SpaceOpenOptions, SpaceProvider};
 pub use ssh::{SshConfig, SshOpenOptions, SshProvider};
 pub use supervisor_deployment::{SupervisorArtifact, SupervisorDeployment, TargetPlatform};
 pub use system_command_runner::SystemCommandRunner;

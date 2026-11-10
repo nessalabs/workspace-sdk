@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, Mutex,
     },
     time::Duration,
 };
@@ -289,6 +289,238 @@ async fn handoff_refuses_active_source_and_resumes_once_across_controller_replac
         fs::read_to_string(Path::new(&destination.descriptor().root).join("counter")).unwrap(),
         "5"
     );
+    assert_eq!(
+        fs::read_to_string(Path::new(&source.descriptor().root).join("counter")).unwrap(),
+        "3"
+    );
+}
+
+/// Fail only the selected handoff publication, leaving capture and other workflows intact.
+struct HandoffReceiptFaultStore {
+    inner: Arc<FileStateRepository>,
+    operation: OperationId,
+    phase: HandoffPhase,
+    commit_before_error: bool,
+    fail_next: AtomicBool,
+    attempted: Mutex<Option<HandoffReceipt>>,
+}
+impl IWorkflowRepository for HandoffReceiptFaultStore {
+    fn acquire(&self, id: &OperationId) -> Result<Box<dyn IWorkflowLease>> {
+        IWorkflowRepository::acquire(&*self.inner, id)
+    }
+    fn load(&self, id: &OperationId) -> Result<Option<WorkflowRecord>> {
+        IWorkflowRepository::load(&*self.inner, id)
+    }
+    fn save(&self, id: &OperationId, value: &WorkflowRecord) -> Result<()> {
+        if let WorkflowRecord::Handoff(receipt) = value {
+            if id == &self.operation
+                && std::mem::discriminant(&receipt.phase) == std::mem::discriminant(&self.phase)
+                && self.fail_next.swap(false, Ordering::SeqCst)
+            {
+                *self.attempted.lock().unwrap() = Some(receipt.clone());
+                if self.commit_before_error {
+                    IWorkflowRepository::save(&*self.inner, id, value)?;
+                }
+                return Err(Error::State("injected handoff receipt failure".into()));
+            }
+        }
+        IWorkflowRepository::save(&*self.inner, id, value)
+    }
+}
+
+#[tokio::test]
+async fn handoff_recovers_restored_receipt_failure_before_destination_launch() {
+    handoff_recovers_phase_failure(HandoffPhase::Restored, false).await;
+}
+
+#[tokio::test]
+async fn handoff_recovers_started_receipt_failure_without_relaunching_destination() {
+    handoff_recovers_phase_failure(HandoffPhase::Started, false).await;
+}
+
+#[tokio::test]
+async fn handoff_recovers_started_acknowledgement_loss_without_relaunching_destination() {
+    handoff_recovers_phase_failure(HandoffPhase::Started, true).await;
+}
+
+async fn handoff_recovers_phase_failure(phase: HandoffPhase, commit_before_error: bool) {
+    let temporary = TempDir::new().unwrap();
+    let state = temporary.path().join("state");
+    let repository = Arc::new(FileStateRepository::new(&state).unwrap());
+    let controller = sdk(temporary.path(), repository.clone());
+    let provider = ProviderId::new("local").unwrap();
+    let source = controller.open(&provider, request("source")).await.unwrap();
+    let destination = controller
+        .open(&provider, request("destination"))
+        .await
+        .unwrap();
+    let source_run = source
+        .start(CommandSpec::new(support::workload_program()).args(["writefile", "counter", "3"]))
+        .await
+        .unwrap();
+    assert_eq!(
+        source_run.wait(Duration::from_secs(10)).await.unwrap(),
+        RunState::Exited { exit_code: 0 }
+    );
+    let operation = OperationId::new("handoff-save-boundary").unwrap();
+    let source_reference = source.reference();
+    let destination_reference = destination.reference();
+    let source_run_reference = source_run.reference();
+    let engine =
+        Arc::new(GitCheckpointEngine::new("git", temporary.path().join("snapshots")).unwrap());
+    let receipts = Arc::new(HandoffReceiptFaultStore {
+        inner: repository.clone(),
+        operation: operation.clone(),
+        phase,
+        commit_before_error,
+        fail_next: AtomicBool::new(true),
+        attempted: Mutex::new(None),
+    });
+    let sync = SyncService::new(engine.clone(), receipts.clone());
+    let continuation =
+        CommandSpec::new(support::workload_program()).args(["increment", "counter", "2"]);
+    assert!(matches!(
+        sync.handoff(
+            operation.clone(),
+            &source,
+            &source_run,
+            &destination,
+            continuation.clone().into(),
+            true,
+        )
+        .await,
+        Err(Error::State(message)) if message == "injected handoff receipt failure"
+    ));
+    let attempted = receipts.attempted.lock().unwrap().clone().unwrap();
+    let destination_root = PathBuf::from(destination.descriptor().root);
+    let started = matches!(attempted.phase, HandoffPhase::Started);
+    if started {
+        let reference = attempted.destination_run.as_ref().unwrap();
+        assert_eq!(reference.workspace, destination_reference);
+        assert_eq!(
+            destination
+                .run(reference.id.clone())
+                .wait(Duration::from_secs(10))
+                .await
+                .unwrap(),
+            RunState::Exited { exit_code: 0 }
+        );
+    } else {
+        assert!(matches!(attempted.phase, HandoffPhase::Restored));
+        assert!(attempted.destination_run.is_none());
+        let runs = Path::new(&destination.descriptor().control_root).join("runs");
+        assert!(fs::read_dir(runs).unwrap().all(|entry| !entry
+            .unwrap()
+            .path()
+            .join("claim.json")
+            .exists()));
+    }
+    let before_retry = if started { "5" } else { "3" };
+    assert_eq!(
+        fs::read_to_string(destination_root.join("counter")).unwrap(),
+        before_retry
+    );
+    drop(sync);
+    drop(receipts);
+    drop(repository);
+    drop(controller);
+    drop(source_run);
+    drop(source);
+    drop(destination);
+
+    // Reopen the actual disk repository, rather than reusing the fault wrapper's memory.
+    let reopened = Arc::new(FileStateRepository::new(&state).unwrap());
+    let saved = IWorkflowRepository::load(&*reopened, &operation)
+        .unwrap()
+        .unwrap()
+        .into_handoff()
+        .unwrap();
+    match (&attempted.phase, commit_before_error) {
+        (HandoffPhase::Restored, false) => assert!(matches!(saved.phase, HandoffPhase::Captured)),
+        (HandoffPhase::Started, false) => assert!(matches!(saved.phase, HandoffPhase::Restored)),
+        (HandoffPhase::Started, true) => assert!(matches!(saved.phase, HandoffPhase::Started)),
+        _ => panic!("unsupported receipt fault scenario"),
+    }
+    let restarted_controller = sdk(temporary.path(), reopened.clone());
+    let source = restarted_controller
+        .connect(&source_reference)
+        .await
+        .unwrap();
+    let destination = restarted_controller
+        .connect(&destination_reference)
+        .await
+        .unwrap();
+    let source_run = source.run(source_run_reference.id);
+    let restarted = SyncService::new(engine, reopened);
+    let changed = CommandSpec::new(support::workload_program()).args([
+        "writefile",
+        "unexpected",
+        "changed continuation ran",
+    ]);
+    assert!(matches!(
+        restarted
+            .handoff(
+                operation.clone(),
+                &source,
+                &source_run,
+                &destination,
+                changed.into(),
+                true,
+            )
+            .await,
+        Err(Error::Conflict(_))
+    ));
+    assert!(!destination_root.join("unexpected").exists());
+    assert_eq!(
+        fs::read_to_string(destination_root.join("counter")).unwrap(),
+        before_retry
+    );
+    let recovered = restarted
+        .handoff(
+            operation.clone(),
+            &source,
+            &source_run,
+            &destination,
+            continuation.clone().into(),
+            true,
+        )
+        .await
+        .unwrap();
+    assert!(matches!(recovered.phase, HandoffPhase::Started));
+    let recovered_reference = recovered.destination_run.unwrap();
+    assert_eq!(recovered_reference.workspace, destination_reference);
+    if let Some(reference) = attempted.destination_run {
+        assert_eq!(recovered_reference.workspace, reference.workspace);
+        assert_eq!(recovered_reference.id, reference.id);
+    }
+    assert_eq!(
+        destination
+            .run(recovered_reference.id.clone())
+            .wait(Duration::from_secs(10))
+            .await
+            .unwrap(),
+        RunState::Exited { exit_code: 0 }
+    );
+    let repeated = restarted
+        .handoff(
+            operation,
+            &source,
+            &source_run,
+            &destination,
+            continuation.into(),
+            true,
+        )
+        .await
+        .unwrap();
+    assert!(matches!(repeated.phase, HandoffPhase::Started));
+    let repeated_reference = repeated.destination_run.unwrap();
+    assert_eq!(repeated_reference.workspace, recovered_reference.workspace);
+    assert_eq!(repeated_reference.id, recovered_reference.id);
+    assert_eq!(
+        fs::read_to_string(destination_root.join("counter")).unwrap(),
+        "5"
+    );
+    assert!(!destination_root.join("unexpected").exists());
     assert_eq!(
         fs::read_to_string(Path::new(&source.descriptor().root).join("counter")).unwrap(),
         "3"

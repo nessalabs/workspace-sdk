@@ -1,5 +1,9 @@
 //! Explicitly opted-in, billable native Boat conformance test. Never runs by default.
 #![cfg(all(feature = "boat", unix))]
+#[path = "support/boat_live_fixture.rs"]
+mod boat_live_fixture;
+
+use boat_live_fixture::{Budgets, FixtureLedger, FixtureRecord};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::mem::zeroed;
@@ -8,37 +12,24 @@ use std::{
     io::{self, Write},
     path::{Path, PathBuf},
     sync::Arc,
-    time::{Duration, Instant},
+    time::Duration,
 };
 use tempfile::TempDir;
 use workspace_sdk::{
-    boat_client::{Api, ClientConfig},
+    boat_client::{Api, ClientConfig, RetryConfig},
     checkpoint::{ApplyOptions, GitCheckpointEngine},
     infrastructure::FileStateRepository,
     providers::{
         SandboxOpenOptions, SandboxProvider, SupervisorArtifact, SupervisorDeployment,
         TargetPlatform,
     },
-    CommandSpec, DeleteOperation, DeleteState, Error, OpenRequest, OperationId, OutputCursor,
-    ProviderId, ReadFile, Result, RunState, SyncService, Workspace, WorkspaceId, WorkspacePath,
-    WorkspaceRef, WorkspaceSdk, WriteFile,
+    CommandSpec, Error, OpenRequest, OperationId, OutputCursor, ProviderId, ReadFile, Result,
+    RunState, SyncService, Workspace, WorkspaceId, WorkspacePath, WorkspaceSdk, WriteFile,
 };
 
 #[derive(Serialize)]
 struct Check {
     name: &'static str,
-}
-#[derive(Serialize)]
-struct Fixture {
-    requested_id: WorkspaceId,
-    reference: Option<WorkspaceRef>,
-}
-#[derive(Serialize)]
-struct Cleanup {
-    workspace: WorkspaceRef,
-    stop_requested: bool,
-    deletion: Option<DeleteOperation>,
-    error: Option<String>,
 }
 #[derive(Serialize)]
 struct Evidence {
@@ -47,11 +38,15 @@ struct Evidence {
     supervisor_sha256: String,
     workload_sha256: String,
     checks: Vec<Check>,
-    fixtures: Vec<Fixture>,
-    cleanup: Vec<Cleanup>,
+    fixture_ledger: PathBuf,
+    fixtures: Vec<FixtureRecord>,
     functional_passed: bool,
     cleanup_confirmed: bool,
     error: Option<String>,
+}
+struct FixtureHost<'a> {
+    api: &'a Api,
+    ledger: &'a mut FixtureLedger,
 }
 struct Report {
     path: PathBuf,
@@ -113,13 +108,19 @@ async fn native_rust_box_workflow() -> Result<()> {
     }
     let api = Api::new(
         ClientConfig::new(api_key()?)
-            .map_err(|_| Error::CredentialRequired("Boat API key".into()))?,
+            .map_err(|_| Error::CredentialRequired("Boat API key".into()))?
+            .with_connect_timeout(Duration::from_secs(10))
+            .with_request_timeout(Duration::from_secs(30))
+            .with_retry(RetryConfig {
+                max_attempts: 1,
+                ..Default::default()
+            }),
     )
     .map_err(|_| Error::State("could not construct the Boat client".into()))?;
     let temporary = TempDir::new()?;
     let state = Arc::new(FileStateRepository::new(temporary.path().join("state"))?);
     let sdk = WorkspaceSdk::builder(state.clone())
-        .provider(Arc::new(SandboxProvider::new(api).with_supervisor(
+        .provider(Arc::new(SandboxProvider::new(api.clone()).with_supervisor(
             SupervisorDeployment::Upload {
                 artifact: SupervisorArtifact {
                     path: supervisor.clone(),
@@ -136,23 +137,24 @@ async fn native_rust_box_workflow() -> Result<()> {
         )?),
         state,
     );
+    let ledger_path = path.with_extension("fixtures.json");
+    let mut fixtures = FixtureLedger::create(&ledger_path)?;
     let mut report = Report {
         path,
         evidence: Evidence {
-            schema: 1,
-            implementation: "native Rust supervisor and Rust workload; no model calls",
+            schema: 2,
+            implementation: "raw API-created fixtures, SDK attachment, native Rust supervisor/workload; no model calls",
             supervisor_sha256: format!("{:x}", Sha256::digest(fs::read(supervisor)?)),
             workload_sha256: format!("{:x}", Sha256::digest(fs::read(&workload)?)),
             checks: vec![],
+            fixture_ledger: ledger_path,
             fixtures: vec![],
-            cleanup: vec![],
             functional_passed: false,
             cleanup_confirmed: false,
             error: None,
         },
     };
     report.save()?;
-    let mut fixtures = Vec::new();
     let outcome = exercise(
         &sdk,
         &sync,
@@ -160,80 +162,79 @@ async fn native_rust_box_workflow() -> Result<()> {
         &workload,
         &target_root,
         &mut report,
-        &mut fixtures,
+        &mut FixtureHost {
+            api: &api,
+            ledger: &mut fixtures,
+        },
     )
     .await;
     report.evidence.functional_passed = outcome.is_ok();
-    report.evidence.error = outcome.as_ref().err().map(ToString::to_string);
-    for workspace in fixtures.iter().rev() {
-        let stopped = workspace.stop().await.is_ok();
-        let mut cleanup = Cleanup {
-            workspace: workspace.reference(),
-            stop_requested: stopped,
-            deletion: None,
-            error: None,
-        };
-        match workspace.destroy().await {
-            Ok(mut deletion) => {
-                let started = Instant::now();
-                while !matches!(
-                    deletion.state,
-                    DeleteState::Completed | DeleteState::Blocked
-                ) && started.elapsed() < Duration::from_secs(60)
-                {
-                    tokio::time::sleep(Duration::from_secs(2)).await;
-                    match workspace.inspect_delete(&deletion.reference).await {
-                        Ok(value) => deletion = value,
-                        Err(error) => {
-                            cleanup.error = Some(error.to_string());
-                            break;
-                        }
-                    }
-                }
-                cleanup.deletion = Some(deletion);
-            }
-            Err(error) => cleanup.error = Some(error.to_string()),
-        }
-        report.evidence.cleanup.push(cleanup);
-        report.save()?;
-    }
-    report.evidence.cleanup_confirmed = !fixtures.is_empty()
-        && report.evidence.cleanup.iter().all(|entry| {
-            entry
-                .deletion
-                .as_ref()
-                .is_some_and(|op| op.state == DeleteState::Completed)
-        });
-    report.save()?;
-    outcome
+    report.evidence.error = outcome
+        .as_ref()
+        .err()
+        .map(|_| "native_workflow_failed".into());
+    // Cleanup uses the raw owned-target ledger even when SDK attachment/bootstrap
+    // failed before returning any Workspace. Never short-circuit this on a report
+    // write or an earlier target's cleanup failure.
+    let cleanup = fixtures.cleanup_all(&api, Budgets::default()).await;
+    report.evidence.fixtures = fixtures.fixtures().to_vec();
+    report.evidence.cleanup_confirmed = cleanup.is_ok();
+    let saved = report.save();
+    cleanup?;
+    saved?;
+    outcome.map_err(|_| {
+        Error::State("native Boat workflow failed; inspect fixed evidence classifications".into())
+    })
 }
+
+/// Resume cleanup after interruption without artifacts, SDK bootstrap, or creation.
+/// Set BOAT_FIXTURE_LEDGER to the durable external *.fixtures.json ownership file.
+#[tokio::test]
+#[ignore = "contacts Boat only to reconcile cleanup of targets registered by an earlier explicitly authorized live test"]
+async fn cleanup_registered_boat_fixtures() -> Result<()> {
+    let mut fixtures = FixtureLedger::load(required("BOAT_FIXTURE_LEDGER")?)?;
+    let api = Api::new(
+        ClientConfig::new(api_key()?)
+            .map_err(|_| Error::CredentialRequired("Boat API key".into()))?
+            .with_connect_timeout(Duration::from_secs(10))
+            .with_request_timeout(Duration::from_secs(30))
+            .with_retry(RetryConfig {
+                max_attempts: 1,
+                ..Default::default()
+            }),
+    )
+    .map_err(|_| Error::State("could not construct the Boat client".into()))?;
+    fixtures.cleanup_all(&api, Budgets::default()).await
+}
+
 async fn open(
     sdk: &WorkspaceSdk,
     root: &str,
     report: &mut Report,
-    fixtures: &mut Vec<Workspace>,
+    fixtures: &mut FixtureHost<'_>,
 ) -> Result<Workspace> {
     let id = WorkspaceId::generate();
-    report.evidence.fixtures.push(Fixture {
-        requested_id: id.clone(),
-        reference: None,
-    });
-    report.save()?;
+    let index = fixtures.ledger.reserve(id.clone(), 300)?;
+    let raw_target = fixtures
+        .ledger
+        .create_target(fixtures.api, index, Budgets::default())
+        .await?;
+    // The raw ID is durable before the SDK uploads or initializes anything.
+    // This attachment cannot be lifecycle-deleted by the SDK; the raw ledger
+    // owns cleanup for exactly the target created with this public request key.
     let mut options = SandboxOpenOptions::new(root);
-    options.ttl_seconds = Some(900);
+    options.sandbox_id = Some(raw_target);
     let workspace = sdk
         .open(&ProviderId::new("boat")?, OpenRequest::new(id, &options)?)
         .await?;
-    report
-        .evidence
-        .fixtures
-        .last_mut()
-        .expect("just recorded fixture")
-        .reference = Some(workspace.reference());
-    fixtures.push(workspace.clone());
+    fixtures
+        .ledger
+        .record_workspace(index, workspace.reference())?;
+    report.evidence.fixtures = fixtures.ledger.fixtures().to_vec();
     report.save()?;
     Ok(workspace)
 }
+
 async fn exercise(
     sdk: &WorkspaceSdk,
     sync: &SyncService,
@@ -241,11 +242,11 @@ async fn exercise(
     workload: &Path,
     root: &str,
     report: &mut Report,
-    fixtures: &mut Vec<Workspace>,
+    fixtures: &mut FixtureHost<'_>,
 ) -> Result<()> {
     let source = open(sdk, root, report, fixtures).await?;
     let destination = open(sdk, root, report, fixtures).await?;
-    report.passed("native_supervisor_upload_and_workspace_creation")?;
+    report.passed("raw_fixture_creation_sdk_attachment_and_native_supervisor_upload")?;
     let project = local.join("project");
     fs::create_dir(&project)?;
     fs::copy(workload, project.join("worker"))?;

@@ -1,0 +1,935 @@
+{
+  "scope": "Stream checkpoint source directory entries and share checked traversal/selected-byte budgets while retaining successful selected/excluded ordering",
+  "source_commit": "2fdaf4b3f716aaa7a60196116af9fdfd8441a3be",
+  "cloud_url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39083692263",
+  "cloud_run": {
+    "conclusion": "success",
+    "headSha": "2fdaf4b3f716aaa7a60196116af9fdfd8441a3be",
+    "jobs": [
+      {
+        "completedAt": "2026-10-18T00:43:45Z",
+        "conclusion": "success",
+        "databaseId": 117545729228,
+        "name": "quality (ubuntu-24.04)",
+        "startedAt": "2026-10-18T00:41:36Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T00:41:39Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T00:41:37Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T00:41:40Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v4",
+            "number": 2,
+            "startedAt": "2026-10-18T00:41:39Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T00:41:48Z",
+            "conclusion": "success",
+            "name": "Run dtolnay/rust-toolchain@stable",
+            "number": 3,
+            "startedAt": "2026-10-18T00:41:40Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T00:41:54Z",
+            "conclusion": "success",
+            "name": "Run Swatinem/rust-cache@v2",
+            "number": 4,
+            "startedAt": "2026-10-18T00:41:48Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T00:43:42Z",
+            "conclusion": "success",
+            "name": "Run scripts/quality-gate.sh",
+            "number": 5,
+            "startedAt": "2026-10-18T00:41:54Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T00:43:42Z",
+            "conclusion": "success",
+            "name": "Post Run Swatinem/rust-cache@v2",
+            "number": 9,
+            "startedAt": "2026-10-18T00:43:42Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T00:43:42Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v4",
+            "number": 10,
+            "startedAt": "2026-10-18T00:43:42Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T00:43:42Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 11,
+            "startedAt": "2026-10-18T00:43:42Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39083692263/job/117545729228"
+      },
+      {
+        "completedAt": "2026-10-18T00:45:36Z",
+        "conclusion": "success",
+        "databaseId": 117545729403,
+        "name": "quality (macos-15)",
+        "startedAt": "2026-10-18T00:41:42Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-18T00:41:44Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-18T00:41:42Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T00:41:45Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v4",
+            "number": 2,
+            "startedAt": "2026-10-18T00:41:44Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T00:41:55Z",
+            "conclusion": "success",
+            "name": "Run dtolnay/rust-toolchain@stable",
+            "number": 3,
+            "startedAt": "2026-10-18T00:41:45Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T00:42:07Z",
+            "conclusion": "success",
+            "name": "Run Swatinem/rust-cache@v2",
+            "number": 4,
+            "startedAt": "2026-10-18T00:41:55Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T00:45:30Z",
+            "conclusion": "success",
+            "name": "Run scripts/quality-gate.sh",
+            "number": 5,
+            "startedAt": "2026-10-18T00:42:07Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T00:45:31Z",
+            "conclusion": "success",
+            "name": "Post Run Swatinem/rust-cache@v2",
+            "number": 9,
+            "startedAt": "2026-10-18T00:45:30Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T00:45:31Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v4",
+            "number": 10,
+            "startedAt": "2026-10-18T00:45:31Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-18T00:45:33Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 11,
+            "startedAt": "2026-10-18T00:45:31Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39083692263/job/117545729403"
+      }
+    ],
+    "status": "completed",
+    "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39083692263"
+  },
+  "raw_log_sha256": "fa96042a3b075f63b20bbd7206722ea48d7e1a1995054a1339dbf233da74ac0e",
+  "checks": [
+    "cargo fmt --all -- --check",
+    "cargo clippy --locked --all-features --all-targets -- -D warnings",
+    "cargo build --locked --all-features --example pty_live_probe",
+    "cargo test --locked --all-features",
+    "cargo build --locked --no-default-features --example pty_live_probe",
+    "cargo test --locked --no-default-features",
+    "RUSTDOCFLAGS=-Dwarnings cargo doc --locked --all-features --no-deps",
+    "cargo build --locked --bin workspace-supervisor",
+    "cargo test --locked --test runtime_performance -- --ignored --nocapture",
+    "cargo test --locked --test runtime_pty_performance -- --ignored --nocapture"
+  ],
+  "test_summary": {
+    "ubuntu-24.04": {
+      "new_integration_executions_by_name": {
+        "excluded_report_retains_component_depth_first_order_across_creation_orders": 2,
+        "excluded_entries_still_consume_the_positive_traversal_allowance": 2,
+        "aggregate_content_limit_is_exact_across_sibling_directories": 2,
+        "selected_file_limit_is_shared_across_sibling_directories": 2,
+        "aggregate_limit_counts_symlink_target_bytes_with_regular_file_bytes": 2
+      },
+      "new_unit_executions_by_name": {
+        "traversal_counter_refuses_overflow_even_with_saturated_entry_allowance": 2,
+        "selected_byte_counter_refuses_overflow_at_maximum_allowance": 2
+      }
+    },
+    "macos-15": {
+      "new_integration_executions_by_name": {
+        "excluded_report_retains_component_depth_first_order_across_creation_orders": 2,
+        "excluded_entries_still_consume_the_positive_traversal_allowance": 2,
+        "aggregate_content_limit_is_exact_across_sibling_directories": 2,
+        "selected_file_limit_is_shared_across_sibling_directories": 2,
+        "aggregate_limit_counts_symlink_target_bytes_with_regular_file_bytes": 2
+      },
+      "new_unit_executions_by_name": {
+        "traversal_counter_refuses_overflow_even_with_saturated_entry_allowance": 2,
+        "selected_byte_counter_refuses_overflow_at_maximum_allowance": 2
+      }
+    }
+  },
+  "tests": {
+    "new": "5 public capture/archive cases +2 private arithmetic-overflow cases, both feature selections/OS:28 new executions in successful revalidation.",
+    "ordering": "Public drafts frozen before production; private overflow drafts written before counter implementation. No old-source failing runtime or mutation probe claimed.",
+    "scenarios": [
+      "Exact prior depth-first component excluded order across punctuation/Unicode prefixes and reversed creation order; identical selected entries/fingerprint/archive",
+      "1000 excluded entries allowed with positive max_files1;1001 refuses traversal without publishing checkpoint or changing prior artifact",
+      "Exact7 byte content accepted across sibling directories,6 refuses; selected2files accepted,3 refuses across siblings",
+      "Regular3byte payload plus4byte symlink target counts7 total; restore preserves target/payload",
+      "Visited and content counter representable-overflow edges refuse with InvalidInput"
+    ],
+    "retained": "Full gate includes existing ignore/tracked-selection, linked Git, checkpoint/recovery/native/provider suites. Public bound tests alone do not prove allocation or accumulator timing."
+  },
+  "performance": {
+    "ubuntu-24.04": [
+      {
+        "schema_version": 1,
+        "unix_timestamp_seconds": 1792284216,
+        "operating_system": "linux",
+        "architecture": "x86_64",
+        "debug_assertions": true,
+        "retention_bytes": 32768,
+        "minimum_load_bytes_per_stream": 131072,
+        "poll_interval_ms": 10,
+        "samples": [
+          {
+            "launch_ms": 2.975685,
+            "launch_to_first_output_ms": 31.273598,
+            "reconnect_ms": 0.035073,
+            "idempotent_retry_ms": 1.575615,
+            "loaded_read_ms": 1.293358,
+            "cancel_ms": 51.848661,
+            "final_stdout_offset": 188416,
+            "final_stderr_offset": 188416,
+            "retained_stdout_bytes": 16384,
+            "retained_stderr_bytes": 16384
+          },
+          {
+            "launch_ms": 2.671473,
+            "launch_to_first_output_ms": 17.739411,
+            "reconnect_ms": 0.02664,
+            "idempotent_retry_ms": 1.461563,
+            "loaded_read_ms": 1.345927,
+            "cancel_ms": 51.813838000000004,
+            "final_stdout_offset": 188416,
+            "final_stderr_offset": 188416,
+            "retained_stdout_bytes": 16384,
+            "retained_stderr_bytes": 16384
+          },
+          {
+            "launch_ms": 7.377427,
+            "launch_to_first_output_ms": 22.233584,
+            "reconnect_ms": 0.021993000000000002,
+            "idempotent_retry_ms": 1.478588,
+            "loaded_read_ms": 1.362548,
+            "cancel_ms": 51.994051,
+            "final_stdout_offset": 188416,
+            "final_stderr_offset": 188416,
+            "retained_stdout_bytes": 16384,
+            "retained_stderr_bytes": 16384
+          }
+        ]
+      },
+      {
+        "architecture": "x86_64",
+        "debug_assertions": true,
+        "os": "linux",
+        "samples": [
+          {
+            "cancel_ms": 51.666675000000005,
+            "elapsed_to_cancel_ms": 2467.604391,
+            "input_delivery_ms": 1395.2342449999999,
+            "launch_ms": 179.963441,
+            "observed_bytes_per_second": 875187.2901007493,
+            "output_bytes": 2159616,
+            "population": 1,
+            "ready_ms": 186.083785,
+            "resize_observed_ms": 252.18073099999998,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7748
+          },
+          {
+            "cancel_ms": 54.453002,
+            "elapsed_to_cancel_ms": 604.160493,
+            "input_delivery_ms": 2.8764939999999997,
+            "launch_ms": 2.730273,
+            "observed_bytes_per_second": 893219.6101078063,
+            "output_bytes": 539648,
+            "population": 1,
+            "ready_ms": 8.838128000000001,
+            "resize_observed_ms": 29.098431,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 18,
+            "supervisor_rss_kib": 7648
+          },
+          {
+            "cancel_ms": 51.657882,
+            "elapsed_to_cancel_ms": 605.7027870000001,
+            "input_delivery_ms": 5.152379000000001,
+            "launch_ms": 3.007428,
+            "observed_bytes_per_second": 887564.019083835,
+            "output_bytes": 537600,
+            "population": 1,
+            "ready_ms": 9.117016,
+            "resize_observed_ms": 29.327475,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7396
+          },
+          {
+            "cancel_ms": 51.820739999999994,
+            "elapsed_to_cancel_ms": 612.927469,
+            "input_delivery_ms": 2.543484,
+            "launch_ms": 2.772697,
+            "observed_bytes_per_second": 883784.8316437586,
+            "output_bytes": 541696,
+            "population": 4,
+            "ready_ms": 8.882295000000001,
+            "resize_observed_ms": 37.634101,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7640
+          },
+          {
+            "cancel_ms": 52.035724,
+            "elapsed_to_cancel_ms": 652.2076959999999,
+            "input_delivery_ms": 31.848584,
+            "launch_ms": 2.758245,
+            "observed_bytes_per_second": 894929.64216724,
+            "output_bytes": 583680,
+            "population": 4,
+            "ready_ms": 8.874422,
+            "resize_observed_ms": 34.813516,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7664
+          },
+          {
+            "cancel_ms": 52.043504999999996,
+            "elapsed_to_cancel_ms": 670.189941,
+            "input_delivery_ms": 33.000912,
+            "launch_ms": 2.7115899999999997,
+            "observed_bytes_per_second": 881612.7546145908,
+            "output_bytes": 590848,
+            "population": 4,
+            "ready_ms": 8.819015,
+            "resize_observed_ms": 39.952717,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7648
+          },
+          {
+            "cancel_ms": 51.89525,
+            "elapsed_to_cancel_ms": 660.16455,
+            "input_delivery_ms": 30.644428,
+            "launch_ms": 2.647007,
+            "observed_bytes_per_second": 888796.5886686888,
+            "output_bytes": 586752,
+            "population": 4,
+            "ready_ms": 8.752518,
+            "resize_observed_ms": 29.300020999999997,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7396
+          },
+          {
+            "cancel_ms": 52.65756,
+            "elapsed_to_cancel_ms": 643.305517,
+            "input_delivery_ms": 4.967824,
+            "launch_ms": 3.1761179999999998,
+            "observed_bytes_per_second": 883437.161630933,
+            "output_bytes": 568320,
+            "population": 4,
+            "ready_ms": 9.288449,
+            "resize_observed_ms": 26.738208999999998,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7652
+          },
+          {
+            "cancel_ms": 52.146588,
+            "elapsed_to_cancel_ms": 634.5564350000001,
+            "input_delivery_ms": 21.126507,
+            "launch_ms": 2.914561,
+            "observed_bytes_per_second": 884321.6600584942,
+            "output_bytes": 561152,
+            "population": 4,
+            "ready_ms": 9.022656,
+            "resize_observed_ms": 16.791694,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7404
+          },
+          {
+            "cancel_ms": 52.129221,
+            "elapsed_to_cancel_ms": 616.762979,
+            "input_delivery_ms": 6.312961,
+            "launch_ms": 2.862031,
+            "observed_bytes_per_second": 891571.0227802113,
+            "output_bytes": 549888,
+            "population": 4,
+            "ready_ms": 8.973632,
+            "resize_observed_ms": 37.476317,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7624
+          },
+          {
+            "cancel_ms": 52.348143,
+            "elapsed_to_cancel_ms": 647.5086289999999,
+            "input_delivery_ms": 24.848028000000003,
+            "launch_ms": 2.952553,
+            "observed_bytes_per_second": 890354.1577358656,
+            "output_bytes": 576512,
+            "population": 4,
+            "ready_ms": 9.062812,
+            "resize_observed_ms": 42.198319999999995,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7372
+          },
+          {
+            "cancel_ms": 63.826015,
+            "elapsed_to_cancel_ms": 618.99671,
+            "input_delivery_ms": 5.591072,
+            "launch_ms": 2.734795,
+            "observed_bytes_per_second": 878427.9321936945,
+            "output_bytes": 543744,
+            "population": 4,
+            "ready_ms": 8.841348,
+            "resize_observed_ms": 23.882308000000002,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7664
+          },
+          {
+            "cancel_ms": 53.431211,
+            "elapsed_to_cancel_ms": 655.544641,
+            "input_delivery_ms": 3.0236270000000003,
+            "launch_ms": 2.7508179999999998,
+            "observed_bytes_per_second": 882563.846632071,
+            "output_bytes": 578560,
+            "population": 4,
+            "ready_ms": 8.865803,
+            "resize_observed_ms": 33.871727,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7640
+          },
+          {
+            "cancel_ms": 52.736681,
+            "elapsed_to_cancel_ms": 646.361287,
+            "input_delivery_ms": 17.164430000000003,
+            "launch_ms": 19.612094,
+            "observed_bytes_per_second": 861833.7935823809,
+            "output_bytes": 557056,
+            "population": 4,
+            "ready_ms": 25.718926,
+            "resize_observed_ms": 25.790945,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7584
+          },
+          {
+            "cancel_ms": 52.168780999999996,
+            "elapsed_to_cancel_ms": 664.668597,
+            "input_delivery_ms": 13.035065,
+            "launch_ms": 2.617982,
+            "observed_bytes_per_second": 882773.7652242355,
+            "output_bytes": 586752,
+            "population": 4,
+            "ready_ms": 8.798924,
+            "resize_observed_ms": 36.635455,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7664
+          }
+        ],
+        "schema_version": 1,
+        "unix_timestamp_seconds": 1792284222
+      }
+    ],
+    "macos-15": [
+      {
+        "schema_version": 1,
+        "unix_timestamp_seconds": 1792284313,
+        "operating_system": "macos",
+        "architecture": "aarch64",
+        "debug_assertions": true,
+        "retention_bytes": 32768,
+        "minimum_load_bytes_per_stream": 131072,
+        "poll_interval_ms": 10,
+        "samples": [
+          {
+            "launch_ms": 14.006457999999999,
+            "launch_to_first_output_ms": 40.388915999999995,
+            "reconnect_ms": 0.067625,
+            "idempotent_retry_ms": 3.88575,
+            "loaded_read_ms": 5.13775,
+            "cancel_ms": 76.40754199999999,
+            "final_stdout_offset": 172032,
+            "final_stderr_offset": 172032,
+            "retained_stdout_bytes": 16384,
+            "retained_stderr_bytes": 16384
+          },
+          {
+            "launch_ms": 8.038916,
+            "launch_to_first_output_ms": 33.629916,
+            "reconnect_ms": 0.055834,
+            "idempotent_retry_ms": 3.161208,
+            "loaded_read_ms": 4.2849580000000005,
+            "cancel_ms": 136.108125,
+            "final_stdout_offset": 180224,
+            "final_stderr_offset": 180224,
+            "retained_stdout_bytes": 16384,
+            "retained_stderr_bytes": 16384
+          },
+          {
+            "launch_ms": 9.932959,
+            "launch_to_first_output_ms": 36.378292,
+            "reconnect_ms": 0.063333,
+            "idempotent_retry_ms": 3.8400410000000003,
+            "loaded_read_ms": 4.088583,
+            "cancel_ms": 200.335042,
+            "final_stdout_offset": 172032,
+            "final_stderr_offset": 172032,
+            "retained_stdout_bytes": 16384,
+            "retained_stderr_bytes": 16384
+          }
+        ]
+      },
+      {
+        "architecture": "aarch64",
+        "debug_assertions": true,
+        "os": "macos",
+        "samples": [
+          {
+            "cancel_ms": 189.517667,
+            "elapsed_to_cancel_ms": 2697.52725,
+            "input_delivery_ms": 64.23962499999999,
+            "launch_ms": 12.314666,
+            "observed_bytes_per_second": 111224.82636644355,
+            "output_bytes": 300032,
+            "population": 1,
+            "ready_ms": 34.543333000000004,
+            "resize_observed_ms": 133.37937499999998,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7152
+          },
+          {
+            "cancel_ms": 62.68600000000001,
+            "elapsed_to_cancel_ms": 2342.2901669999997,
+            "input_delivery_ms": 9.618375,
+            "launch_ms": 13.689417,
+            "observed_bytes_per_second": 119787.03746998227,
+            "output_bytes": 280576,
+            "population": 1,
+            "ready_ms": 27.672708,
+            "resize_observed_ms": 84.613125,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7200
+          },
+          {
+            "cancel_ms": 193.799959,
+            "elapsed_to_cancel_ms": 2530.528875,
+            "input_delivery_ms": 88.075166,
+            "launch_ms": 14.255417,
+            "observed_bytes_per_second": 112495.0609385953,
+            "output_bytes": 284672,
+            "population": 1,
+            "ready_ms": 29.442833,
+            "resize_observed_ms": 51.801,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7104
+          },
+          {
+            "cancel_ms": 63.34654200000001,
+            "elapsed_to_cancel_ms": 1532.98325,
+            "input_delivery_ms": 18.072834,
+            "launch_ms": 12.829208,
+            "observed_bytes_per_second": 181690.17828472686,
+            "output_bytes": 278528,
+            "population": 4,
+            "ready_ms": 28.490875,
+            "resize_observed_ms": 37.830875,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7024
+          },
+          {
+            "cancel_ms": 66.975167,
+            "elapsed_to_cancel_ms": 1705.303666,
+            "input_delivery_ms": 72.567708,
+            "launch_ms": 11.805125,
+            "observed_bytes_per_second": 172938.11412002207,
+            "output_bytes": 294912,
+            "population": 4,
+            "ready_ms": 26.138125000000002,
+            "resize_observed_ms": 129.462625,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 6976
+          },
+          {
+            "cancel_ms": 203.161,
+            "elapsed_to_cancel_ms": 1784.072375,
+            "input_delivery_ms": 6.720375,
+            "launch_ms": 12.240792,
+            "observed_bytes_per_second": 155545.25919947613,
+            "output_bytes": 277504,
+            "population": 4,
+            "ready_ms": 27.599999999999998,
+            "resize_observed_ms": 68.757417,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7328
+          },
+          {
+            "cancel_ms": 179.918708,
+            "elapsed_to_cancel_ms": 1783.5628749999998,
+            "input_delivery_ms": 70.586667,
+            "launch_ms": 18.785916999999998,
+            "observed_bytes_per_second": 161905.14169566354,
+            "output_bytes": 288768,
+            "population": 4,
+            "ready_ms": 34.254542,
+            "resize_observed_ms": 48.917750000000005,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7040
+          },
+          {
+            "cancel_ms": 65.719583,
+            "elapsed_to_cancel_ms": 2059.887542,
+            "input_delivery_ms": 80.082167,
+            "launch_ms": 12.838583,
+            "observed_bytes_per_second": 145654.55340765396,
+            "output_bytes": 300032,
+            "population": 4,
+            "ready_ms": 28.916583,
+            "resize_observed_ms": 100.832791,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 6992
+          },
+          {
+            "cancel_ms": 62.75875,
+            "elapsed_to_cancel_ms": 2001.879792,
+            "input_delivery_ms": 80.373833,
+            "launch_ms": 14.599917,
+            "observed_bytes_per_second": 147317.53683639763,
+            "output_bytes": 294912,
+            "population": 4,
+            "ready_ms": 30.733542,
+            "resize_observed_ms": 117.025542,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7024
+          },
+          {
+            "cancel_ms": 203.129958,
+            "elapsed_to_cancel_ms": 2169.8809579999997,
+            "input_delivery_ms": 17.322875,
+            "launch_ms": 12.61125,
+            "observed_bytes_per_second": 134967.77273437876,
+            "output_bytes": 292864,
+            "population": 4,
+            "ready_ms": 28.491583000000002,
+            "resize_observed_ms": 144.408041,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 7056
+          },
+          {
+            "cancel_ms": 191.562542,
+            "elapsed_to_cancel_ms": 2233.094125,
+            "input_delivery_ms": 101.917208,
+            "launch_ms": 12.329292,
+            "observed_bytes_per_second": 137566.97335809792,
+            "output_bytes": 307200,
+            "population": 4,
+            "ready_ms": 27.71575,
+            "resize_observed_ms": 124.050458,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 6880
+          },
+          {
+            "cancel_ms": 111.94741699999999,
+            "elapsed_to_cancel_ms": 2210.34375,
+            "input_delivery_ms": 143.796459,
+            "launch_ms": 10.421417,
+            "observed_bytes_per_second": 139446.18342735153,
+            "output_bytes": 308224,
+            "population": 4,
+            "ready_ms": 26.315667,
+            "resize_observed_ms": 59.301874999999995,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 18,
+            "supervisor_rss_kib": 7056
+          },
+          {
+            "cancel_ms": 144.34116699999998,
+            "elapsed_to_cancel_ms": 2189.6874159999998,
+            "input_delivery_ms": 42.145875,
+            "launch_ms": 11.822083000000001,
+            "observed_bytes_per_second": 133746.9439062621,
+            "output_bytes": 292864,
+            "population": 4,
+            "ready_ms": 26.120166,
+            "resize_observed_ms": 47.263417000000004,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 6992
+          },
+          {
+            "cancel_ms": 108.933875,
+            "elapsed_to_cancel_ms": 2244.4135420000002,
+            "input_delivery_ms": 38.231792,
+            "launch_ms": 9.196333,
+            "observed_bytes_per_second": 137329.41556097596,
+            "output_bytes": 308224,
+            "population": 4,
+            "ready_ms": 25.471833,
+            "resize_observed_ms": 189.86149999999998,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 18,
+            "supervisor_rss_kib": 7056
+          },
+          {
+            "cancel_ms": 220.489667,
+            "elapsed_to_cancel_ms": 2354.66275,
+            "input_delivery_ms": 118.403125,
+            "launch_ms": 14.286750000000001,
+            "observed_bytes_per_second": 136118.00670817934,
+            "output_bytes": 320512,
+            "population": 4,
+            "ready_ms": 29.733375,
+            "resize_observed_ms": 134.664333,
+            "retained_bytes": 131072,
+            "supervisor_open_descriptors": 17,
+            "supervisor_rss_kib": 6848
+          }
+        ],
+        "schema_version": 1,
+        "unix_timestamp_seconds": 1792284330
+      }
+    ]
+  },
+  "performance_limits": "3 managed+15 PTY hosted debug samples perOS qualify existing runtime scenarios. No scanner allocation/RSS/throughput/deep-descriptor benchmark, speedup claim or statistical baseline.",
+  "design": "Removes per-directory sibling Vec/sort and repeated all-selected-file byte summation. BTreeMap selected entries remain; successful excluded report receives bounded component-wise sort. Existing recursive rule cloning, tracked-prefix lookup and other tree work remain.",
+  "remaining_limits": [
+    "One open ReadDir per active recursive level: O(depth) directory handles can hit OS descriptor limits sooner than prior collect/drop behavior. Errors propagate and RAII unwinds; deep-tree acceptance parity is not established.",
+    "First failure among invalid siblings may change with filesystem enumeration order; successful selected content and report order remain covered.",
+    "Selected tree/exclusion report and existing per-file reads still allocate within their respective limits. This is not constant-memory or wholly linear scanner qualification.",
+    "Custom engine bounds tested on local capture/export_tree_archive, not reconfigured native target defaults; retained target/helper suite runs in gate.",
+    "Source writers/Git metadata must remain quiescent; no new snapshot atomicity, live Boat/SSH, offsite or power-loss claim.",
+    "No new registry/framework/scheduler/deployment or billable resource."
+  ],
+  "prior_failed_qualification": {
+    "cloud_run": {
+      "conclusion": "failure",
+      "headSha": "2fdaf4b3f716aaa7a60196116af9fdfd8441a3be",
+      "jobs": [
+        {
+          "completedAt": "2026-10-18T00:40:15Z",
+          "conclusion": "failure",
+          "databaseId": 117545086524,
+          "name": "quality (ubuntu-24.04)",
+          "startedAt": "2026-10-18T00:38:03Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-18T00:38:04Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-18T00:38:04Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T00:38:05Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@v4",
+              "number": 2,
+              "startedAt": "2026-10-18T00:38:04Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T00:38:14Z",
+              "conclusion": "success",
+              "name": "Run dtolnay/rust-toolchain@stable",
+              "number": 3,
+              "startedAt": "2026-10-18T00:38:05Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T00:38:18Z",
+              "conclusion": "success",
+              "name": "Run Swatinem/rust-cache@v2",
+              "number": 4,
+              "startedAt": "2026-10-18T00:38:14Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T00:40:14Z",
+              "conclusion": "failure",
+              "name": "Run scripts/quality-gate.sh",
+              "number": 5,
+              "startedAt": "2026-10-18T00:38:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T00:40:14Z",
+              "conclusion": "skipped",
+              "name": "Post Run Swatinem/rust-cache@v2",
+              "number": 9,
+              "startedAt": "2026-10-18T00:40:14Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T00:40:14Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@v4",
+              "number": 10,
+              "startedAt": "2026-10-18T00:40:14Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T00:40:14Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 11,
+              "startedAt": "2026-10-18T00:40:14Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39083477158/job/117545086524"
+        },
+        {
+          "completedAt": "2026-10-18T00:41:11Z",
+          "conclusion": "success",
+          "databaseId": 117545086664,
+          "name": "quality (macos-15)",
+          "startedAt": "2026-10-18T00:38:08Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-18T00:38:10Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-18T00:38:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T00:38:12Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@v4",
+              "number": 2,
+              "startedAt": "2026-10-18T00:38:10Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T00:38:19Z",
+              "conclusion": "success",
+              "name": "Run dtolnay/rust-toolchain@stable",
+              "number": 3,
+              "startedAt": "2026-10-18T00:38:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T00:38:25Z",
+              "conclusion": "success",
+              "name": "Run Swatinem/rust-cache@v2",
+              "number": 4,
+              "startedAt": "2026-10-18T00:38:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T00:41:08Z",
+              "conclusion": "success",
+              "name": "Run scripts/quality-gate.sh",
+              "number": 5,
+              "startedAt": "2026-10-18T00:38:25Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T00:41:08Z",
+              "conclusion": "success",
+              "name": "Post Run Swatinem/rust-cache@v2",
+              "number": 9,
+              "startedAt": "2026-10-18T00:41:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T00:41:08Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@v4",
+              "number": 10,
+              "startedAt": "2026-10-18T00:41:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-18T00:41:10Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 11,
+              "startedAt": "2026-10-18T00:41:08Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39083477158/job/117545086664"
+        }
+      ],
+      "status": "completed",
+      "url": "https://github.com/nessalabs/workspace-sdk/actions/runs/39083477158"
+    },
+    "raw_log_sha256": "ab3a362caf812f0ac77e7162a3c289eb13b9b928a1bc668c9fcb707e572fb4d8",
+    "failure": "Ubuntu no-default-feature runtime_backend_host::local_adapter_checks_installed_runtime_launches_and_retains_no_input_secrets at tests/runtime_backend_host.rs172: State supervisor disappeared after durable launch claim during deliberately missing executable. Training had already succeeded. macOS complete gate succeeded.",
+    "disposition": "Preserved actual failed run; no source/test changes or suppressions. One subsequent full exact-source run39083692263 passed bothOS. This does not prove flakiness or fix a runtime race.",
+    "assessment": "Source review found a plausible pre-existing status-read-before-lock-observation race in src/supervisor/run_record.rs. Deterministic ordering evidence is still needed; not confirmed root cause. Scanner not on failing command path.",
+    "followup": "Separate test-first runtime inspection ordering assessment, preserving Lost uncertainty policy; no production change made here."
+  },
+  "reviews": [
+    "docs/reviews/2026-10-17-checkpoint-scanner-quality.md",
+    "docs/reviews/2026-10-17-checkpoint-scanner-adversarial.md"
+  ]
+}

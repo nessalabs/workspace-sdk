@@ -2,7 +2,7 @@ use super::{
     filesystem::{self, atomic, live_lock, read_json},
     protocol::SupervisorContext,
 };
-use crate::{Error, OutputCursor, OutputPage, Result, RunId, RunState};
+use crate::{Error, OutputBytesPage, OutputCursor, OutputPage, Result, RunId, RunState};
 use serde::{Deserialize, Serialize};
 use std::io::ErrorKind;
 use std::{
@@ -16,6 +16,21 @@ pub const MAX_OUTPUT: u64 = 16 * 1024 * 1024;
 pub struct RunClaim {
     pub version: u32,
     pub fingerprint: String,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub piped: bool,
+}
+fn is_false(value: &bool) -> bool {
+    !value
+}
+
+pub(super) fn require_piped(path: &Path) -> Result<()> {
+    let claim: RunClaim = filesystem::read_json(&path.join("claim.json"))?;
+    if claim.version != 1 || !claim.piped {
+        return Err(Error::Unsupported(
+            "run does not own managed pipe input".into(),
+        ));
+    }
+    Ok(())
 }
 #[derive(Serialize, Deserialize)]
 pub struct ProcessIdentity {
@@ -29,7 +44,17 @@ pub fn run_directory(context: &SupervisorContext, id: &RunId, create: bool) -> R
 }
 pub fn inspect(path: &Path) -> Result<RunState> {
     let value: RunState = read_json(&path.join("status.json"))?;
+    inspect_after_status(path, value)
+}
+fn inspect_after_status(path: &Path, value: RunState) -> Result<RunState> {
     if value.is_active() && !live_lock(&path.join("active.lock"))? {
+        // The supervisor publishes its final status before releasing liveness.
+        // Resolve a status read that raced with that publication before declaring
+        // an unknown outcome; a stored Lost remains unknown with its own reason.
+        let latest: RunState = read_json(&path.join("status.json"))?;
+        if !latest.is_active() {
+            return Ok(latest);
+        }
         Ok(RunState::Lost {
             reason:
                 "supervisor disappeared after durable launch claim; execution outcome is unknown"
@@ -95,7 +120,7 @@ pub(super) fn append_at(path: &Path, from: u64, chunk: &[u8], capacity: usize) -
     record.extend_from_slice(&bytes[skipped..]);
     atomic(path, &record)
 }
-fn page(path: &Path, cursor: u64, limit: usize) -> Result<(String, u64, bool, u64)> {
+fn page(path: &Path, cursor: u64, limit: usize) -> Result<(Vec<u8>, u64, bool, u64)> {
     let (first, bytes) = log(path)?;
     let end = first
         .checked_add(bytes.len() as u64)
@@ -109,13 +134,23 @@ fn page(path: &Path, cursor: u64, limit: usize) -> Result<(String, u64, bool, u6
     let begin = (offset - first) as usize;
     let length = limit.min(bytes.len() - begin);
     Ok((
-        String::from_utf8_lossy(&bytes[begin..begin + length]).into_owned(),
+        bytes[begin..begin + length].to_vec(),
         offset + length as u64,
         cursor < first,
         end,
     ))
 }
 pub fn output(path: &Path, cursor: OutputCursor, limit: u32) -> Result<OutputPage> {
+    let page = output_bytes(path, cursor, limit)?;
+    Ok(OutputPage {
+        stdout: String::from_utf8_lossy(&page.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&page.stderr).into_owned(),
+        next: page.next,
+        gap: page.gap,
+        complete: page.complete,
+    })
+}
+pub fn output_bytes(path: &Path, cursor: OutputCursor, limit: u32) -> Result<OutputBytesPage> {
     if !(2..=filesystem::MAX_CHUNK as u32).contains(&limit) {
         return Err(Error::InvalidInput(
             "output page limit must be 2..=262144 bytes".into(),
@@ -129,7 +164,7 @@ pub fn output(path: &Path, cursor: OutputCursor, limit: u32) -> Result<OutputPag
         cursor.stderr,
         limit as usize - limit as usize / 2,
     )?;
-    Ok(OutputPage {
+    Ok(OutputBytesPage {
         stdout,
         stderr,
         next: OutputCursor {
@@ -140,3 +175,7 @@ pub fn output(path: &Path, cursor: OutputCursor, limit: u32) -> Result<OutputPag
         complete: state.is_terminal() && out_next == out_end && err_next == err_end,
     })
 }
+
+#[cfg(test)]
+#[path = "run_record_tests.rs"]
+mod tests;

@@ -56,6 +56,10 @@ async fn run_workload(
 
 Storage roots are explicit configuration. For Boat, construct `BoatOpenOptions::new(target_root)` and configure an `BoatProvider` with your own Boat client and supervisor deployment. Remote adapters use either a preinstalled supervisor or an explicitly supplied binary compiled for that target’s operating system and architecture.
 
+With the optional `space` feature, `SpaceProvider` attaches to an existing SPACE
+sandbox using explicit configuration and a preinstalled supervisor. See the
+[pinned API, ownership and transport limits](docs/space-provider.md).
+
 Requirements: Rust 1.89+ to build, a supported POSIX target for process supervision, and Git for checkpoint operations. The SDK does not require a Rust toolchain on a target using a prebuilt supervisor. Your workload can have its own runtime requirements.
 
 ## Find the model and API
@@ -63,7 +67,8 @@ Requirements: Rust 1.89+ to build, a supported POSIX target for process supervis
 - [Browsable system map and lifecycle decisions](docs/state/README.md): workspace ownership, execution, sync, runtime preparation, and verification limits.
 
 - [Domain model and context boundaries](docs/domain-model.md): entities, value objects, commands, snapshots, and interfaces.
-- [Rust SDK guide](docs/sdk-guide.md): configuration, runs, preparation, sync, and handoff.
+- [Rust SDK guide](docs/sdk-guide.md): configuration, runs, preparation, sync, handoff, and explicit recovery.
+- [Acknowledged workspace continuation](docs/recovery-continuation.md): new cooperative steps in the same retained workspace, with durable run ownership and canonical-state checks.
 - [Architecture](docs/architecture.md): dependency direction and the Rust supervisor boundary.
 - [Build and distribution](docs/release.md): native artifacts and generated Rust documentation.
 - [Native authentication integration](docs/pty-integration.md): session controls, durable PTY ownership and verification limits.
@@ -75,7 +80,7 @@ Generate browsable API documentation with `cargo doc --no-deps`. Public domain t
 
 | Area | Responsibility |
 | --- | --- |
-| Providers | Local trusted host, Boat, SSH, and Docker/Podman-compatible containers through injected `IProvider` / `IBackend` interfaces. |
+| Providers | Local trusted host, Boat, SPACE attachments, SSH, and Docker/Podman-compatible containers through injected `IProvider` / `IBackend` interfaces. |
 | Execution | Durable run identity, duplicate-launch protection, reconnection, bounded output, deadlines, and process-group cancellation. |
 | Files and checkpoints | Binary chunks, validated relative paths, filtered snapshots, three-way reconciliation, conflict preservation, and apply recovery. |
 | Synchronization | Empty-target initialization, reviewed return sync, and stopped-source handoff with an explicit continuation command. |
@@ -102,3 +107,13 @@ Acceptance additionally requires separate independent code-quality/design and
 adversarial agent reviews under [the coding standards](coding_standards.md).
 
 The [file browser contract](docs/state/files.md) covers the qualified first slice: bounded directory pages, revision-bound binary reads, caller-driven reconciliation and exclusive creation on Linux. Portable observations also target macOS; [managed local editing](docs/state/managed-editing.md) stages create/replace/delete/rename through existing checkpoint review and caller-quiescent publication. Unattended live replacement and automatic collaborative text merging remain outside this scope.
+
+See [recovery at an expected checkpoint](docs/recovery-expected-head.md) for exact-head admission and retry behavior.
+
+See [retained byte output](docs/run-output-bytes.md) for binary-safe paging and retention limits.
+
+See [managed pipe input](docs/managed-pipe-input.md) for transient input, explicit EOF, and retry ownership.
+
+See [clean child environment](docs/managed-clean-environment.md) for explicit piped launch environment clearing.
+
+See [retained fingerprint verification](docs/retained-fingerprint-inspection.md) for proof-only inspection and engine compatibility.

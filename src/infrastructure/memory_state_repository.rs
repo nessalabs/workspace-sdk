@@ -1,5 +1,9 @@
 use super::repository_state::RepositoryState;
-use crate::{ports::IWorkflowLease, WorkflowRecord};
+use crate::{
+    domain::RecoverySession,
+    ports::{IRecoveryRepository, IWorkflowLease},
+    WorkflowRecord,
+};
 use crate::{
     ports::IWorkflowRepository, BackendDescriptor, Error, IWorkspaceRepository, OperationId,
     Result, WorkspaceId,
@@ -76,6 +80,26 @@ impl IWorkflowRepository for MemoryStateRepository {
 }
 fn poisoned<T>(_: T) -> Error {
     Error::State("state repository lock poisoned".into())
+}
+
+impl IRecoveryRepository for MemoryStateRepository {
+    fn acquire_recovery(&self, id: &OperationId) -> Result<Box<dyn IWorkflowLease>> {
+        IWorkflowRepository::acquire(self, id)
+    }
+    fn load_recovery(&self, id: &OperationId) -> Result<Option<RecoverySession>> {
+        self.state.lock().map_err(poisoned)?.load_recovery(id)
+    }
+    fn compare_exchange_recovery(
+        &self,
+        id: &OperationId,
+        expected_revision: Option<u64>,
+        replacement: &RecoverySession,
+    ) -> Result<()> {
+        self.state
+            .lock()
+            .map_err(poisoned)?
+            .compare_exchange_recovery(id, expected_revision, replacement)
+    }
 }
 
 #[cfg(test)]
