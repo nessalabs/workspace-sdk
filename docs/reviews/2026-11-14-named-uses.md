@@ -41,3 +41,18 @@ The quality review found one P2 and two P3s. The adversarial review found no P1 
 Also added: `a_turn_that_ends_with_nothing_to_wait_for_forgets_the_thing`.
 
 **Bound now.** An entry is kept while its thing is in use, has a turn held or awaited, or is idle and not yet rested. A caller that never rests an idle thing keeps its entry until it does.
+
+## Third round (commit fe8f524)
+
+Neither review found a P1 or P2. The P3s and what was done:
+
+| # | Severity | Finding | Fix |
+| --- | --- | --- | --- |
+| 13 | P3 (adversarial) | Two bare turns at one key ending together could each count the other's reference and both keep the entry. | A turn lets go of its lock and its own reference before it checks, and the check asks that only the map refers to the entry. Whichever ends last forgets it. |
+| 14 | P3 (adversarial) | `idle()` upgrades each weak reference while it checks it, which counts as a reference for that moment. | Kept and documented: it only puts a forget off until the next turn at that key ends, and a listed thing is about to be turned to anyway. |
+| 15 | P3 (quality) | A forgotten entry, with the caller's state, was dropped while the map lock was held. | The entry is removed under the lock and dropped after it. |
+| 16 | P3 (quality) | Docs did not say that a `UseTurn` borrows its `Uses`, or when state is kept. | Both are now in the docs. A comment wrapped mid-sentence is rewrapped. |
+
+No re-review round was run for these P3 fixes, as the rounds are capped at three. The mechanical gate passed after them, except
+`runtime_pty_adversarial::terminal_path_search_skips_a_non_executable_shadow_before_a_valid_program`, which fails the same way on `origin/main` in the cloud
+sandbox (it runs as root) and is unrelated to this change.
