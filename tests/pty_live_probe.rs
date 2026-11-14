@@ -19,17 +19,15 @@ fn initial_state_write_failure_destroys_the_opened_workspace() {
         .tempdir_in("/tmp")
         .unwrap();
     let root = temporary.path().join("state");
-    let executable = std::env::current_exe()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("examples/pty_live_probe");
-    assert!(
-        executable.is_file(),
-        "build the pty_live_probe example first"
-    );
+    // Examples sit in the profile directory (`target/debug/examples`). The
+    // test binary sits below it, at a depth that differs between cargo
+    // versions (`deps/`, or `build/<package>/<hash>/out/`), so look upward.
+    let test_binary = std::env::current_exe().unwrap();
+    let executable = test_binary
+        .ancestors()
+        .map(|directory| directory.join("examples/pty_live_probe"))
+        .find(|candidate| candidate.is_file())
+        .expect("build the pty_live_probe example first");
     let mut command = Command::new(executable);
     command
         .arg("start")
