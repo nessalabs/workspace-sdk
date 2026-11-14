@@ -28,14 +28,16 @@ use tokio::{
 ///   how a lease or a command started over an open thing is counted.
 /// - A rest takes the turn, sees nothing in use and the idle time passed
 ///   ([`UseTurn::due`]), stops the thing, then says so with
-///   [`Uses::rested`], which forgets the thing once nothing refers to it.
+///   [`UseTurn::rested`].
 ///
 /// A thing is in use exactly while at least one [`NamedUse`] for it is
 /// alive. Waiting for a turn may be cancelled at any point: nothing changes
 /// until the turn is had.
 ///
-/// It keeps one small entry for each thing used or turned to since it was
-/// last rested; [`Uses::len`] says how many. Keep one `Uses` per set of
+/// It keeps one small entry, with its state, for each thing in use, being
+/// turned to, or idle and not rested since; a turn that ends with none of
+/// these forgets it, state included, and [`Uses::len`] says how many are
+/// kept. Keep one `Uses` per set of
 /// things: a second one does not see these uses.
 pub struct Uses<K, S = ()> {
     entries: SyncMutex<HashMap<K, Arc<Entry<S>>>>,
@@ -123,11 +125,15 @@ impl std::fmt::Debug for NamedUse {
 /// thing, and it alone reaches the caller's state, through `Deref`. Uses can
 /// still be extended and ended meanwhile.
 #[must_use = "the turn ends as soon as it is dropped"]
-pub struct UseTurn<S = ()> {
+pub struct UseTurn<'a, K: Eq + Hash + Clone, S: Default = ()> {
+    uses: &'a Uses<K, S>,
+    key: K,
     shared: Arc<Shared>,
-    state: OwnedMutexGuard<S>,
+    /// Always `Some` until the turn ends, which lets it go before the entry
+    /// is looked at for forgetting.
+    state: Option<OwnedMutexGuard<S>>,
 }
-impl<S> UseTurn<S> {
+impl<K: Eq + Hash + Clone, S: Default> UseTurn<'_, K, S> {
     /// Whether anything uses the thing now.
     pub fn in_use(&self) -> bool {
         !lock(&self.shared.holders).names.is_empty()
@@ -156,19 +162,34 @@ impl<S> UseTurn<S> {
     pub fn hold(&self, name: impl Into<String>) -> NamedUse {
         lock(&self.shared.holders).start(&self.shared, name.into())
     }
+    /// Say the thing was stopped, ending the turn: it is not due for rest
+    /// again until it is used or woken.
+    pub fn rested(self) {
+        let mut holders = lock(&self.shared.holders);
+        if holders.names.is_empty() {
+            holders.idle_since = None;
+        }
+    }
 }
-impl<S> Deref for UseTurn<S> {
+impl<K: Eq + Hash + Clone, S: Default> Drop for UseTurn<'_, K, S> {
+    fn drop(&mut self) {
+        drop(self.state.take());
+        // This turn's own reference to the shared part is the one left.
+        self.uses.forget_if_spent(&self.key, 2);
+    }
+}
+impl<K: Eq + Hash + Clone, S: Default> Deref for UseTurn<'_, K, S> {
     type Target = S;
     fn deref(&self) -> &S {
-        &self.state
+        self.state.as_ref().expect("held until the turn ends")
     }
 }
-impl<S> DerefMut for UseTurn<S> {
+impl<K: Eq + Hash + Clone, S: Default> DerefMut for UseTurn<'_, K, S> {
     fn deref_mut(&mut self) -> &mut S {
-        &mut self.state
+        self.state.as_mut().expect("held until the turn ends")
     }
 }
-impl<S> std::fmt::Debug for UseTurn<S> {
+impl<K: Eq + Hash + Clone, S: Default> std::fmt::Debug for UseTurn<'_, K, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let holders = lock(&self.shared.holders);
         f.debug_struct("UseTurn")
@@ -197,36 +218,44 @@ impl<K: Eq + Hash + Clone, S: Default> Uses<K, S> {
         Self::default()
     }
     /// Wait for `key`'s turn, to open or rest it.
-    pub async fn turn(&self, key: &K) -> UseTurn<S> {
+    pub async fn turn(&self, key: &K) -> UseTurn<'_, K, S> {
         let (turn, shared) = self.entry(key);
+        let state = turn.lock_owned().await;
         UseTurn {
+            uses: self,
+            key: key.clone(),
             shared,
-            state: turn.lock_owned().await,
+            state: Some(state),
         }
     }
-    /// `key`'s turn if nothing holds it now: a rest pass skips a thing being
-    /// opened, since it is about to be used.
-    pub fn try_turn(&self, key: &K) -> Option<UseTurn<S>> {
-        let (turn, shared) = self.entry(key);
-        let state = turn.try_lock_owned().ok()?;
-        Some(UseTurn { shared, state })
+    /// `key`'s turn if it keeps an entry for it and nothing holds the turn
+    /// now: a rest pass skips a thing being opened, since it is about to be
+    /// used, and one already forgotten.
+    pub fn try_turn(&self, key: &K) -> Option<UseTurn<'_, K, S>> {
+        let (turn, shared) = {
+            let entries = lock(&self.entries);
+            let entry = entries.get(key)?;
+            (entry.turn.clone(), entry.shared.clone())
+        };
+        let state = turn.try_lock_owned().ok();
+        let turn = UseTurn {
+            uses: self,
+            key: key.clone(),
+            shared,
+            state,
+        };
+        // Not had: dropping it lets the entry go if nothing else holds it.
+        turn.state.is_some().then_some(turn)
     }
-    /// Say `key`'s thing was stopped, ending `turn`: it is not due for rest
-    /// again until it is used or woken, and its entry, with its state, is
-    /// forgotten once nothing uses it, holds or waits for its turn.
-    pub fn rested(&self, key: &K, turn: UseTurn<S>) {
-        {
-            let mut holders = lock(&turn.shared.holders);
-            if holders.names.is_empty() {
-                holders.idle_since = None;
-            }
-        }
-        drop(turn);
+    /// Forget `key`'s entry, with its state, if nothing refers to it but
+    /// the map and the ending turn (`shared` references in all) and it has
+    /// nothing to wait for: no use, no other turn held or awaited, no idle
+    /// time running.
+    fn forget_if_spent(&self, key: &K, shared: usize) {
         let mut entries = lock(&self.entries);
         let spent = entries.get(key).is_some_and(|entry| {
-            // Only the map refers to it: no turn held or awaited, no use.
             Arc::strong_count(&entry.turn) == 1
-                && Arc::strong_count(&entry.shared) == 1
+                && Arc::strong_count(&entry.shared) == shared
                 && lock(&entry.shared.holders).idle_since.is_none()
         });
         if spent {
@@ -267,13 +296,18 @@ impl<K: Eq + Hash + Clone, S: Default> Uses<K, S> {
     /// rested since: the ones a rest pass takes the turn of. The map is held
     /// only while its entries are listed.
     pub fn idle(&self, idle: Duration) -> Vec<K> {
+        // Weak, so the listing never keeps an entry from being forgotten.
         let entries: Vec<_> = lock(&self.entries)
             .iter()
-            .map(|(key, entry)| (key.clone(), entry.shared.clone()))
+            .map(|(key, entry)| (key.clone(), Arc::downgrade(&entry.shared)))
             .collect();
         entries
             .into_iter()
-            .filter(|(_, shared)| lock(&shared.holders).due(idle))
+            .filter(|(_, shared)| {
+                shared
+                    .upgrade()
+                    .is_some_and(|shared| lock(&shared.holders).due(idle))
+            })
             .map(|(key, _)| key)
             .collect()
     }

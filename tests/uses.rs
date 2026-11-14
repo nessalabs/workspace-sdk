@@ -42,7 +42,7 @@ async fn a_rest_is_due_only_after_the_idle_time_and_its_entry_is_then_forgotten(
     assert!(!turn.due(IDLE));
     tokio::time::advance(IDLE).await;
     assert!(turn.due(IDLE));
-    uses.rested(&"vm", turn);
+    turn.rested();
     assert!(uses.idle(Duration::ZERO).is_empty());
     assert_eq!(uses.len(), 0, "nothing refers to it any more");
     // Used again, it is due again once that use ends.
@@ -59,7 +59,7 @@ async fn a_rested_thing_is_kept_while_a_use_or_a_turn_still_refers_to_it() {
     // A use extended meanwhile keeps it in use, and kept.
     let late = lease.also("late");
     drop(lease);
-    uses.rested(&"vm", turn);
+    turn.rested();
     assert!(uses.in_use(&"vm"));
     assert_eq!(uses.len(), 1);
     drop(late);
@@ -75,7 +75,7 @@ async fn a_rested_thing_is_kept_while_a_use_or_a_turn_still_refers_to_it() {
         async move { *uses.turn(&"vm").await }
     });
     tokio::task::yield_now().await;
-    uses.rested(&"vm", resting);
+    resting.rested();
     assert_eq!(uses.len(), 1, "a turn is still awaited");
     assert_eq!(waiting.await.unwrap(), 7, "the state it kept");
 }
@@ -85,7 +85,7 @@ async fn one_turn_at_a_time_while_uses_come_and_go_without_waiting() {
     let uses: Arc<Uses<&str>> = Arc::new(Uses::new());
     let opening = uses.turn(&"vm").await;
     assert!(uses.try_turn(&"vm").is_none(), "an opening holds the turn");
-    assert!(uses.try_turn(&"other").is_some(), "turns are per key");
+    drop(uses.turn(&"other").await); // Turns are per key: it never waits.
     let lease = opening.hold("lease");
     let command = lease.also("command");
     let rest = tokio::spawn({
@@ -133,7 +133,7 @@ async fn a_wake_that_never_became_a_use_is_still_rested_and_cannot_put_it_off() 
 }
 
 #[tokio::test(start_paused = true)]
-async fn released_answers_when_the_last_use_ends_even_between_look_and_wait() {
+async fn released_answers_once_the_last_use_ends_after_it_first_looked() {
     let uses: Uses<&str> = Uses::new();
     uses.released(&"vm").await;
     assert_eq!(uses.len(), 0, "a read keeps nothing");
@@ -160,4 +160,38 @@ async fn released_answers_when_the_last_use_ends_even_between_look_and_wait() {
     tokio::time::timeout(Duration::from_secs(1), released)
         .await
         .expect("answered once the last use ended");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_turn_that_ends_with_nothing_to_wait_for_forgets_the_thing() {
+    let uses: Uses<&str, u32> = Uses::new();
+    // An opening that failed before its first use or wake.
+    *uses.turn(&"vm").await = 7;
+    assert_eq!(uses.len(), 0, "nothing used, woken or idle: forgotten");
+    // A rest pass never brings back a thing it no longer keeps.
+    assert!(uses.try_turn(&"vm").is_none());
+    assert_eq!(uses.len(), 0);
+    // A woken one is kept, state included, until it is rested.
+    let mut turn = uses.turn(&"vm").await;
+    *turn = 7;
+    turn.waking();
+    drop(turn);
+    assert_eq!(uses.len(), 1);
+    let turn = uses.try_turn(&"vm").unwrap();
+    assert_eq!(*turn, 7);
+    turn.rested();
+    assert_eq!(uses.len(), 0);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn released_never_misses_a_last_use_ending_on_another_thread() {
+    let uses: Arc<Uses<u32>> = Arc::new(Uses::new());
+    for round in 0..2_000 {
+        let lease = uses.turn(&round).await.hold("lease");
+        let ending = tokio::spawn(async move { drop(lease) });
+        tokio::time::timeout(Duration::from_secs(5), uses.released(&round))
+            .await
+            .expect("answered once the last use ended");
+        ending.await.unwrap();
+    }
 }

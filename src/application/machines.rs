@@ -157,7 +157,7 @@ impl Machines {
             match workspace.stop().await {
                 Ok(()) => {
                     *turn = None;
-                    self.uses.rested(&id, turn);
+                    turn.rested();
                     report.rested.push(id);
                 }
                 Err(error) => report.failed.push((id, error)),
