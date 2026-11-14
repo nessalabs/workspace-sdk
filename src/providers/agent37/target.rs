@@ -5,6 +5,7 @@
 use super::{
     api::{Api, Refusal, Status},
     identity::Agent37Identity,
+    idle_slot::IdleSlot,
     provider::Locator,
     tunnel::Tunnel,
 };
@@ -33,7 +34,7 @@ const EXEC_TRIES: u32 = 4;
 /// How long the shared private connection is kept unused. Below
 /// Agent37's shortest idle time (five minutes), so a held connection never
 /// keeps an otherwise idle instance awake for long.
-const PRIVATE_IDLE: Duration = Duration::from_secs(120);
+pub(super) const PRIVATE_IDLE: Duration = Duration::from_secs(120);
 
 pub(super) struct Agent37Target {
     pub api: Api,
@@ -44,8 +45,9 @@ pub(super) struct Agent37Target {
     /// when it was last used. It is held while a new one is made (a wake
     /// and a login, at most a few minutes), so requests queue behind that.
     /// Its keepalives count as activity, so it is dropped after
-    /// [`PRIVATE_IDLE`] unused and the instance can sleep.
-    pub private_link: tokio::sync::Mutex<Option<(Arc<SshConnection>, tokio::time::Instant)>>,
+    /// [`PRIVATE_IDLE`] unused, asked for or not, and the instance can
+    /// sleep.
+    pub private_link: IdleSlot<Arc<SshConnection>>,
 }
 
 fn failure(refusal: Refusal) -> Error {
@@ -105,30 +107,26 @@ impl Agent37Target {
         let mut input = tempfile::tempfile()?;
         input.write_all(serde_json::to_string(request)?.as_bytes())?;
         std::io::Seek::rewind(&mut input)?;
-        let connection = {
-            let mut link = self.private_link.lock().await;
-            let now = tokio::time::Instant::now();
-            let kept = link
-                .take()
-                .filter(|(link, used)| link.alive() && now.duration_since(*used) < PRIVATE_IDLE)
-                .map(|(link, _)| link);
-            let connection = match kept {
-                Some(kept) => kept,
-                None => {
+        let connection = self
+            .private_link
+            .get_or_make(
+                |link| link.alive(),
+                || async {
                     self.wake().await?;
-                    self.connect(None).await?
-                }
-            };
-            *link = Some((connection.clone(), now));
-            connection
-        };
+                    self.connect(None).await
+                },
+            )
+            .await?;
         let ran = connection
             .run(
                 &managed::quote(&self.locator.supervisor),
                 Some(input),
                 PRIVATE_TIMEOUT,
             )
-            .await?;
+            .await;
+        // The idle time runs from the end of a use, not its start.
+        self.private_link.touch().await;
+        let ran = ran?;
         if ran.end == ProcessEnd::Lost {
             // It may have run: the caller decides, and nothing is sent again.
             return Err(Error::Provider {

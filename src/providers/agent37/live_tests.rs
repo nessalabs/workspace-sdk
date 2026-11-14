@@ -55,7 +55,7 @@ async fn an_instance_is_made_connected_forwarded_stopped_and_deleted() {
                 control: "/home/node/.workspace-sdk/live".into(),
                 supervisor: "/bin/false".into(),
             },
-            private_link: Default::default(),
+            private_link: super::idle_slot::IdleSlot::new(super::target::PRIVATE_IDLE),
         };
         // Key changes reach a running instance within about two minutes.
         let local_dir = tempfile::tempdir().unwrap();

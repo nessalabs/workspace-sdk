@@ -8,6 +8,7 @@ mod api;
 mod config;
 mod failure;
 mod identity;
+mod idle_slot;
 mod machines;
 mod provider;
 mod spec;

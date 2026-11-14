@@ -123,7 +123,7 @@ impl Agent37Provider {
                 identity: self.identity.clone(),
                 user: USER,
                 locator,
-                private_link: Default::default(),
+                private_link: super::idle_slot::IdleSlot::new(super::target::PRIVATE_IDLE),
             }),
         }
     }
