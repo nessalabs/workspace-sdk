@@ -13,6 +13,9 @@ use std::sync::{Arc, Mutex};
 const TEMPLATE: &str = "nessa-runtime@3";
 const DIGEST: &str = "sha256:abc";
 const KEY: &str = "nessa-thread-0001";
+/// An ed25519 public key: the 19-byte header, then 32 key bytes.
+const PUBLIC: &str =
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH";
 
 /// What the fake does when asked to create.
 #[derive(Clone, Copy, PartialEq)]
@@ -221,7 +224,12 @@ async fn two_instances_under_one_key_are_never_chosen_between() {
     server.add(instance("bbbbbbbbbb", "stopped", Some(KEY)));
     assert_eq!(
         server.machines.create(&spec(), KEY).await,
-        Err(Agent37Failure::ProvisioningUncertain)
+        Err(Agent37Failure::Ambiguous)
+    );
+    // Asking again does not settle it.
+    assert_eq!(
+        server.machines.create(&spec(), KEY).await,
+        Err(Agent37Failure::Ambiguous)
     );
     // One being deleted does not count.
     server.set("bbbbbbbbbb", "status", json!("deleting"));
@@ -399,10 +407,28 @@ fn neither_key_is_ever_printed() {
     let identity = Agent37Identity::new(
         b"-----BEGIN OPENSSH PRIVATE KEY-----\nsecretbytes\n-----END OPENSSH PRIVATE KEY-----\n"
             .to_vec(),
-        "ssh-ed25519 AAAAC3Nza nessa",
+        PUBLIC,
     )
     .unwrap();
     assert!(!format!("{identity:?}").contains("secretbytes"));
-    assert!(Agent37Identity::new(b"not a key".to_vec(), "ssh-ed25519 AAAA").is_err());
+    assert!(Agent37Identity::new(b"not a key".to_vec(), PUBLIC).is_err());
     assert!(Agent37Identity::new(identity.private_key().to_vec(), "ssh-rsa AAAA").is_err());
+    assert!(Agent37Identity::new(identity.private_key().to_vec(), "ssh-ed25519 AAAA").is_err());
+}
+
+#[tokio::test]
+async fn an_instance_still_being_made_is_not_judged_yet() {
+    let server = Server::start().await;
+    let mut making = instance("eeeeeeeeee", "provisioning", Some(KEY));
+    making["image_digest"] = Value::Null;
+    server.add(making);
+    assert_eq!(
+        server.machines.create(&spec(), KEY).await,
+        Err(Agent37Failure::ProvisioningUncertain)
+    );
+    server.set("eeeeeeeeee", "status", json!("running"));
+    server.set("eeeeeeeeee", "image_digest", json!(DIGEST));
+    let found = server.machines.create(&spec(), KEY).await.unwrap();
+    assert_eq!(found.instance(), "eeeeeeeeee");
+    assert!(!found.made());
 }

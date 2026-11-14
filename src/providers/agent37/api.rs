@@ -10,11 +10,50 @@ const MAX_ANSWER: usize = 4 * 1024 * 1024;
 /// is short, so this bounds a machine that never answers.
 const EXEC_TIMEOUT: Duration = Duration::from_secs(180);
 
+/// Error codes that say the same request may succeed if sent again
+/// shortly: the instance was mid-transition, or no host had room.
+const TRANSIENT: [&str; 3] = ["try_again", "no_capacity", "capacity_unavailable"];
+/// The longest error code kept; the API's own are short identifiers.
+const MAX_CODE: usize = 64;
+
+/// Where an instance stands, as the API reports it.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum Status {
+    Provisioning,
+    Running,
+    Stopping,
+    Stopped,
+    Starting,
+    Restarting,
+    Updating,
+    Sleeping,
+    Waking,
+    Failed,
+    Deleting,
+    Deleted,
+    /// A status this SDK does not know: treated as in transition.
+    #[serde(other)]
+    Unknown,
+}
+impl Status {
+    /// Running nothing and billing its disk alone: stopped, or asleep. A
+    /// sleeping instance wakes on its next request, so it counts as usable
+    /// by its owner's attachment; a stopped one waits for `start`.
+    pub fn at_rest(self) -> bool {
+        matches!(self, Self::Stopped | Self::Sleeping)
+    }
+    /// Never to be used again.
+    pub fn gone(self) -> bool {
+        matches!(self, Self::Failed | Self::Deleting | Self::Deleted)
+    }
+}
+
 /// One instance as the API describes it: only what this SDK reads.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub(super) struct Instance {
     pub id: String,
-    pub status: String,
+    pub status: Status,
     pub template: String,
     #[serde(default)]
     pub template_revision: Option<u64>,
@@ -84,10 +123,7 @@ impl Refusal {
     }
     /// Whether the same request may succeed if sent again shortly.
     pub fn transient(&self) -> bool {
-        matches!(
-            self.code(),
-            Some("try_again" | "no_capacity" | "capacity_unavailable")
-        )
+        self.code().is_some_and(|code| TRANSIENT.contains(&code))
     }
 }
 impl From<Refusal> for Agent37Failure {
@@ -131,6 +167,8 @@ impl std::fmt::Debug for Api {
 }
 impl Api {
     pub fn new(config: Agent37Config) -> Result<Self, Agent37Failure> {
+        // Nothing else installs one for a library caller.
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let http = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(60))
@@ -174,9 +212,18 @@ impl Api {
             Err(_) if status.is_server_error() => return Err(Refusal::Unknown),
             Err(_) => String::new(),
         };
-        if status.is_server_error() && !matches!(code.as_str(), "try_again" | "no_capacity") {
+        // Only a code the API defines for a request it did not act on
+        // makes a server error certain.
+        if status.is_server_error() && !TRANSIENT.contains(&code.as_str()) {
             return Err(Refusal::Unknown);
         }
+        let code = if code.len() <= MAX_CODE
+            && code.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+        {
+            code
+        } else {
+            "unreadable".into()
+        };
         Err(Refusal::Answered {
             status: status.as_u16(),
             code,

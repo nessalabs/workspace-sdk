@@ -14,7 +14,7 @@
 //! callers serialize creations per key, as the SDK's records do, and
 //! [`Agent37Machines::create`] refuses to choose between two it finds.
 use super::{
-    api::{Api, Instance, NewInstance, Refusal},
+    api::{Api, Instance, NewInstance, Refusal, Status},
     config::Agent37Config,
     failure::{AdmissionRefusal, Agent37Failure},
     identity::Agent37Identity,
@@ -101,7 +101,7 @@ impl Created {
 /// that owns the workspace.
 #[derive(Clone, Debug)]
 pub struct Agent37Machines {
-    pub(super) api: Api,
+    api: Api,
     budget: Duration,
 }
 impl Agent37Machines {
@@ -154,6 +154,7 @@ impl Agent37Machines {
     /// # Errors
     /// [`Agent37Failure::ProvisioningUncertain`] when an instance may have
     /// been made but was not found: ask again with the same key.
+    /// [`Agent37Failure::Ambiguous`] when two instances carry the key.
     /// [`Agent37Failure::AdmissionRejected`] when the instance found or
     /// made is not what `spec` asks for; it is left for the caller, who may
     /// delete it. [`Agent37Failure::Funds`] when the wallet or instance
@@ -212,11 +213,10 @@ impl Agent37Machines {
             .await?
             .into_iter()
             .filter(|instance| instance.tag(KEY_TAG) == Some(key))
-            .filter(|instance| !matches!(instance.status.as_str(), "deleting" | "deleted"));
+            .filter(|instance| !matches!(instance.status, Status::Deleting | Status::Deleted));
         let first = tagged.next();
         if tagged.next().is_some() {
-            // Two made under one key: which is meant cannot be told.
-            return Err(Agent37Failure::ProvisioningUncertain);
+            return Err(Agent37Failure::Ambiguous);
         }
         Ok(first)
     }
@@ -234,28 +234,31 @@ impl Agent37Machines {
         let deadline = Instant::now() + self.budget;
         let mut started = false;
         loop {
-            let found = self.api.instance(instance).await?;
-            if found.template != admitted.template
-                || found.image_digest.as_deref() != Some(admitted.digest.as_str())
-            {
-                return Err(Agent37Failure::AdmissionRejected(
-                    AdmissionRefusal::ImageChanged,
-                ));
-            }
-            match found.status.as_str() {
-                "running" => return Ok(()),
-                "stopped" | "sleeping" if !started => {
-                    match self.api.lifecycle(instance, "start").await {
-                        Ok(()) => started = true,
-                        Err(refusal) if refusal.transient() => {}
-                        Err(refusal) => return Err(refusal.into()),
+            // A read that fails is tried again until the deadline: it
+            // changes nothing.
+            if let Some(found) = self.read(instance).await? {
+                if found.template != admitted.template
+                    || found.image_digest.as_deref() != Some(admitted.digest.as_str())
+                {
+                    return Err(Agent37Failure::AdmissionRejected(
+                        AdmissionRefusal::ImageChanged,
+                    ));
+                }
+                match found.status {
+                    Status::Running => return Ok(()),
+                    status if status.gone() => {
+                        return Err(Agent37Failure::AdmissionRejected(AdmissionRefusal::Failed))
                     }
+                    status if status.at_rest() && !started => {
+                        match self.api.lifecycle(instance, "start").await {
+                            Ok(()) => started = true,
+                            Err(refusal) if refusal.transient() => {}
+                            Err(refusal) => return Err(refusal.into()),
+                        }
+                    }
+                    // Starting, waking, stopping, or a start still finishing.
+                    _ => {}
                 }
-                "failed" | "deleting" | "deleted" => {
-                    return Err(Agent37Failure::AdmissionRejected(AdmissionRefusal::Failed))
-                }
-                // Starting, waking, stopping, or a start still finishing.
-                _ => {}
             }
             if Instant::now() + POLL > deadline {
                 return Err(Agent37Failure::Timeout);
@@ -264,25 +267,38 @@ impl Agent37Machines {
         }
     }
 
+    /// `instance` as the API reads it now; `None` when the read had no
+    /// answer, and an error only for one the API refused.
+    async fn read(&self, instance: &str) -> Result<Option<Instance>, Agent37Failure> {
+        match self.api.instance(instance).await {
+            Ok(found) => Ok(Some(found)),
+            Err(Refusal::Unknown) => Ok(None),
+            Err(refusal) if refusal.transient() => Ok(None),
+            Err(refusal) => Err(refusal.into()),
+        }
+    }
+
     /// Stop `instance`, keeping its disk. One already stopped or asleep is
     /// left as it is: either bills its disk alone.
     ///
     /// # Errors
-    /// [`Agent37Failure::Provider`] when it could not be stopped; it may
-    /// still be running.
+    /// [`Agent37Failure::Timeout`] when it could not be stopped within the
+    /// budget; it may still be running.
     pub async fn stop(&self, instance: &str) -> Result<(), Agent37Failure> {
         valid_instance(instance)?;
         let deadline = Instant::now() + self.budget;
         loop {
-            let found = self.api.instance(instance).await?;
-            match found.status.as_str() {
-                "stopped" | "sleeping" | "deleting" | "deleted" => return Ok(()),
-                "running" => match self.api.lifecycle(instance, "stop").await {
-                    Ok(()) => return Ok(()),
-                    Err(refusal) if refusal.transient() => {}
-                    Err(refusal) => return Err(refusal.into()),
-                },
-                _ => {}
+            if let Some(found) = self.read(instance).await? {
+                match found.status {
+                    status if status.at_rest() || status.gone() => return Ok(()),
+                    Status::Running => match self.api.lifecycle(instance, "stop").await {
+                        Ok(()) => return Ok(()),
+                        Err(refusal) if refusal.transient() => {}
+                        Err(Refusal::Unknown) => {}
+                        Err(refusal) => return Err(refusal.into()),
+                    },
+                    _ => {}
+                }
             }
             if Instant::now() + POLL > deadline {
                 return Err(Agent37Failure::Timeout);
@@ -314,8 +330,13 @@ fn admit(instance: &Instance, spec: &MachineSpec, key: &str) -> Result<Admission
     if instance.tag(KEY_TAG) != Some(key) {
         return refused(AdmissionRefusal::WrongOwner);
     }
-    if matches!(instance.status.as_str(), "failed" | "deleting" | "deleted") {
+    if instance.status.gone() {
         return refused(AdmissionRefusal::Failed);
+    }
+    // One still being made may not name its image yet: it is judged once
+    // it has finished, by asking again with the same key.
+    if matches!(instance.status, Status::Provisioning | Status::Unknown) {
+        return Err(Agent37Failure::ProvisioningUncertain);
     }
     if instance.template != spec.template() {
         return refused(AdmissionRefusal::WrongTemplate);

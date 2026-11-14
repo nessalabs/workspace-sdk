@@ -379,7 +379,7 @@ impl ITarget for SandboxTarget {
         let api = &self.api;
         let vm = &self.locator.target;
         let connection = crate::providers::openssh::SshConnection::connect(
-            |directory| async move { super::ssh_route::route(api, vm, &directory).await },
+            |_directory| super::ssh_route::route(api, vm),
             forward,
         )
         .await?;

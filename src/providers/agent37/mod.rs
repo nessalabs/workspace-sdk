@@ -20,3 +20,6 @@ pub use identity::Agent37Identity;
 pub use machines::{Admission, Agent37Machines, Created};
 pub use provider::{Agent37AttachOptions, Agent37Provider};
 pub use spec::{MachineSpec, Size, IDLE};
+
+#[cfg(test)]
+mod live_tests;

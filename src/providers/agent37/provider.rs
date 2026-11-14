@@ -2,7 +2,8 @@
 //! and stopped by its owner through [`super::Agent37Machines`], and this
 //! provider runs the SDK's supervisor in it and opens connections into it.
 use super::{
-    identity::Agent37Identity, machines::valid_instance, target::Agent37Target, Agent37Machines,
+    api::Api, config::Agent37Config, identity::Agent37Identity, machines::valid_instance,
+    target::Agent37Target,
 };
 use crate::{
     domain::*,
@@ -40,26 +41,28 @@ pub(super) struct Locator {
     pub supervisor: String,
 }
 
-/// Agent37 instances, attached. Create is not offered: callers make
-/// instances with [`Agent37Machines::create`], whose key makes a retry find
-/// the first instance, and attach them.
+/// Agent37 instances, attached. Create, stop and delete are not offered:
+/// the instance's owner makes, wakes and stops it with
+/// [`super::Agent37Machines`], whose key makes a retry find the first
+/// instance, and attaches it here. This provider holds only what reading an
+/// instance and signing in to it need.
 #[derive(Clone, Debug)]
 pub struct Agent37Provider {
     id: ProviderId,
-    machines: Agent37Machines,
+    api: Api,
     identity: Arc<Agent37Identity>,
     supervisor: String,
 }
 impl Agent37Provider {
-    /// Instances of `machines`' workspace, signed in to with `identity`,
-    /// which must be registered there, running the supervisor that
-    /// `supervisor` names. Only a preinstalled supervisor is supported: an
-    /// Agent37 template carries it.
+    /// Instances of the workspace `config` reaches, signed in to with
+    /// `identity`, which must be registered there, running the supervisor
+    /// that `supervisor` names. Only a preinstalled supervisor is
+    /// supported: an Agent37 template carries it.
     ///
     /// # Errors
     /// [`Error::Unsupported`] for a supervisor to upload.
     pub fn new(
-        machines: Agent37Machines,
+        config: Agent37Config,
         identity: Agent37Identity,
         supervisor: SupervisorDeployment,
     ) -> Result<Self> {
@@ -71,7 +74,7 @@ impl Agent37Provider {
         validate_remote_path(&executable)?;
         Ok(Self {
             id: ProviderId::new("agent37").expect("static provider identity"),
-            machines,
+            api: Api::new(config).map_err(|_| Error::State("no HTTP client for Agent37".into()))?,
             identity: Arc::new(identity),
             supervisor: executable,
         })
@@ -114,10 +117,11 @@ impl Agent37Provider {
                 admission: None,
             },
             target: Arc::new(Agent37Target {
-                api: self.machines.api.clone(),
+                api: self.api.clone(),
                 identity: self.identity.clone(),
                 user: USER,
                 locator,
+                private_link: Default::default(),
             }),
         }
     }

@@ -51,9 +51,11 @@ impl Agent37Config {
     /// Another API base, such as a test server's.
     ///
     /// # Errors
-    /// [`Agent37Failure::InvalidInput`] unless it is an `http(s)` URL.
+    /// [`Agent37Failure::InvalidInput`] unless it is an `https` URL, or an
+    /// `http` one on this machine's loopback: the key is never sent in
+    /// clear text across a network.
     pub fn with_api_base(mut self, base: &str) -> Result<Self, Agent37Failure> {
-        if !(base.starts_with("https://") || base.starts_with("http://")) {
+        if !(base.starts_with("https://") || loopback(base, "http://")) {
             return Err(Agent37Failure::InvalidInput);
         }
         self.api = base.trim_end_matches('/').into();
@@ -63,10 +65,10 @@ impl Agent37Config {
     /// a test server's.
     ///
     /// # Errors
-    /// [`Agent37Failure::InvalidInput`] unless it is a `ws(s)` URL holding
-    /// `{id}` once.
+    /// [`Agent37Failure::InvalidInput`] unless it is a `wss` URL, or a `ws`
+    /// one on this machine's loopback, holding `{id}` once.
     pub fn with_tunnel(mut self, tunnel: &str) -> Result<Self, Agent37Failure> {
-        if !(tunnel.starts_with("wss://") || tunnel.starts_with("ws://"))
+        if !(tunnel.starts_with("wss://") || loopback(tunnel, "ws://"))
             || tunnel.matches("{id}").count() != 1
         {
             return Err(Agent37Failure::InvalidInput);
@@ -84,4 +86,19 @@ impl Agent37Config {
     pub(super) fn tunnel_to(&self, instance: &str) -> String {
         self.tunnel.replace("{id}", instance)
     }
+}
+
+/// Whether `url` has `scheme` and names a loopback address as its host.
+fn loopback(url: &str, scheme: &str) -> bool {
+    url.strip_prefix(scheme).is_some_and(|rest| {
+        let host = rest.split(['/', '?', '#']).next().unwrap_or_default();
+        let host = host.rsplit_once(':').map_or(host, |(host, port)| {
+            if port.bytes().all(|b| b.is_ascii_digit()) {
+                host
+            } else {
+                ""
+            }
+        });
+        matches!(host, "127.0.0.1" | "[::1]" | "localhost")
+    })
 }

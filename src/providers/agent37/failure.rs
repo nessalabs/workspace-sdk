@@ -23,6 +23,11 @@ pub enum Agent37Failure {
     /// the same key finds it if it did.
     #[error("provisioning uncertain")]
     ProvisioningUncertain,
+    /// More than one instance carries the creation key, so which is meant
+    /// cannot be told. Asking again does not settle it: the owner deletes
+    /// the extra one.
+    #[error("ambiguous: more than one instance carries the key")]
+    Ambiguous,
     /// The instance did not become ready within the budget.
     #[error("timed out")]
     Timeout,

@@ -15,7 +15,6 @@ use std::{path::Path, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{UnixListener, UnixStream},
-    sync::Semaphore,
 };
 use tokio_tungstenite::tungstenite::{
     client::IntoClientRequest, http::HeaderValue, protocol::Message,
@@ -31,15 +30,13 @@ const OPEN_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_MESSAGE: usize = 1024 * 1024;
 
 /// A tunnel being served. Dropping it stops accepting and ends every
-/// connection it carries.
+/// connection it carries: they are the accepting task's, and end with it.
 pub(super) struct Tunnel {
     accepting: tokio::task::JoinHandle<()>,
-    carried: Arc<tokio::sync::Notify>,
 }
 impl Drop for Tunnel {
     fn drop(&mut self) {
         self.accepting.abort();
-        self.carried.notify_waiters();
     }
 }
 
@@ -55,33 +52,30 @@ impl Tunnel {
             .tunnel_to(instance)
             .into_client_request()
             .map_err(std::io::Error::other)?;
-        let key = HeaderValue::from_str(config.key().expose()).map_err(std::io::Error::other)?;
-        let mut key = key;
+        let mut key =
+            HeaderValue::from_str(config.key().expose()).map_err(std::io::Error::other)?;
         key.set_sensitive(true);
         request.headers_mut().insert("X-Agent37-Key", key);
         let tls = tls()?;
-        let carried = Arc::new(tokio::sync::Notify::new());
-        let ended = carried.clone();
-        let limit = Arc::new(Semaphore::new(MAX_CARRIED));
         let accepting = tokio::spawn(async move {
-            while let Ok((local, _)) = listener.accept().await {
-                // Past the limit a connection is refused, never queued.
-                let Ok(permit) = limit.clone().try_acquire_owned() else {
-                    continue;
-                };
-                let request = request.clone();
-                let tls = tls.clone();
-                let ended = ended.clone();
-                tokio::spawn(async move {
-                    tokio::select! {
-                        () = carry(local, request, tls) => {}
-                        () = ended.notified() => {}
+            // Owned by this task: aborting it drops the set, which aborts
+            // every connection still carried.
+            let mut carried = tokio::task::JoinSet::new();
+            loop {
+                tokio::select! {
+                    accepted = listener.accept() => {
+                        let Ok((local, _)) = accepted else { break };
+                        // Past the limit a connection is refused, never queued.
+                        if carried.len() >= MAX_CARRIED {
+                            continue;
+                        }
+                        carried.spawn(carry(local, request.clone(), tls.clone()));
                     }
-                    drop(permit);
-                });
+                    Some(_) = carried.join_next(), if !carried.is_empty() => {}
+                }
             }
         });
-        Ok(Self { accepting, carried })
+        Ok(Self { accepting })
     }
 }
 

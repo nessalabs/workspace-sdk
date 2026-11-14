@@ -14,10 +14,7 @@ use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 use workspace_sdk::{
     providers::{
-        agent37::{
-            Agent37AttachOptions, Agent37Config, Agent37Identity, Agent37Machines, Agent37Provider,
-            ApiKey,
-        },
+        agent37::{Agent37AttachOptions, Agent37Config, Agent37Identity, Agent37Provider, ApiKey},
         SupervisorDeployment,
     },
     *,
@@ -96,7 +93,7 @@ async fn server(status: &str) -> Server {
         .unwrap();
     let identity = Agent37Identity::generate("contract").await.unwrap();
     let provider = Agent37Provider::new(
-        Agent37Machines::new(config).unwrap(),
+        config,
         identity,
         SupervisorDeployment::Preinstalled {
             executable: env!("CARGO_BIN_EXE_workspace-supervisor").into(),

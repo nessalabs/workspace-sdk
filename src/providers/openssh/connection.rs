@@ -21,6 +21,7 @@
 //! network partition is seen only when sshd notices, which may take hours
 //! with its default settings. Endpoints are taken by address: an IPv6
 //! address's scope is not kept.
+use super::KeyPair;
 use crate::{
     ports::{
         ConnectionStream, FileChannel, IConnection, IConnectionProcess, ProcessEnd, ProcessExit,
@@ -124,25 +125,34 @@ exit "$s"
 const KEEPER: &str = "d=$(mktemp -d) || exit 1; echo \"$d\"; cat >/dev/null; rm -rf \"$d\"";
 
 /// How a connection reaches its machine, as its provider authorized it.
+/// The connection writes the key and any pinned host key into its own
+/// private directory.
 pub(in crate::providers) struct Route {
     /// The account the key signs in as.
     pub user: String,
+    /// The key the machine accepts for `user`.
+    pub key: KeyPair,
     /// Where ssh dials.
-    pub way: Way,
+    pub dial: Dial,
     /// Whatever must live as long as the connection, such as the tunnel it
     /// dials through. Dropped after the master.
-    pub keep: Option<Box<dyn Send + Sync>>,
+    pub guard: Option<Box<dyn Send + Sync>>,
 }
 /// Where a connection's ssh dials.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::providers) enum Way {
-    /// A TCP endpoint. The provider wrote the machine's host key to the
-    /// connection directory's `hosts`, under [`HOST_ALIAS`].
-    Direct(SocketAddr),
+pub(in crate::providers) enum Dial {
+    /// A TCP endpoint whose host key is pinned: an ed25519 key, as
+    /// [`super::ed25519_key`] accepts it.
+    Direct {
+        /// The machine's SSH endpoint.
+        endpoint: SocketAddr,
+        /// The machine's host key.
+        host_key: String,
+    },
     /// Every connection through `socket`, a local Unix socket the provider
     /// serves that carries it to the machine named `host`. The first
     /// connection learns the host key; every later one must match it.
-    #[cfg_attr(not(feature = "agent37"), allow(dead_code))]
+    #[allow(dead_code)] // Only providers with a tunnel make it.
     Tunnel {
         /// The provider's local socket, inside the connection directory.
         socket: PathBuf,
@@ -155,7 +165,10 @@ pub(in crate::providers) enum Way {
 struct Dialer {
     directory: tempfile::TempDir,
     user: String,
-    way: Way,
+    dial: Dial,
+    /// Through a tunnel, the host key algorithms of the key the master
+    /// learnt: from then on, every session must present that key.
+    learnt: std::sync::OnceLock<String>,
 }
 
 pub(in crate::providers) struct SshConnection {
@@ -165,7 +178,7 @@ pub(in crate::providers) struct SshConnection {
     dialer: Dialer,
     forwarded: Option<String>,
     /// The route's own state, such as a tunnel; it outlives the master.
-    _keep: Option<Box<dyn Send + Sync>>,
+    _guard: Option<Box<dyn Send + Sync>>,
 }
 
 fn connection_error(message: &str) -> Error {
@@ -178,11 +191,10 @@ fn connection_error(message: &str) -> Error {
 impl SshConnection {
     /// Connect to a machine, making `forward` reachable inside it when given.
     ///
-    /// `authorize` gets the connection's private directory. It must leave
-    /// the private key the machine accepts at `key` (mode 0600), and for a
-    /// [`Way::Direct`] route the machine's pinned host key at `hosts`; it
-    /// answers the route. Everything it leaves there is removed with the
-    /// connection, or as soon as connecting fails.
+    /// `authorize` gets the connection's private directory, where a tunnel
+    /// it serves puts its socket, and answers the route. Everything in the
+    /// directory is removed with the connection, or as soon as connecting
+    /// fails.
     pub(in crate::providers) async fn connect<F, Fut>(
         authorize: F,
         forward: Option<SocketForward>,
@@ -197,13 +209,22 @@ impl SshConnection {
             .permissions(std::os::unix::fs::PermissionsExt::from_mode(0o700))
             .tempdir_in("/tmp")?;
         let route = authorize(directory.path().to_owned()).await?;
-        if let Way::Tunnel { socket, .. } = &route.way {
-            if socket.parent() != Some(directory.path()) || !plain_path(socket) {
-                return Err(connection_error("a tunnel's socket is not its own"));
+        let hosts = match &route.dial {
+            Dial::Direct { host_key, .. } => {
+                let key = super::ed25519_key(host_key)
+                    .ok_or_else(|| connection_error("no usable host key"))?;
+                format!("{HOST_ALIAS} {key}\n")
             }
-            // Learnt by the master, then held to.
-            tokio::fs::write(directory.path().join("hosts"), "").await?;
-        }
+            Dial::Tunnel { socket, .. } => {
+                if socket.parent() != Some(directory.path()) || !plain_path(socket) {
+                    return Err(connection_error("a tunnel's socket is not its own"));
+                }
+                // Learnt by the master, then held to.
+                String::new()
+            }
+        };
+        tokio::fs::write(directory.path().join("hosts"), hosts).await?;
+        write_private(&directory.path().join("key"), route.key.private()).await?;
         if route.user.is_empty()
             || !route
                 .user
@@ -215,15 +236,20 @@ impl SshConnection {
         let dialer = Dialer {
             directory,
             user: route.user,
-            way: route.way,
+            dial: route.dial,
+            learnt: std::sync::OnceLock::new(),
         };
+        // A master dropped on any failure below is killed with it.
         let master = dialer.start_master().await?;
+        if matches!(dialer.dial, Dial::Tunnel { .. }) {
+            dialer.pin().await?;
+        }
         let mut connection = Self {
             master: Mutex::new(Some(master)),
             keeper: Mutex::new(None),
             dialer,
             forwarded: None,
-            _keep: route.keep,
+            _guard: route.guard,
         };
         if let Some(forward) = forward {
             connection.forward(&forward).await?;
@@ -325,6 +351,10 @@ impl SshConnection {
             .stderr(Stdio::piped());
         Ok(ssh)
     }
+    /// Whether its master still lives, so new commands may start.
+    pub(in crate::providers) fn alive(&self) -> bool {
+        self.require_master().is_ok()
+    }
     /// Fails once the master has ended: its forward is gone with it. A
     /// command already running is not told.
     fn require_master(&self) -> Result<()> {
@@ -367,6 +397,31 @@ fn kill_and_reap(mut child: Child) {
 }
 
 impl Dialer {
+    /// Hold every later session to the one host key the master learnt.
+    async fn pin(&self) -> Result<()> {
+        let hosts = tokio::fs::read_to_string(self.directory.path().join("hosts")).await?;
+        let mut lines = hosts.lines().filter(|line| !line.trim().is_empty());
+        let (Some(line), None) = (lines.next(), lines.next()) else {
+            return Err(connection_error("the machine did not present one host key"));
+        };
+        let algorithms = match line.split_ascii_whitespace().nth(1) {
+            Some(
+                kind @ ("ssh-ed25519"
+                | "ecdsa-sha2-nistp256"
+                | "ecdsa-sha2-nistp384"
+                | "ecdsa-sha2-nistp521"),
+            ) => kind.to_owned(),
+            Some("ssh-rsa") => "rsa-sha2-512,rsa-sha2-256".to_owned(),
+            _ => {
+                return Err(connection_error(
+                    "the machine's host key is of no known kind",
+                ))
+            }
+        };
+        let _ = self.learnt.set(algorithms);
+        Ok(())
+    }
+
     async fn start_master(&self) -> Result<Child> {
         let target = self.target();
         let mut command = self.ssh(true, true);
@@ -413,9 +468,9 @@ impl Dialer {
     }
 
     fn target(&self) -> String {
-        match &self.way {
-            Way::Direct(endpoint) => format!("{}@{}", self.user, endpoint.ip()),
-            Way::Tunnel { host, .. } => format!("{}@{host}", self.user),
+        match &self.dial {
+            Dial::Direct { endpoint, .. } => format!("{}@{}", self.user, endpoint.ip()),
+            Dial::Tunnel { host, .. } => format!("{}@{host}", self.user),
         }
     }
 
@@ -450,13 +505,13 @@ impl Dialer {
             "-o",
         ]);
         command.arg(format!("HostKeyAlias={HOST_ALIAS}"));
-        match &self.way {
-            Way::Direct(endpoint) => {
+        match &self.dial {
+            Dial::Direct { endpoint, .. } => {
                 command
                     .args(["-o", "StrictHostKeyChecking=yes", "-p"])
                     .arg(endpoint.port().to_string());
             }
-            Way::Tunnel { socket, .. } => {
+            Dial::Tunnel { socket, .. } => {
                 // The first connection, the master's, learns the key into
                 // this connection's own file; every later one must match.
                 command.args([
@@ -502,6 +557,18 @@ impl Dialer {
             .kill_on_drop(true);
         command
     }
+}
+
+/// Write `private` to `path`, readable by this account alone.
+async fn write_private(path: &Path, private: &[u8]) -> Result<()> {
+    let mut file = tokio::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)
+        .await?;
+    file.write_all(private).await?;
+    Ok(file.sync_all().await?)
 }
 
 /// A path ssh can carry in an option unquoted: printable ASCII with no

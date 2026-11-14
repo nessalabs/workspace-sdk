@@ -1,5 +1,6 @@
 use super::*;
 use axum::{routing::post, Json, Router};
+use base64::Engine;
 use serde_json::{json, Value};
 
 const VM: &str = "bx_23456789";
@@ -20,32 +21,28 @@ fn host_key_line(key: &[u8; 32]) -> String {
 fn only_one_ed25519_host_key_is_pinned() {
     let line = host_key_line(&[7; 32]);
     let encoded = line.split(' ').nth(1).unwrap();
+    assert_eq!(ed25519_key(&line), Some(format!("ssh-ed25519 {encoded}")));
     assert_eq!(
-        known_host(Some(&line)),
-        Some(format!("{HOST_ALIAS} ssh-ed25519 {encoded}\n"))
-    );
-    assert_eq!(
-        known_host(Some(&format!("{line} comment"))),
-        Some(format!("{HOST_ALIAS} ssh-ed25519 {encoded}\n"))
+        ed25519_key(&format!("{line} comment")),
+        Some(format!("ssh-ed25519 {encoded}"))
     );
     let short = format!(
         "ssh-ed25519 {}",
         base64::engine::general_purpose::STANDARD.encode([0u8; 19])
     );
     for bad in [
-        None,
-        Some(""),
-        Some("ssh-ed25519"),
-        Some("ssh-ed25519 AAAA"),
-        Some(short.as_str()),
-        Some("ssh-rsa AAAA"),
-        Some("ssh-ed25519 not*base64"),
-        Some("ssh-ed25519 AAAA\nevil ssh-ed25519 AAAA"),
+        "",
+        "ssh-ed25519",
+        "ssh-ed25519 AAAA",
+        short.as_str(),
+        "ssh-rsa AAAA",
+        "ssh-ed25519 not*base64",
+        "ssh-ed25519 AAAA\nevil ssh-ed25519 AAAA",
     ] {
-        assert_eq!(known_host(bad), None, "{bad:?}");
+        assert_eq!(ed25519_key(bad), None, "{bad:?}");
     }
     let long = "A".repeat(260);
-    assert_eq!(known_host(Some(&format!("ssh-ed25519 {long}"))), None);
+    assert_eq!(ed25519_key(&format!("ssh-ed25519 {long}")), None);
 }
 
 /// A fake Boat answering `sshkey` with `answer`, writing the key it was

@@ -208,33 +208,22 @@ impl Machine {
         let (port, host_key, tunnel) = (self.port, self.host_key.clone(), self.tunnel);
         SshConnection::connect(
             |directory| async move {
-                let key = directory.join("key");
-                let made = std::process::Command::new("ssh-keygen")
-                    .args(["-q", "-t", "ed25519", "-N", "", "-f"])
-                    .arg(&key)
-                    .status()?;
-                assert!(made.success());
+                let key = KeyPair::generate("test").await?;
                 // Written in place, so a mode a test set is kept.
                 if let Ok(mut file) = std::fs::OpenOptions::new()
                     .write(true)
                     .truncate(true)
                     .open(&authorized)
                 {
-                    std::io::Write::write_all(
-                        &mut file,
-                        &std::fs::read(key.with_extension("pub"))?,
-                    )?;
+                    std::io::Write::write_all(&mut file, key.public().as_bytes())?;
                 }
                 let endpoint: std::net::SocketAddr = ([127, 0, 0, 1], port).into();
                 if !tunnel {
-                    std::fs::write(
-                        directory.join("hosts"),
-                        format!("{HOST_ALIAS} {host_key}\n"),
-                    )?;
                     return Ok(Route {
                         user: "user".into(),
-                        way: Way::Direct(endpoint),
-                        keep: None,
+                        key,
+                        dial: Dial::Direct { endpoint, host_key },
+                        guard: None,
                     });
                 }
                 let socket = directory.join("tunnel.sock");
@@ -251,11 +240,12 @@ impl Machine {
                 });
                 Ok(Route {
                     user: "user".into(),
-                    way: Way::Tunnel {
+                    key,
+                    dial: Dial::Tunnel {
                         socket,
                         host: "machine.test".into(),
                     },
-                    keep: Some(Box::new(AbortOnDrop(task))),
+                    guard: Some(Box::new(AbortOnDrop(task))),
                 })
             },
             forward,
@@ -613,10 +603,14 @@ async fn only_a_run_with_input_is_compressed() {
         dialer: Dialer {
             directory: tempfile::tempdir().unwrap(),
             user: "user".into(),
-            way: Way::Direct("127.0.0.1:22".parse().unwrap()),
+            dial: Dial::Direct {
+                endpoint: "127.0.0.1:22".parse().unwrap(),
+                host_key: String::new(),
+            },
+            learnt: std::sync::OnceLock::new(),
         },
         forwarded: None,
-        _keep: None,
+        _guard: None,
     };
     let compressed = |on: bool| {
         let command = connection.session_bound_command("true", on).unwrap();
