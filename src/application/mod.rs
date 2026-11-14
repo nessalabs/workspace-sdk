@@ -7,6 +7,7 @@ mod recovery_service;
 mod run;
 #[cfg(feature = "portability")]
 mod sync;
+mod uses;
 mod workspace;
 mod workspace_sdk;
 mod workspace_sdk_builder;
@@ -21,6 +22,7 @@ pub use recovery_service::{
 pub use run::Run;
 #[cfg(feature = "portability")]
 pub use sync::*;
+pub use uses::{Turn, Use, Uses};
 pub use workspace::{OwnedWorkspace, Workspace};
 pub use workspace_sdk::WorkspaceSdk;
 pub use workspace_sdk_builder::WorkspaceSdkBuilder;
