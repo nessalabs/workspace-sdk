@@ -352,6 +352,7 @@ impl SshConnection {
         Ok(ssh)
     }
     /// Whether its master still lives, so new commands may start.
+    #[allow(dead_code)] // Only providers that reuse a connection ask.
     pub(in crate::providers) fn alive(&self) -> bool {
         self.require_master().is_ok()
     }
