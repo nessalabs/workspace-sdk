@@ -90,15 +90,17 @@ impl Agent37Config {
 
 /// Whether `url` has `scheme` and names a loopback address as its host.
 fn loopback(url: &str, scheme: &str) -> bool {
-    url.strip_prefix(scheme).is_some_and(|rest| {
-        let host = rest.split(['/', '?', '#']).next().unwrap_or_default();
-        let host = host.rsplit_once(':').map_or(host, |(host, port)| {
-            if port.bytes().all(|b| b.is_ascii_digit()) {
-                host
-            } else {
-                ""
-            }
-        });
-        matches!(host, "127.0.0.1" | "[::1]" | "localhost")
-    })
+    url.starts_with(scheme)
+        && reqwest::Url::parse(url).is_ok_and(|url| {
+            url.username().is_empty()
+                && url.password().is_none()
+                && url.host_str().is_some_and(|host| {
+                    host == "localhost"
+                        || host
+                            .trim_start_matches('[')
+                            .trim_end_matches(']')
+                            .parse::<std::net::IpAddr>()
+                            .is_ok_and(|address| address.is_loopback())
+                })
+        })
 }

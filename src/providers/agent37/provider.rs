@@ -1,6 +1,8 @@
-//! Agent37 instances as attached workspaces: the instance is made, woken
+//! Agent37 instances as attached workspaces: the instance is made, started
 //! and stopped by its owner through [`super::Agent37Machines`], and this
 //! provider runs the SDK's supervisor in it and opens connections into it.
+//! A sleeping instance it wakes, as any request to the instance would: that
+//! is using it, not changing its lifecycle.
 use super::{
     api::Api, config::Agent37Config, identity::Agent37Identity, machines::valid_instance,
     target::Agent37Target,
@@ -9,7 +11,7 @@ use crate::{
     domain::*,
     ports::{IBackend, IProvider},
     providers::{
-        managed::{validate_remote_path, ManagedBackend},
+        managed::{self, validate_remote_path, ManagedBackend},
         SupervisorDeployment,
     },
     Error, Result,
@@ -161,12 +163,7 @@ impl IProvider for Agent37Provider {
         Ok(Arc::new(backend))
     }
     async fn connect(&self, reference: &WorkspaceRef) -> Result<Arc<dyn IBackend>> {
-        if reference.version != 1 || reference.provider != self.id {
-            return Err(Error::InvalidInput(
-                "Agent37 reference version/provider mismatch".into(),
-            ));
-        }
-        let locator: Locator = reference.locator.decode()?;
+        let locator: Locator = managed::decode_reference(reference, &self.id)?;
         let expected = self.locator(
             &reference.id,
             Agent37AttachOptions {

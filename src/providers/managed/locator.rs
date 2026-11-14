@@ -14,13 +14,22 @@ pub(in crate::providers) fn decode(
     reference: &WorkspaceRef,
     provider: &ProviderId,
 ) -> Result<Locator> {
+    let locator: Locator = decode_reference(reference, provider)?;
+    validate_remote_path(&locator.root)?;
+    validate_remote_path(&locator.control)?;
+    Ok(locator)
+}
+
+/// A reference's locator, in whatever shape its provider keeps, once its
+/// version and provider are this registration's.
+pub(in crate::providers) fn decode_reference<T: serde::de::DeserializeOwned>(
+    reference: &WorkspaceRef,
+    provider: &ProviderId,
+) -> Result<T> {
     if reference.version != 1 || &reference.provider != provider {
         return Err(Error::InvalidInput(
             "workspace reference version or provider does not match".into(),
         ));
     }
-    let locator: Locator = reference.locator.decode()?;
-    validate_remote_path(&locator.root)?;
-    validate_remote_path(&locator.control)?;
-    Ok(locator)
+    reference.locator.decode()
 }

@@ -64,7 +64,12 @@ impl Tunnel {
             loop {
                 tokio::select! {
                     accepted = listener.accept() => {
-                        let Ok((local, _)) = accepted else { break };
+                        // A failed accept (out of descriptors, say) passes:
+                        // the tunnel keeps serving once it clears.
+                        let Ok((local, _)) = accepted else {
+                            tokio::time::sleep(Duration::from_millis(100)).await;
+                            continue;
+                        };
                         // Past the limit a connection is refused, never queued.
                         if carried.len() >= MAX_CARRIED {
                             continue;

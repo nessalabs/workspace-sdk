@@ -30,14 +30,22 @@ const WAKE_TIMEOUT: Duration = Duration::from_secs(180);
 /// tried again, and how many times a refused `exec` is.
 const RETRY_PAUSE: Duration = Duration::from_secs(2);
 const EXEC_TRIES: u32 = 4;
+/// How long the shared private connection is kept unused. Below
+/// Agent37's shortest idle time (five minutes), so a held connection never
+/// keeps an otherwise idle instance awake for long.
+const PRIVATE_IDLE: Duration = Duration::from_secs(120);
 
 pub(super) struct Agent37Target {
     pub api: Api,
     pub identity: Arc<Agent37Identity>,
     pub user: &'static str,
     pub locator: Locator,
-    /// The connection private requests share while its master lives.
-    pub private_link: tokio::sync::Mutex<Option<Arc<SshConnection>>>,
+    /// The connection private requests share while its master lives, and
+    /// when it was last used. It is held while a new one is made (a wake
+    /// and a login, at most a few minutes), so requests queue behind that.
+    /// Its keepalives count as activity, so it is dropped after
+    /// [`PRIVATE_IDLE`] unused and the instance can sleep.
+    pub private_link: tokio::sync::Mutex<Option<(Arc<SshConnection>, tokio::time::Instant)>>,
 }
 
 fn failure(refusal: Refusal) -> Error {
@@ -73,9 +81,10 @@ impl Agent37Target {
             tries += 1;
             match self.api.exec(&self.locator.instance, &command).await {
                 Ok(ran) => break ran,
-                // The API says such a command never started: sending it
-                // again cannot run it twice. Nothing else is sent again.
-                Err(refusal) if refusal.transient() && tries < EXEC_TRIES => {
+                // The API says a command refused with `try_again` never
+                // started (exec's docs): sending it again cannot run it
+                // twice. Nothing else is sent again.
+                Err(refusal) if refusal.code() == Some("try_again") && tries < EXEC_TRIES => {
                     tokio::time::sleep(RETRY_PAUSE).await;
                 }
                 Err(refusal) => return Err(failure(refusal)),
@@ -98,14 +107,20 @@ impl Agent37Target {
         std::io::Seek::rewind(&mut input)?;
         let connection = {
             let mut link = self.private_link.lock().await;
-            match link.as_ref().filter(|link| link.alive()) {
-                Some(link) => link.clone(),
+            let now = tokio::time::Instant::now();
+            let kept = link
+                .take()
+                .filter(|(link, used)| link.alive() && now.duration_since(*used) < PRIVATE_IDLE)
+                .map(|(link, _)| link);
+            let connection = match kept {
+                Some(kept) => kept,
                 None => {
-                    let fresh = self.connect(None).await?;
-                    *link = Some(fresh.clone());
-                    fresh
+                    self.wake().await?;
+                    self.connect(None).await?
                 }
-            }
+            };
+            *link = Some((connection.clone(), now));
+            connection
         };
         let ran = connection
             .run(

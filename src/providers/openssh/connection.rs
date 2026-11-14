@@ -514,13 +514,16 @@ impl Dialer {
             }
             Dial::Tunnel { socket, .. } => {
                 // The first connection, the master's, learns the key into
-                // this connection's own file; every later one must match.
-                command.args([
-                    "-o",
-                    "StrictHostKeyChecking=accept-new",
-                    "-o",
-                    "CheckHostIP=no",
-                ]);
+                // this connection's own file; every later one must present
+                // that key, of that kind: no key of another kind is learnt
+                // beside it.
+                match self.learnt.get() {
+                    Some(algorithms) => command
+                        .args(["-o", "StrictHostKeyChecking=yes", "-o"])
+                        .arg(format!("HostKeyAlgorithms={algorithms}")),
+                    None => command.args(["-o", "StrictHostKeyChecking=accept-new"]),
+                };
+                command.args(["-o", "CheckHostIP=no"]);
                 if dial {
                     command
                         .arg("-o")
