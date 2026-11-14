@@ -1,14 +1,10 @@
-//! Counted use of SDK-owned machines and the one path that rests them.
+//! Named uses of SDK-owned machines and the one path that rests them.
 use super::{
-    uses::{Use, Uses},
+    uses::{NamedUse, Uses},
     OwnedWorkspace, Workspace, WorkspaceSdk,
 };
 use crate::{domain::WorkspaceId, Error, Result};
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex as SyncMutex, MutexGuard, PoisonError},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 /// Keeps SDK-owned machines awake while something uses them, and stops each one
 /// after it has had no use for the idle time the caller chose.
@@ -23,11 +19,10 @@ use std::{
 pub struct Machines {
     sdk: Arc<WorkspaceSdk>,
     idle: Duration,
-    uses: Uses<WorkspaceId>,
-    /// Each machine's open handle, kept from the moment waking starts until a
-    /// rest stops it, so a wake that fails part way is still rested. Changed
-    /// only during the machine's [`Turn`](super::Turn).
-    awake: SyncMutex<HashMap<WorkspaceId, OwnedWorkspace>>,
+    /// Each machine's uses, and behind its turn its open handle, kept from
+    /// the moment waking starts until a rest stops it, so a wake that fails
+    /// part way is still rested.
+    uses: Uses<WorkspaceId, Option<OwnedWorkspace>>,
 }
 
 /// One named use of a machine. Dropping it ends the use.
@@ -68,7 +63,7 @@ pub struct Machines {
 /// ```
 #[must_use = "the machine may rest as soon as its use is dropped"]
 pub struct MachineUse {
-    _use: Use,
+    _use: NamedUse,
     workspace: Workspace,
 }
 impl std::ops::Deref for MachineUse {
@@ -103,7 +98,6 @@ impl Machines {
             sdk,
             idle,
             uses: Uses::new(),
-            awake: SyncMutex::new(HashMap::new()),
         }
     }
     /// Start a named use of a saved machine this SDK created, waking it if
@@ -112,8 +106,8 @@ impl Machines {
         let name = name.into();
         // Refuse an attached or unknown ID before keeping anything for it.
         self.sdk.owned_record(id)?;
-        let turn = self.uses.turn(id).await;
-        let awake = lock(&self.awake).get(id).cloned();
+        let mut turn = self.uses.turn(id).await;
+        let awake = (*turn).clone();
         let workspace = match awake {
             Some(workspace) if turn.in_use() => workspace,
             awake => {
@@ -128,7 +122,7 @@ impl Machines {
                 // clock runs until a use is recorded, and a clock already
                 // running is kept: a failed wake of a machine that was idle
                 // long enough is stopped on the next pass.
-                lock(&self.awake).insert(id.clone(), workspace.clone());
+                *turn = Some(workspace.clone());
                 turn.waking();
                 workspace.ensure_ready().await?;
                 workspace
@@ -141,7 +135,7 @@ impl Machines {
     }
     /// The names of the current uses of a machine.
     pub fn uses(&self, id: &WorkspaceId) -> Vec<String> {
-        self.uses.uses(id)
+        self.uses.names(id)
     }
     /// The one rest path: stop every awake machine that has had no use for the
     /// idle time. Call it on a timer, or use [`Self::rest_every`]. A machine
@@ -150,10 +144,10 @@ impl Machines {
     pub async fn rest_idle(&self) -> RestReport {
         let mut report = RestReport::default();
         for id in self.uses.idle(self.idle) {
-            let Some(turn) = self.uses.try_turn(&id) else {
+            let Some(mut turn) = self.uses.try_turn(&id) else {
                 continue;
             };
-            let Some(workspace) = lock(&self.awake).get(&id).cloned() else {
+            let Some(workspace) = (*turn).clone() else {
                 continue;
             };
             // A use may have been taken since the list was made.
@@ -162,8 +156,8 @@ impl Machines {
             }
             match workspace.stop().await {
                 Ok(()) => {
-                    lock(&self.awake).remove(&id);
-                    turn.rested();
+                    *turn = None;
+                    self.uses.rested(&id, turn);
                     report.rested.push(id);
                 }
                 Err(error) => report.failed.push((id, error)),
@@ -191,10 +185,4 @@ impl Machines {
             }
         }))
     }
-}
-
-/// Take a short lock. Every change under these locks is a single step, so a
-/// panic elsewhere cannot leave them half-changed.
-fn lock<T>(mutex: &SyncMutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }

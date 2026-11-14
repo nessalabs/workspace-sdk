@@ -22,7 +22,7 @@ pub use recovery_service::{
 pub use run::Run;
 #[cfg(feature = "portability")]
 pub use sync::*;
-pub use uses::{Turn, Use, Uses};
+pub use uses::{NamedUse, UseTurn, Uses};
 pub use workspace::{OwnedWorkspace, Workspace};
 pub use workspace_sdk::WorkspaceSdk;
 pub use workspace_sdk_builder::WorkspaceSdkBuilder;
