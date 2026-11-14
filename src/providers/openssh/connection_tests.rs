@@ -1,23 +1,7 @@
 use super::*;
 use crate::ports::MAX_SOCKET_PATH;
-use axum::{routing::post, Json, Router};
-use serde_json::{json, Value};
 use std::os::unix::fs::PermissionsExt;
 use tokio::io::{AsyncBufReadExt, BufReader};
-
-const VM: &str = "bx_23456789";
-
-fn host_key_line(key: &[u8; 32]) -> String {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(&11u32.to_be_bytes());
-    bytes.extend_from_slice(b"ssh-ed25519");
-    bytes.extend_from_slice(&32u32.to_be_bytes());
-    bytes.extend_from_slice(key);
-    format!(
-        "ssh-ed25519 {}",
-        base64::engine::general_purpose::STANDARD.encode(bytes)
-    )
-}
 
 /// The wrapper, run as sshd runs it: leading its own session, under a
 /// parent whose name starts like sshd's.
@@ -129,38 +113,6 @@ fn a_command_outside_an_sshd_session_is_refused() {
 }
 
 #[test]
-fn only_one_ed25519_host_key_is_pinned() {
-    let line = host_key_line(&[7; 32]);
-    let encoded = line.split(' ').nth(1).unwrap();
-    assert_eq!(
-        known_host(Some(&line)),
-        Some(format!("{HOST_ALIAS} ssh-ed25519 {encoded}\n"))
-    );
-    assert_eq!(
-        known_host(Some(&format!("{line} comment"))),
-        Some(format!("{HOST_ALIAS} ssh-ed25519 {encoded}\n"))
-    );
-    let short = format!(
-        "ssh-ed25519 {}",
-        base64::engine::general_purpose::STANDARD.encode([0u8; 19])
-    );
-    for bad in [
-        None,
-        Some(""),
-        Some("ssh-ed25519"),
-        Some("ssh-ed25519 AAAA"),
-        Some(short.as_str()),
-        Some("ssh-rsa AAAA"),
-        Some("ssh-ed25519 not*base64"),
-        Some("ssh-ed25519 AAAA\nevil ssh-ed25519 AAAA"),
-    ] {
-        assert_eq!(known_host(bad), None, "{bad:?}");
-    }
-    let long = "A".repeat(260);
-    assert_eq!(known_host(Some(&format!("ssh-ed25519 {long}"))), None);
-}
-
-#[test]
 fn a_forward_takes_only_a_short_plain_absolute_path() {
     assert!(SocketForward::new("/tmp/a.sock").is_ok());
     for bad in [
@@ -181,87 +133,16 @@ async fn a_long_output_keeps_its_end() {
     assert_eq!(read_tail(&b"short"[..], 1000).await.unwrap(), b"short");
 }
 
-/// A fake Boat answering `sshkey` with `answer`, writing the key it was
-/// given to `authorized`. It answers until dropped.
-struct Boat {
-    api: Api,
-    task: tokio::task::JoinHandle<()>,
-}
-impl Drop for Boat {
-    fn drop(&mut self) {
-        self.task.abort();
-    }
-}
-async fn boat(answer: Value, authorized: Option<std::path::PathBuf>) -> Boat {
-    let router = Router::new().route(
-        "/api/v1/sandboxes/{id}/sshkey",
-        post(move |Json(request): Json<Value>| {
-            if let Some(authorized) = &authorized {
-                // Written in place, so a mode a test set is kept.
-                let _ = std::fs::OpenOptions::new()
-                    .write(true)
-                    .truncate(true)
-                    .open(authorized)
-                    .and_then(|mut file| {
-                        std::io::Write::write_all(
-                            &mut file,
-                            request["key"].as_str().unwrap().as_bytes(),
-                        )
-                    });
-            }
-            let answer = answer.clone();
-            async move { Json(answer) }
-        }),
-    );
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let base = format!("http://{}/api/v1", listener.local_addr().unwrap());
-    let task = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
-    let api = Api::new(
-        sandbox_client::ClientConfig::new("fixture-token")
-            .unwrap()
-            .with_base_path(&base)
-            .unwrap(),
-    )
-    .unwrap();
-    Boat { api, task }
-}
-
-#[tokio::test]
-async fn an_authorization_without_everything_to_check_the_machine_is_refused() {
-    let good = json!({
-        "ok": true, "type": "sandbox.sshkey", "success": true, "sshUser": "user",
-        "sshEndpoint": "127.0.0.1:22", "hostKey": host_key_line(&[1; 32]),
-    });
-    let fake = boat(good.clone(), None).await;
-    assert!(authorize(&fake.api, VM, "key".into()).await.is_ok());
-    for (field, value) in [
-        ("ok", json!(false)),
-        ("success", json!(false)),
-        ("success", Value::Null),
-        ("sshUser", json!("root")),
-        ("sshEndpoint", Value::Null),
-        ("sshEndpoint", json!("machine.example:22")),
-        ("hostKey", Value::Null),
-        ("hostKey", json!("ssh-rsa AAAA")),
-    ] {
-        let mut answer = good.clone();
-        answer[field] = value.clone();
-        let fake = boat(answer, None).await;
-        assert!(
-            authorize(&fake.api, VM, "key".into()).await.is_err(),
-            "{field}: {value}"
-        );
-    }
-}
-
-/// A real OpenSSH server for the machine, and a fake Boat that authorizes
-/// keys on it. It needs `/usr/sbin/sshd`, `python3` and an account named
+/// A real OpenSSH server for the machine, reached directly or through a
+/// local tunnel, and a route that authorizes each connection's key on it. It needs `/usr/sbin/sshd`, `python3` and an account named
 /// `user` with a usable (not locked) password field, so the tests using it
-/// run only when asked: `cargo test --features boat connection -- --ignored`.
+/// run only when asked: `cargo test --features boat connection -- --ignored`, on Linux.
 struct Machine {
     place: tempfile::TempDir,
     _sshd: tokio::process::Child,
-    boat: Boat,
+    port: u16,
+    host_key: String,
+    tunnel: bool,
 }
 impl Machine {
     async fn start(allow_forwarding: bool) -> Self {
@@ -309,19 +190,84 @@ impl Machine {
             assert!(sshd.try_wait().unwrap().is_none(), "sshd did not start");
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
-        let answer = json!({
-            "ok": true, "type": "sandbox.sshkey", "success": true, "sshUser": "user",
-            "sshEndpoint": format!("127.0.0.1:{port}"), "hostKey": host_key.trim(),
-        });
-        let boat = boat(answer, Some(path("authorized"))).await;
         Self {
             place,
             _sshd: sshd,
-            boat,
+            port,
+            host_key: host_key.trim().to_owned(),
+            tunnel: false,
         }
     }
+    /// The same machine, reached through a local tunnel instead.
+    fn tunnelled(mut self) -> Self {
+        self.tunnel = true;
+        self
+    }
     async fn connect(&self, forward: Option<SocketForward>) -> Result<Arc<SshConnection>> {
-        SshConnection::connect(&self.boat.api, VM, forward).await
+        let authorized = self.place.path().join("authorized");
+        let (port, host_key, tunnel) = (self.port, self.host_key.clone(), self.tunnel);
+        SshConnection::connect(
+            |directory| async move {
+                let key = directory.join("key");
+                let made = std::process::Command::new("ssh-keygen")
+                    .args(["-q", "-t", "ed25519", "-N", "", "-f"])
+                    .arg(&key)
+                    .status()?;
+                assert!(made.success());
+                // Written in place, so a mode a test set is kept.
+                if let Ok(mut file) = std::fs::OpenOptions::new()
+                    .write(true)
+                    .truncate(true)
+                    .open(&authorized)
+                {
+                    std::io::Write::write_all(
+                        &mut file,
+                        &std::fs::read(key.with_extension("pub"))?,
+                    )?;
+                }
+                let endpoint: std::net::SocketAddr = ([127, 0, 0, 1], port).into();
+                if !tunnel {
+                    std::fs::write(
+                        directory.join("hosts"),
+                        format!("{HOST_ALIAS} {host_key}\n"),
+                    )?;
+                    return Ok(Route {
+                        user: "user".into(),
+                        way: Way::Direct(endpoint),
+                        keep: None,
+                    });
+                }
+                let socket = directory.join("tunnel.sock");
+                let listener = tokio::net::UnixListener::bind(&socket)?;
+                let task = tokio::spawn(async move {
+                    while let Ok((mut local, _)) = listener.accept().await {
+                        tokio::spawn(async move {
+                            if let Ok(mut remote) = tokio::net::TcpStream::connect(endpoint).await {
+                                let _ =
+                                    tokio::io::copy_bidirectional(&mut local, &mut remote).await;
+                            }
+                        });
+                    }
+                });
+                Ok(Route {
+                    user: "user".into(),
+                    way: Way::Tunnel {
+                        socket,
+                        host: "machine.test".into(),
+                    },
+                    keep: Some(Box::new(AbortOnDrop(task))),
+                })
+            },
+            forward,
+        )
+        .await
+    }
+}
+
+struct AbortOnDrop(tokio::task::JoinHandle<()>);
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
     }
 }
 
@@ -347,12 +293,72 @@ async fn gone(marker: &str) -> bool {
     false
 }
 
+/// Through a tunnel the host key is learnt by the master and held to by
+/// every later session, each of which dials the tunnel again.
+#[tokio::test]
+#[ignore = "needs a local sshd, python3 and an account named user"]
+async fn a_tunnelled_connection_runs_forwards_and_pins_what_it_learnt() {
+    let machine = Machine::start(true).await.tunnelled();
+    let local = machine.place.path().join("local.sock");
+    let _listening = tokio::net::UnixListener::bind(&local).unwrap();
+    let connection = machine
+        .connect(Some(SocketForward::new(&local).unwrap()))
+        .await
+        .unwrap();
+    let ran = connection
+        .run("echo through", None, Duration::from_secs(10))
+        .await
+        .unwrap();
+    assert_eq!(
+        (ran.end, ran.output.as_str()),
+        (ProcessEnd::Exited(0), "through\n")
+    );
+    assert!(connection.forwarded_socket().is_some());
+    let hosts = connection.dialer.directory.path().join("hosts");
+    let learnt = std::fs::read_to_string(&hosts).unwrap();
+    assert!(learnt.contains("ssh-ed25519"), "{learnt}");
+    // Another key in its place: the next session must refuse the machine.
+    let other = machine.place.path().join("other");
+    assert!(std::process::Command::new("ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-f"])
+        .arg(&other)
+        .status()
+        .unwrap()
+        .success());
+    let forged = std::fs::read_to_string(other.with_extension("pub")).unwrap();
+    let forged = forged
+        .split_whitespace()
+        .take(2)
+        .collect::<Vec<_>>()
+        .join(" ");
+    std::fs::write(&hosts, format!("{HOST_ALIAS} {forged}\n")).unwrap();
+    let refused = connection
+        .run("echo through", None, Duration::from_secs(10))
+        .await
+        .unwrap();
+    assert_eq!(refused.end, ProcessEnd::Lost);
+}
+
+#[test]
+fn a_tunnel_path_with_anything_a_shell_reads_is_refused() {
+    assert!(plain_path(Path::new("/tmp/wsdk-ssh-AbC123/tunnel.sock")));
+    for bad in [
+        "relative.sock",
+        "/tmp/a b.sock",
+        "/tmp/a;b",
+        "/tmp/$(x)",
+        "/tmp/a'b",
+    ] {
+        assert!(!plain_path(Path::new(bad)), "{bad}");
+    }
+}
+
 #[tokio::test]
 #[ignore = "needs a local sshd and an account named user"]
 async fn a_connection_streams_runs_and_serves_files() {
     let machine = Machine::start(true).await;
     let connection = machine.connect(None).await.unwrap();
-    let private = connection.directory.path().to_owned();
+    let private = connection.dialer.directory.path().to_owned();
     assert_eq!(connection.forwarded_socket(), None);
 
     let ran = connection
@@ -604,9 +610,13 @@ async fn only_a_run_with_input_is_compressed() {
                 .unwrap(),
         )),
         keeper: Mutex::new(None),
-        directory: tempfile::tempdir().unwrap(),
-        endpoint: "127.0.0.1:22".parse().unwrap(),
+        dialer: Dialer {
+            directory: tempfile::tempdir().unwrap(),
+            user: "user".into(),
+            way: Way::Direct("127.0.0.1:22".parse().unwrap()),
+        },
         forwarded: None,
+        _keep: None,
     };
     let compressed = |on: bool| {
         let command = connection.session_bound_command("true", on).unwrap();

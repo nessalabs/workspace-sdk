@@ -1,19 +1,22 @@
-//! A live connection into a Sandbox over OpenSSH. Boat authorizes a fresh
-//! key made for this connection and supplies the host's identity; no user's
-//! SSH configuration, agent or known hosts are consulted.
+//! A live connection into a provider's machine over OpenSSH. The provider
+//! authorizes a key for it and says how to reach the machine ([`Route`]): a
+//! TCP endpoint whose host key it pins, or a tunnel it serves on a local Unix
+//! socket. No user's SSH configuration, agent or known hosts are consulted.
 //!
 //! ```text
-//! connect:  ssh-keygen ─► POST sshkey ─► pin host key ─► master ─► -O check
+//! connect:  authorize (key, route) ─► master ─► -O check
 //!           [forward: keeper makes a private directory ─► -O forward -R]
 //! stream / run:  a connection each, while the master lives, under a
 //!                 wrapper that ends the command's session with it
 //! files:          a session through the master
-//! drop:     keeper ends (its directory is removed) ─► master ends ─► key removed
+//! drop:     keeper ends (its directory is removed) ─► master ends
+//!           ─► key and tunnel removed
 //! ```
 //!
-//! Boat cannot revoke a key: each connection leaves one more authorized key
-//! on the machine, whose private half is deleted with the connection. A
-//! process that is killed outright (not dropped) also leaves its master
+//! Through a tunnel the machine's host key cannot be known beforehand: the
+//! master learns it, and every later session of the connection must match
+//! it. The tunnel's own authentication (TLS and the provider's credential)
+//! is what identifies the machine. A process that is killed outright (not dropped) also leaves its master
 //! running until the machine or the network ends it. A client cut off by a
 //! network partition is seen only when sshd notices, which may take hours
 //! with its default settings. Endpoints are taken by address: an IPv6
@@ -27,10 +30,10 @@ use crate::{
     Error, Result,
 };
 use async_trait::async_trait;
-use base64::Engine;
-use sandbox_client::Api;
 use std::{
+    future::Future,
     net::SocketAddr,
+    path::{Path, PathBuf},
     process::Stdio,
     sync::{Arc, Mutex},
     time::Duration,
@@ -38,12 +41,9 @@ use std::{
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::process::{Child, ChildStderr, Command};
 
-/// The only account Boat signs keys in as.
-const USER: &str = "user";
-/// The name the pinned host key is kept under.
-const HOST_ALIAS: &str = "workspace-sdk-boat";
+/// The name the machine's host key is kept under.
+pub(in crate::providers) const HOST_ALIAS: &str = "workspace-sdk-machine";
 const MASTER_START_TIMEOUT: Duration = Duration::from_secs(15);
-const KEY_TIMEOUT: Duration = Duration::from_secs(10);
 const FORWARD_TIMEOUT: Duration = Duration::from_secs(15);
 const FIRST_LINE_TIMEOUT: Duration = Duration::from_secs(10);
 /// How long the first command through a new connection may take.
@@ -123,44 +123,107 @@ exit "$s"
 /// ends, which is when the connection does.
 const KEEPER: &str = "d=$(mktemp -d) || exit 1; echo \"$d\"; cat >/dev/null; rm -rf \"$d\"";
 
-pub(super) struct SshConnection {
+/// How a connection reaches its machine, as its provider authorized it.
+pub(in crate::providers) struct Route {
+    /// The account the key signs in as.
+    pub user: String,
+    /// Where ssh dials.
+    pub way: Way,
+    /// Whatever must live as long as the connection, such as the tunnel it
+    /// dials through. Dropped after the master.
+    pub keep: Option<Box<dyn Send + Sync>>,
+}
+/// Where a connection's ssh dials.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::providers) enum Way {
+    /// A TCP endpoint. The provider wrote the machine's host key to the
+    /// connection directory's `hosts`, under [`HOST_ALIAS`].
+    Direct(SocketAddr),
+    /// Every connection through `socket`, a local Unix socket the provider
+    /// serves that carries it to the machine named `host`. The first
+    /// connection learns the host key; every later one must match it.
+    #[cfg_attr(not(feature = "agent37"), allow(dead_code))]
+    Tunnel {
+        /// The provider's local socket, inside the connection directory.
+        socket: PathBuf,
+        /// The machine's name, for ssh's messages only.
+        host: String,
+    },
+}
+
+/// The ssh command lines of one connection.
+struct Dialer {
+    directory: tempfile::TempDir,
+    user: String,
+    way: Way,
+}
+
+pub(in crate::providers) struct SshConnection {
     master: Mutex<Option<Child>>,
     /// Holds the forward's private directory; `None` without a forward.
     keeper: Mutex<Option<Child>>,
-    directory: tempfile::TempDir,
-    endpoint: SocketAddr,
+    dialer: Dialer,
     forwarded: Option<String>,
+    /// The route's own state, such as a tunnel; it outlives the master.
+    _keep: Option<Box<dyn Send + Sync>>,
 }
 
 fn connection_error(message: &str) -> Error {
     Error::Provider {
-        provider: super::branding::NAME.into(),
+        provider: "ssh".into(),
         message: format!("connection: {message}"),
     }
 }
 
 impl SshConnection {
-    /// Connect to `vm`, making `forward` reachable inside it when given.
-    pub(super) async fn connect(
-        api: &Api,
-        vm: &str,
+    /// Connect to a machine, making `forward` reachable inside it when given.
+    ///
+    /// `authorize` gets the connection's private directory. It must leave
+    /// the private key the machine accepts at `key` (mode 0600), and for a
+    /// [`Way::Direct`] route the machine's pinned host key at `hosts`; it
+    /// answers the route. Everything it leaves there is removed with the
+    /// connection, or as soon as connecting fails.
+    pub(in crate::providers) async fn connect<F, Fut>(
+        authorize: F,
         forward: Option<SocketForward>,
-    ) -> Result<Arc<Self>> {
+    ) -> Result<Arc<Self>>
+    where
+        F: FnOnce(PathBuf) -> Fut,
+        Fut: Future<Output = Result<Route>>,
+    {
         // A short path: the master's socket must fit a Unix socket address.
         let directory = tempfile::Builder::new()
             .prefix("wsdk-ssh-")
             .permissions(std::os::unix::fs::PermissionsExt::from_mode(0o700))
             .tempdir_in("/tmp")?;
-        let public_key = make_key(&directory).await?;
-        let (endpoint, host_key) = authorize(api, vm, public_key).await?;
-        tokio::fs::write(directory.path().join("hosts"), host_key).await?;
-        let master = start_master(&directory, endpoint).await?;
+        let route = authorize(directory.path().to_owned()).await?;
+        if let Way::Tunnel { socket, .. } = &route.way {
+            if socket.parent() != Some(directory.path()) || !plain_path(socket) {
+                return Err(connection_error("a tunnel's socket is not its own"));
+            }
+            // Learnt by the master, then held to.
+            tokio::fs::write(directory.path().join("hosts"), "").await?;
+        }
+        if route.user.is_empty()
+            || !route
+                .user
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        {
+            return Err(connection_error("the account name is unusable"));
+        }
+        let dialer = Dialer {
+            directory,
+            user: route.user,
+            way: route.way,
+        };
+        let master = dialer.start_master().await?;
         let mut connection = Self {
             master: Mutex::new(Some(master)),
             keeper: Mutex::new(None),
-            directory,
-            endpoint,
+            dialer,
             forwarded: None,
+            _keep: route.keep,
         };
         if let Some(forward) = forward {
             connection.forward(&forward).await?;
@@ -207,7 +270,7 @@ impl SshConnection {
             return Err(connection_error("the forward's directory is unusable"));
         }
         let remote = format!("{line}/forward.sock");
-        let mut request = ssh(&self.directory, self.endpoint);
+        let mut request = self.dialer.ssh(true, false);
         request
             .args(["-O", "forward", "-R"])
             .arg(format!("{remote}:{}", forward.local().display()))
@@ -235,19 +298,12 @@ impl SshConnection {
     /// than opening a connection of its own, which would hide that the
     /// connection, and its forward, were lost.
     fn session(&self) -> Command {
-        let mut command = ssh(&self.directory, self.endpoint);
-        command.args([
-            "-o",
-            "ControlMaster=no",
-            "-o",
-            "ClearAllForwardings=yes",
-            "-o",
-            "ProxyCommand=false",
-        ]);
+        let mut command = self.dialer.ssh(true, false);
+        command.args(["-o", "ControlMaster=no", "-o", "ClearAllForwardings=yes"]);
         command
     }
     fn target(&self) -> String {
-        format!("{USER}@{}", self.endpoint.ip())
+        self.dialer.target()
     }
     /// A session running `command` until it, or its session, ends. It has
     /// a connection of its own, so its end is seen on the machine: a session
@@ -255,7 +311,7 @@ impl SshConnection {
     /// told. It is refused once the master has ended, as every session is.
     fn session_bound_command(&self, command: &str, compressed: bool) -> Result<Command> {
         self.require_master()?;
-        let mut ssh = ssh_via(&self.directory, self.endpoint, false);
+        let mut ssh = self.dialer.ssh(false, true);
         if compressed {
             ssh.args(["-o", "Compression=yes"]);
         }
@@ -310,92 +366,154 @@ fn kill_and_reap(mut child: Child) {
     }
 }
 
-async fn make_key(directory: &tempfile::TempDir) -> Result<String> {
-    let key = directory.path().join("key");
-    let mut generate = Command::new("ssh-keygen");
-    generate
-        .args(["-q", "-t", "ed25519", "-N", "", "-C", HOST_ALIAS, "-f"])
-        .arg(&key)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .kill_on_drop(true);
-    let made = tokio::time::timeout(KEY_TIMEOUT, generate.status())
-        .await
-        .map_err(|_| connection_error("making a key timed out"))??;
-    if !made.success() {
-        return Err(connection_error("ssh-keygen failed"));
-    }
-    Ok(tokio::fs::read_to_string(key.with_extension("pub")).await?)
-}
-
-/// Have Boat authorize `public_key` on `vm`; answer where to connect and the
-/// `known_hosts` line to pin. Boat must name an IP endpoint and an ed25519
-/// host key, or there is nothing to check the machine against.
-async fn authorize(api: &Api, vm: &str, public_key: String) -> Result<(SocketAddr, String)> {
-    let authorized = api
-        .ssh_key(vm, public_key)
-        .await
-        .map_err(super::error::error)?;
-    if !authorized.ok
-        || authorized.success != Some(true)
-        || authorized.ssh_user.as_deref() != Some(USER)
-    {
-        return Err(connection_error("the key was not authorized"));
-    }
-    let endpoint = authorized
-        .ssh_endpoint
-        .as_deref()
-        .and_then(|endpoint| endpoint.parse().ok())
-        .ok_or_else(|| connection_error("no usable SSH endpoint"))?;
-    let host_key = known_host(authorized.host_key.as_deref())
-        .ok_or_else(|| connection_error("no usable host key"))?;
-    Ok((endpoint, host_key))
-}
-
-async fn start_master(directory: &tempfile::TempDir, endpoint: SocketAddr) -> Result<Child> {
-    let target = format!("{USER}@{}", endpoint.ip());
-    let mut command = ssh(directory, endpoint);
-    command
-        .args(["-M", "-N", "-o", "ControlPersist=no"])
-        .arg(&target)
-        .stderr(Stdio::piped());
-    let mut master = command.spawn()?;
-    let mut stderr = master.stderr.take();
-    let deadline = tokio::time::Instant::now() + MASTER_START_TIMEOUT;
-    loop {
-        let problem = if master.try_wait()?.is_some() {
-            Some("the SSH connection ended while starting")
-        } else if tokio::time::Instant::now() >= deadline {
-            Some("the SSH connection did not start in time")
-        } else {
-            None
-        };
-        if let Some(problem) = problem {
-            let _ = master.start_kill();
-            let said = match stderr.take() {
-                Some(stderr) => diagnostic(stderr).await,
-                None => String::new(),
+impl Dialer {
+    async fn start_master(&self) -> Result<Child> {
+        let target = self.target();
+        let mut command = self.ssh(true, true);
+        command
+            .args(["-M", "-N", "-o", "ControlPersist=no"])
+            .arg(&target)
+            .stderr(Stdio::piped());
+        let mut master = command.spawn()?;
+        let mut stderr = master.stderr.take();
+        let deadline = tokio::time::Instant::now() + MASTER_START_TIMEOUT;
+        loop {
+            let problem = if master.try_wait()?.is_some() {
+                Some("the SSH connection ended while starting")
+            } else if tokio::time::Instant::now() >= deadline {
+                Some("the SSH connection did not start in time")
+            } else {
+                None
             };
-            return Err(connection_error(&format!("{problem}: {said}")));
+            if let Some(problem) = problem {
+                let _ = master.start_kill();
+                let said = match stderr.take() {
+                    Some(stderr) => diagnostic(stderr).await,
+                    None => String::new(),
+                };
+                return Err(connection_error(&format!("{problem}: {said}")));
+            }
+            let mut check = self.ssh(true, false);
+            check.args(["-O", "check"]).arg(&target);
+            if tokio::time::timeout(Duration::from_secs(1), check.status())
+                .await
+                .is_ok_and(|status| status.is_ok_and(|status| status.success()))
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
         }
-        let mut check = ssh(directory, endpoint);
-        check.args(["-O", "check"]).arg(&target);
-        if tokio::time::timeout(Duration::from_secs(1), check.status())
-            .await
-            .is_ok_and(|status| status.is_ok_and(|status| status.success()))
-        {
-            break;
+        // Whatever it says later is read and dropped, so it never blocks.
+        if let Some(mut stderr) = stderr {
+            tokio::spawn(async move {
+                let _ = tokio::io::copy(&mut stderr, &mut tokio::io::sink()).await;
+            });
         }
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        Ok(master)
     }
-    // Whatever it says later is read and dropped, so it never blocks.
-    if let Some(mut stderr) = stderr {
-        tokio::spawn(async move {
-            let _ = tokio::io::copy(&mut stderr, &mut tokio::io::sink()).await;
-        });
+
+    fn target(&self) -> String {
+        match &self.way {
+            Way::Direct(endpoint) => format!("{}@{}", self.user, endpoint.ip()),
+            Way::Tunnel { host, .. } => format!("{}@{host}", self.user),
+        }
     }
-    Ok(master)
+
+    /// ssh to the machine, through the master's control socket when
+    /// `shared`. Unless `dial`, it never opens a connection of its own: one
+    /// that finds the master gone fails rather than hide that the
+    /// connection, and its forward, were lost.
+    fn ssh(&self, shared: bool, dial: bool) -> Command {
+        let directory = self.directory.path();
+        let mut command = Command::new("ssh");
+        // ssh keeps the first value it is given for an option, so refusing
+        // to dial comes before any way to dial.
+        if !dial {
+            command.args(["-o", "ProxyCommand=false"]);
+        }
+        command.args([
+            "-F",
+            "/dev/null",
+            "-T",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "IdentityAgent=none",
+            "-o",
+            "ForwardAgent=no",
+            "-o",
+            "ForwardX11=no",
+            "-o",
+            "GlobalKnownHostsFile=/dev/null",
+            "-o",
+        ]);
+        command.arg(format!("HostKeyAlias={HOST_ALIAS}"));
+        match &self.way {
+            Way::Direct(endpoint) => {
+                command
+                    .args(["-o", "StrictHostKeyChecking=yes", "-p"])
+                    .arg(endpoint.port().to_string());
+            }
+            Way::Tunnel { socket, .. } => {
+                // The first connection, the master's, learns the key into
+                // this connection's own file; every later one must match.
+                command.args([
+                    "-o",
+                    "StrictHostKeyChecking=accept-new",
+                    "-o",
+                    "CheckHostIP=no",
+                ]);
+                if dial {
+                    command
+                        .arg("-o")
+                        .arg(format!("ProxyCommand=exec nc -U {}", socket.display()));
+                }
+            }
+        }
+        command
+            .args([
+                "-o",
+                "ServerAliveInterval=15",
+                "-o",
+                "ServerAliveCountMax=2",
+                "-o",
+                "ConnectTimeout=10",
+                "-o",
+                "LogLevel=ERROR",
+                "-i",
+            ])
+            .arg(directory.join("key"))
+            .arg("-S")
+            .arg(if shared {
+                directory.join("control")
+            } else {
+                "none".into()
+            })
+            .arg("-o")
+            .arg(format!(
+                "UserKnownHostsFile={}",
+                directory.join("hosts").display()
+            ))
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .kill_on_drop(true);
+        command
+    }
+}
+
+/// A path ssh can carry in an option unquoted: printable ASCII with no
+/// space, quote or shell metacharacter.
+fn plain_path(path: &Path) -> bool {
+    path.to_str().is_some_and(|path| {
+        path.len() <= crate::ports::MAX_SOCKET_PATH
+            && path.starts_with('/')
+            && path
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || "/._-".contains(c))
+    })
 }
 
 /// One session's process: its child, the end of its standard error, and the
@@ -539,33 +657,6 @@ impl IConnection for SshConnection {
     }
 }
 
-/// The `known_hosts` line for `host_key`, which must be one `ssh-ed25519`
-/// key whose bytes are an ed25519 key: never an arbitrary provider line.
-fn known_host(host_key: Option<&str>) -> Option<String> {
-    let host_key = host_key?;
-    if host_key.contains(['\r', '\n']) {
-        return None;
-    }
-    let mut parts = host_key.split_ascii_whitespace();
-    let kind = parts.next()?;
-    let encoded = parts.next()?;
-    if kind != "ssh-ed25519" || encoded.len() > 256 {
-        return None;
-    }
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(encoded)
-        .ok()?;
-    // The string "ssh-ed25519", then the 32 bytes of the key.
-    let mut header = Vec::with_capacity(19);
-    header.extend_from_slice(&11u32.to_be_bytes());
-    header.extend_from_slice(b"ssh-ed25519");
-    header.extend_from_slice(&32u32.to_be_bytes());
-    if bytes.len() != 51 || bytes[..19] != header[..] {
-        return None;
-    }
-    Some(format!("{HOST_ALIAS} {kind} {encoded}\n"))
-}
-
 /// What ssh said as it failed: at most [`MAX_DIAGNOSTIC`] bytes, read for at
 /// most a second.
 async fn diagnostic(stderr: ChildStderr) -> String {
@@ -622,67 +713,6 @@ async fn read_tail(mut reader: impl AsyncRead + Unpin, limit: usize) -> std::io:
         let over = kept.len().saturating_sub(limit);
         kept.drain(..over);
     }
-}
-
-fn ssh(directory: &tempfile::TempDir, endpoint: SocketAddr) -> Command {
-    ssh_via(directory, endpoint, true)
-}
-
-/// ssh to the machine, through the master's control socket when `shared`.
-fn ssh_via(directory: &tempfile::TempDir, endpoint: SocketAddr, shared: bool) -> Command {
-    let mut command = Command::new("ssh");
-    command
-        .args([
-            "-F",
-            "/dev/null",
-            "-T",
-            "-o",
-            "BatchMode=yes",
-            "-o",
-            "IdentitiesOnly=yes",
-            "-o",
-            "IdentityAgent=none",
-            "-o",
-            "ForwardAgent=no",
-            "-o",
-            "ForwardX11=no",
-            "-o",
-            "StrictHostKeyChecking=yes",
-            "-o",
-            "GlobalKnownHostsFile=/dev/null",
-            "-o",
-        ])
-        .arg(format!("HostKeyAlias={HOST_ALIAS}"))
-        .args([
-            "-o",
-            "ServerAliveInterval=15",
-            "-o",
-            "ServerAliveCountMax=2",
-            "-o",
-            "ConnectTimeout=10",
-            "-o",
-            "LogLevel=ERROR",
-            "-p",
-        ])
-        .arg(endpoint.port().to_string())
-        .arg("-i")
-        .arg(directory.path().join("key"))
-        .arg("-S")
-        .arg(if shared {
-            directory.path().join("control")
-        } else {
-            "none".into()
-        })
-        .arg("-o")
-        .arg(format!(
-            "UserKnownHostsFile={}",
-            directory.path().join("hosts").display()
-        ))
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .kill_on_drop(true);
-    command
 }
 
 #[cfg(test)]

@@ -376,9 +376,13 @@ impl ITarget for SandboxTarget {
         &self,
         forward: Option<crate::ports::SocketForward>,
     ) -> Result<std::sync::Arc<dyn crate::ports::IConnection>> {
-        let connection =
-            super::connection::SshConnection::connect(&self.api, &self.locator.target, forward)
-                .await?;
+        let api = &self.api;
+        let vm = &self.locator.target;
+        let connection = crate::providers::openssh::SshConnection::connect(
+            |directory| async move { super::ssh_route::route(api, vm, &directory).await },
+            forward,
+        )
+        .await?;
         Ok(connection)
     }
     async fn stop(&self) -> Result<()> {

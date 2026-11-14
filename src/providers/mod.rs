@@ -1,11 +1,15 @@
 //! Infrastructure adapters. POSIX targets require the Rust workspace-supervisor executable; the local and SSH
 //! adapters execute trusted code on their hosts and do not provide a sandbox.
+#[cfg(feature = "agent37")]
+pub mod agent37;
 #[cfg(feature = "container")]
 mod container;
 mod i_command_runner;
 mod local;
 mod managed;
 mod native_command;
+#[cfg(any(feature = "boat", feature = "agent37"))]
+mod openssh;
 #[cfg(feature = "boat")]
 mod sandbox;
 #[cfg(feature = "space")]
