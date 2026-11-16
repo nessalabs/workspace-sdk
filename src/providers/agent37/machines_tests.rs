@@ -185,8 +185,9 @@ async fn a_second_creation_with_one_key_finds_the_first_instance() {
     let server = Server::start().await;
     let first = server.machines.create(&spec(), KEY).await.unwrap();
     assert!(first.made());
-    assert_eq!(first.admission().digest(), DIGEST);
-    assert_eq!(first.admission().revision(), Some(3));
+    let admitted = first.admission().unwrap();
+    assert_eq!((admitted.digest(), admitted.revision()), (DIGEST, Some(3)));
+    assert_eq!(first.refusal(), None);
     assert_eq!(server.calls(), ["list", "create"]);
     let again = server.machines.create(&spec(), KEY).await.unwrap();
     assert!(!again.made());
@@ -241,22 +242,21 @@ async fn two_instances_under_one_key_are_never_chosen_between() {
 async fn an_instance_that_is_not_what_was_asked_for_is_refused() {
     let server = Server::start().await;
     server.on_create(OnCreate::OtherTemplate);
-    assert_eq!(
-        server.machines.create(&spec(), KEY).await,
-        Err(Agent37Failure::AdmissionRejected(
-            AdmissionRefusal::WrongTemplate
-        ))
-    );
+    // Named, with why, so the caller can record it and delete it.
+    let made = server.machines.create(&spec(), KEY).await.unwrap();
+    assert_eq!(made.refusal(), Some(AdmissionRefusal::WrongTemplate));
+    assert!(made.made() && made.admission().is_none());
+    assert_eq!(made.observed().template, "agent37-base");
     let server = Server::start().await;
     let mut bare = instance("cccccccccc", "running", Some(KEY));
     bare["image_digest"] = Value::Null;
     server.add(bare);
+    let found = server.machines.create(&spec(), KEY).await.unwrap();
     assert_eq!(
-        server.machines.create(&spec(), KEY).await,
-        Err(Agent37Failure::AdmissionRejected(
-            AdmissionRefusal::MissingDigest
-        ))
+        (found.instance(), found.refusal(), found.made()),
+        ("cccccccccc", Some(AdmissionRefusal::MissingDigest), false)
     );
+    assert_eq!(found.observed().digest, None);
 }
 
 #[tokio::test]
@@ -268,7 +268,7 @@ async fn ready_starts_a_stopped_instance_and_refuses_a_changed_image() {
     server.calls();
     server
         .machines
-        .ready(&id, created.admission())
+        .ready(&id, &created.admission().unwrap())
         .await
         .unwrap();
     assert_eq!(
@@ -282,13 +282,16 @@ async fn ready_starts_a_stopped_instance_and_refuses_a_changed_image() {
     // Already running: one look.
     server
         .machines
-        .ready(&id, created.admission())
+        .ready(&id, &created.admission().unwrap())
         .await
         .unwrap();
     assert_eq!(server.calls(), [format!("get {id}")]);
     server.set(&id, "image_digest", json!("sha256:other"));
     assert_eq!(
-        server.machines.ready(&id, created.admission()).await,
+        server
+            .machines
+            .ready(&id, &created.admission().unwrap())
+            .await,
         Err(Agent37Failure::AdmissionRejected(
             AdmissionRefusal::ImageChanged
         ))
@@ -296,7 +299,7 @@ async fn ready_starts_a_stopped_instance_and_refuses_a_changed_image() {
     assert_eq!(
         server
             .machines
-            .ready("dddddddddd", created.admission())
+            .ready("dddddddddd", &created.admission().unwrap())
             .await,
         Err(Agent37Failure::Missing)
     );
@@ -311,7 +314,7 @@ async fn ready_gives_up_within_its_budget() {
     let began = std::time::Instant::now();
     assert_eq!(
         machines
-            .ready(created.instance(), created.admission())
+            .ready(created.instance(), &created.admission().unwrap())
             .await,
         Err(Agent37Failure::Timeout)
     );

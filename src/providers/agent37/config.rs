@@ -10,7 +10,7 @@ pub const DEFAULT_TUNNEL: &str = "wss://{id}-22022.agent37.app/";
 /// A workspace API key (`sk_live_…`). It is never printed: `Debug` shows
 /// only that one is held.
 #[derive(Clone, PartialEq, Eq)]
-pub struct ApiKey(String);
+pub struct ApiKey(zeroize::Zeroizing<String>);
 impl ApiKey {
     /// # Errors
     /// [`Agent37Failure::InvalidInput`] for a key that is empty, too long,
@@ -20,7 +20,7 @@ impl ApiKey {
         if key.is_empty() || key.len() > 512 || !key.bytes().all(|b| b.is_ascii_graphic()) {
             return Err(Agent37Failure::InvalidInput);
         }
-        Ok(Self(key))
+        Ok(Self(zeroize::Zeroizing::new(key)))
     }
     pub(super) fn expose(&self) -> &str {
         &self.0

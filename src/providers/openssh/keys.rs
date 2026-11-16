@@ -12,7 +12,7 @@ const MAX_PRIVATE: usize = 16 * 1024;
 /// An ed25519 key pair. `Debug` never prints the private half.
 #[derive(Clone, PartialEq, Eq)]
 pub(in crate::providers) struct KeyPair {
-    private: Vec<u8>,
+    private: zeroize::Zeroizing<Vec<u8>>,
     public: String,
 }
 impl std::fmt::Debug for KeyPair {
@@ -38,7 +38,10 @@ impl KeyPair {
         let public = ed25519_key(public.trim())
             .filter(|_| private_ok)
             .ok_or_else(|| Error::InvalidInput("not an ed25519 OpenSSH key pair".into()))?;
-        Ok(Self { private, public })
+        Ok(Self {
+            private: zeroize::Zeroizing::new(private),
+            public,
+        })
     }
     /// A new pair, labelled `label`.
     pub async fn generate(label: &str) -> Result<Self> {
@@ -63,6 +66,8 @@ impl KeyPair {
         if !made.success() {
             return Err(Error::State("ssh-keygen failed".into()));
         }
+        // Read into a buffer that is wiped when dropped; the file goes with
+        // its directory.
         let private = tokio::fs::read(&key).await?;
         let public = tokio::fs::read_to_string(key.with_extension("pub")).await?;
         Self::new(private, &public)

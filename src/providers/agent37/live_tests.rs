@@ -43,7 +43,7 @@ async fn an_instance_is_made_connected_forwarded_stopped_and_deleted() {
         let again = machines.create(&spec, &probe_key).await.unwrap();
         assert_eq!(again.instance(), id);
         assert!(!again.made());
-        machines.ready(&id, created.admission()).await.unwrap();
+        machines.ready(&id, &created.admission().unwrap()).await.unwrap();
         let target = Agent37Target {
             api: Api::new(config.clone()).unwrap(),
             identity: Arc::new(identity.clone()),
@@ -105,7 +105,7 @@ async fn an_instance_is_made_connected_forwarded_stopped_and_deleted() {
         drop(files);
         drop(connection);
         machines.stop(&id).await.unwrap();
-        machines.ready(&id, created.admission()).await.unwrap();
+        machines.ready(&id, &created.admission().unwrap()).await.unwrap();
         eprintln!("stopped and woken again");
     }
     .await;

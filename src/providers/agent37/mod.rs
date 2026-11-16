@@ -18,7 +18,7 @@ mod tunnel;
 pub use config::{Agent37Config, ApiKey, DEFAULT_API, DEFAULT_TUNNEL};
 pub use failure::{AdmissionRefusal, Agent37Failure};
 pub use identity::Agent37Identity;
-pub use machines::{Admission, Agent37Machines, Created};
+pub use machines::{Admission, Agent37Machines, Created, Observed};
 pub use provider::{Agent37AttachOptions, Agent37Provider};
 pub use spec::{MachineSpec, Size, IDLE};
 

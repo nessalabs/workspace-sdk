@@ -75,17 +75,45 @@ impl Admission {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Created {
     instance: String,
-    admission: Admission,
+    observed: Observed,
+    refusal: Option<AdmissionRefusal>,
     made: bool,
+}
+/// What an instance reported it runs, whether or not it was admitted.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Observed {
+    /// Its template, as it names it.
+    pub template: String,
+    /// Its template's revision, if it reported one.
+    pub revision: Option<u64>,
+    /// Its image digest, if it reported one.
+    pub digest: Option<String>,
 }
 impl Created {
     /// The instance's id.
     pub fn instance(&self) -> &str {
         &self.instance
     }
-    /// What it was admitted under; pass it to [`Agent37Machines::ready`].
-    pub fn admission(&self) -> &Admission {
-        &self.admission
+    /// What it was admitted under, unless it was refused; pass it to
+    /// [`Agent37Machines::ready`].
+    pub fn admission(&self) -> Option<Admission> {
+        if self.refusal.is_some() {
+            return None;
+        }
+        Some(Admission {
+            template: self.observed.template.clone(),
+            revision: self.observed.revision,
+            digest: self.observed.digest.clone()?,
+        })
+    }
+    /// What it reported it runs.
+    pub fn observed(&self) -> &Observed {
+        &self.observed
+    }
+    /// Why it is not admitted, if it is not. A refused instance is never
+    /// used; it is named so the caller can record it and delete it.
+    pub fn refusal(&self) -> Option<AdmissionRefusal> {
+        self.refusal
     }
     /// Whether this call made it, rather than finding one an earlier
     /// attempt with the same key made.
@@ -151,22 +179,20 @@ impl Agent37Machines {
     /// attempt with `key` made, or a new one. `key` must be the same on
     /// every attempt for one machine and never reused for another.
     ///
+    /// An instance found or made that is not what `spec` asks for is
+    /// answered with [`Created::refusal`] set, so the caller can record it
+    /// and delete it: it carries the key, so it is the caller's.
+    ///
     /// # Errors
     /// [`Agent37Failure::ProvisioningUncertain`] when an instance may have
-    /// been made but was not found: ask again with the same key.
-    /// [`Agent37Failure::Ambiguous`] when two instances carry the key.
-    /// [`Agent37Failure::AdmissionRejected`] when the instance found or
-    /// made is not what `spec` asks for; it is left for the caller, who may
-    /// delete it. [`Agent37Failure::Funds`] when the wallet or instance
-    /// limit refuses.
+    /// been made but was not found, or is still being made: ask again with
+    /// the same key. [`Agent37Failure::Ambiguous`] when two instances carry
+    /// the key. [`Agent37Failure::Funds`] when the wallet or instance limit
+    /// refuses.
     pub async fn create(&self, spec: &MachineSpec, key: &str) -> Result<Created, Agent37Failure> {
         valid_key(key)?;
         if let Some(found) = self.find(key).await? {
-            return admit(&found, spec, key).map(|admission| Created {
-                instance: found.id,
-                admission,
-                made: false,
-            });
+            return judged(found, spec, key, false);
         }
         let name = format!(
             "{}-{}",
@@ -192,17 +218,7 @@ impl Agent37Machines {
             },
             Err(refusal) => return Err(refusal.into()),
         };
-        if made.tag(KEY_TAG) != Some(key) {
-            return Err(Agent37Failure::AdmissionRejected(
-                AdmissionRefusal::WrongOwner,
-            ));
-        }
-        let admission = admit(&made, spec, key)?;
-        Ok(Created {
-            instance: made.id,
-            admission,
-            made: true,
-        })
+        judged(made, spec, key, true)
     }
 
     /// The live instance tagged `key`, if there is one.
@@ -321,6 +337,30 @@ impl Agent37Machines {
             Err(refusal) => Err(refusal.into()),
         }
     }
+}
+
+/// `instance` as a creation's answer: admitted, or refused with why.
+fn judged(
+    instance: Instance,
+    spec: &MachineSpec,
+    key: &str,
+    made: bool,
+) -> Result<Created, Agent37Failure> {
+    let refusal = match admit(&instance, spec, key) {
+        Ok(_) => None,
+        Err(Agent37Failure::AdmissionRejected(cause)) => Some(cause),
+        Err(other) => return Err(other),
+    };
+    Ok(Created {
+        observed: Observed {
+            template: instance.template,
+            revision: instance.template_revision,
+            digest: instance.image_digest.filter(|digest| !digest.is_empty()),
+        },
+        instance: instance.id,
+        refusal,
+        made,
+    })
 }
 
 /// What `instance`, tagged `key`, was admitted under, if it is what `spec`

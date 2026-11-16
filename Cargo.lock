@@ -1945,6 +1945,7 @@ dependencies = [
  "uuid",
  "webpki-roots 1.0.9",
  "workspace_sdk",
+ "zeroize",
 ]
 
 [[package]]
