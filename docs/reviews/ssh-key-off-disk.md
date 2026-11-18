@@ -22,7 +22,12 @@ open.
 
 ## Commands and results
 
-- `sh scripts/quality-gate.sh`: see the pull request for the final run.
+- `scripts/quality-gate.sh` (Ubuntu 24.04, run as root, `CARGO_INCREMENTAL=0`):
+  every step passes but one PTY test,
+  `runtime_pty_adversarial::terminal_path_search_skips_a_non_executable_shadow_before_a_valid_program`,
+  which fails the same way on `origin/main` in this environment (root can
+  run a file without its execute bit). The remaining steps were run with
+  that one test skipped and pass, performance samples included.
 - `cargo test --features boat,agent37 --lib openssh -- --include-ignored`
   with a local `sshd` and an account named `user` (Ubuntu 24.04, OpenSSH 9.6):
   every test passes, including the tunnel test and
@@ -32,20 +37,22 @@ open.
 
 ## Reviewers
 
-An independent code-quality reviewer and a separate adversarial reviewer
-(subagents, read only), two rounds each.
+An independent code-quality reviewer (three rounds) and a separate
+adversarial reviewer (two rounds), subagents, read only. Both pass the
+final scope.
 
 | # | Sev | Finding | Disposition |
 | --- | --- | --- | --- |
 | Q1 | P2 | The key format was checked in two places; `KeyPair::new` accepted keys that could never sign in | Fixed: `keys.rs` owns the parse; `Signer` takes a `KeyPair` |
 | Q2 / A-P3 | P2 | The kill test swept `/tmp` with age zero and could remove a parallel test's new directory | Fixed: it back-dates its own directory and sweeps with 60 s |
+| Q-r2 | P1 | Default-feature clippy failed: the key-loading path was unused without `agent37` | Fixed: `cfg_attr(not(feature = "agent37"), allow(dead_code))` on it, as `Dial::Tunnel` does |
 | A1 | P2 | `KeyPair::generate` had `ssh-keygen` write the key to `$TMPDIR` for a moment | Fixed: keys are made in memory |
 | Q3 / A-P3 | P3 | The sweep blocked async `connect`, and a legacy master with a full backlog could block it for ever | Fixed: `spawn_blocking`, nothing waits; non-blocking connect |
 | Q4 | P3 | Two caps for one bound (semaphore and `JoinSet`) | Fixed: `clients.len()` |
 | Q5 / A-P3 | P3 | No `# Errors`; a silent client held a slot for ever | Fixed: documented; 10 s per request read |
 | A-P3 | P3 | A client that never reads blocked a reply write for ever | Fixed: the write has the same 10 s bound |
 | A-P3 | P3 | The base64 copy of the key was not wiped | Fixed: `Zeroizing` |
-| Q6, Q7, Q8, Q10, A-P3 | P3 | Docs: claims too broad, drop order, `/tmp` twice, a long line | Fixed |
+| Q6, Q7, Q8, Q10, A-P3 | P3 | Docs: claims too broad, drop order, `/tmp` twice, long lines; `KEY_TYPE` twice | Fixed |
 
 ## Residual limitations
 
