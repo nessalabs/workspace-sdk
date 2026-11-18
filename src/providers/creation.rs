@@ -40,7 +40,8 @@ pub enum CreationFailure<E> {
     Uncertain,
     /// More than one target carries the key.
     Ambiguous,
-    /// The cloud failed before anything was asked to be made.
+    /// The cloud failed with an answer that is certain: before anything was
+    /// asked, or a refusal that rules out a target.
     Site(E),
 }
 
@@ -86,5 +87,5 @@ fn one<T, E>(found: Vec<T>) -> Result<Option<T>, CreationFailure<E>> {
 }
 
 #[cfg(test)]
-#[path = "find_or_create_tests.rs"]
+#[path = "creation_tests.rs"]
 mod tests;

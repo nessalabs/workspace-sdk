@@ -13,8 +13,8 @@ use super::{
     spec::{MachineFailure, MachineSpec},
 };
 use crate::{
-    application::{find_or_create, CreationFailure},
     ports::{ICreationSite, Idempotency, Submitted},
+    providers::{find_or_create, CreationFailure},
 };
 use async_trait::async_trait;
 use sandbox_client::{
@@ -246,10 +246,6 @@ impl ICreationSite for Creation<'_> {
     type Error = MachineFailure;
     fn idempotency(&self) -> Idempotency {
         Idempotency::Native
-    }
-    async fn find(&self, _key: &str) -> Result<Vec<Value>, MachineFailure> {
-        // Never asked of a cloud with its own idempotency key.
-        Ok(Vec::new())
     }
     /// The creation acknowledgement, read raw.
     async fn submit(&self, key: &str) -> Result<Submitted<Value>, MachineFailure> {

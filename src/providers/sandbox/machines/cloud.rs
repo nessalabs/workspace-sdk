@@ -20,7 +20,7 @@ use crate::{
         Backstop, Disposition, Lifetime, MachineError, MachineRequest, Made, Proven, RefusalCause,
         Refused, StopReason,
     },
-    ports::{removable, IMachines},
+    ports::IMachines,
 };
 use async_trait::async_trait;
 
@@ -68,8 +68,11 @@ impl BoatCloud {
             Lifetime::Unlimited => None,
             // Rounded up, so Boat never stops one sooner than asked.
             Lifetime::Hard(duration) => Some(
-                u32::try_from(duration.as_secs() + u64::from(duration.subsec_nanos() > 0))
-                    .map_err(|_| MachineError::InvalidInput)?,
+                duration
+                    .as_secs()
+                    .checked_add(u64::from(duration.subsec_nanos() > 0))
+                    .and_then(|seconds| u32::try_from(seconds).ok())
+                    .ok_or(MachineError::InvalidInput)?,
             ),
             Lifetime::Idle(_) => return Err(MachineError::InvalidInput),
         };
@@ -134,7 +137,7 @@ impl IMachines for BoatCloud {
         self.machines.stop(machine, cause).await.map_err(error)
     }
     async fn remove(&self, made: &Made) -> Result<(), MachineError> {
-        removable(made)?;
+        made.removable()?;
         let created = Created::restore(
             made.machine().to_owned(),
             identity(made.proven())?,

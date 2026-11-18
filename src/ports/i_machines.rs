@@ -2,9 +2,7 @@
 //! ready, stopped and removed. Every cloud's adapter answers in the same
 //! [`crate::domain::machines`] values, so an application holds one
 //! `Arc<dyn IMachines>` per configured cloud and picks between them.
-use crate::domain::machines::{
-    Backstop, Disposition, MachineError, MachineRequest, Made, Proven, StopReason,
-};
+use crate::domain::machines::{Backstop, MachineError, MachineRequest, Made, Proven, StopReason};
 use async_trait::async_trait;
 
 /// One account's machines on one cloud.
@@ -67,17 +65,9 @@ pub trait IMachines: Send + Sync {
     ///
     /// # Errors
     /// [`MachineError::InvalidInput`], with nothing asked, unless `made` is
-    /// [`Disposition::Remove`]. [`MachineError::CleanupUncertain`] when the
+    /// [`Disposition::Remove`](crate::domain::machines::Disposition::Remove) ([`Made::removable`]). [`MachineError::CleanupUncertain`] when the
     /// cloud accepted the removal but does not confirm it.
     async fn remove(&self, made: &Made) -> Result<(), MachineError>;
-}
-
-/// Refuse to remove a machine `made` says may be in use elsewhere.
-pub(crate) fn removable(made: &Made) -> Result<(), MachineError> {
-    match made.disposition() {
-        Disposition::Remove => Ok(()),
-        Disposition::Retain => Err(MachineError::InvalidInput),
-    }
 }
 
 /// How a cloud lets a retried creation find what an earlier attempt made.
@@ -102,7 +92,7 @@ pub enum Submitted<T> {
 }
 
 /// One cloud's creation of one kind of target, for
-/// [`crate::application::find_or_create`].
+/// [`crate::providers::find_or_create`].
 #[async_trait]
 pub trait ICreationSite: Send + Sync {
     /// What a creation makes, as the cloud reports it.
@@ -112,8 +102,10 @@ pub trait ICreationSite: Send + Sync {
     /// How a retry finds an earlier attempt's target.
     fn idempotency(&self) -> Idempotency;
     /// Every live target tagged `key`. Asked only of a
-    /// [`Idempotency::Tagged`] cloud.
-    async fn find(&self, key: &str) -> Result<Vec<Self::Target>, Self::Error>;
+    /// [`Idempotency::Tagged`] cloud, which must answer it; by default none.
+    async fn find(&self, _key: &str) -> Result<Vec<Self::Target>, Self::Error> {
+        Ok(Vec::new())
+    }
     /// Ask the cloud to make a target under `key`: tagged with it, or
     /// with it as the cloud's own idempotency key.
     async fn submit(&self, key: &str) -> Result<Submitted<Self::Target>, Self::Error>;

@@ -29,6 +29,13 @@ async fn agent37_passes_the_machines_contract() {
     .await;
     assert_eq!(made.proven().identity(), format!("agent37:{TEMPLATE}#3"));
     assert_eq!(made.proven().digest(), Some(DIGEST));
+    // Another cloud's machine is never asked of this one.
+    let boats = Made::restore(
+        made.machine().to_owned(),
+        Proven::new("boat:a:b:1:agents".into(), None).unwrap(),
+        Disposition::Remove,
+    );
+    assert_eq!(cloud.remove(&boats).await, Err(MachineError::InvalidInput));
     // Agent37 confirms a deletion.
     cloud.remove(&made).await.unwrap();
     assert!(server.fake.lock().unwrap().instances.is_empty());
@@ -58,6 +65,17 @@ fn an_unlimited_lifetime_sleeps_after_the_longest_idle_and_a_hard_one_is_refused
     );
     assert_eq!(
         cloud.spec(&request(Lifetime::Idle(Duration::from_secs(60)))),
+        Err(MachineError::InvalidInput)
+    );
+    assert_eq!(
+        cloud
+            .spec(&request(Lifetime::Idle(Duration::from_millis(600_001))))
+            .unwrap()
+            .idle,
+        Duration::from_secs(601)
+    );
+    assert_eq!(
+        cloud.spec(&request(Lifetime::Idle(Duration::MAX))),
         Err(MachineError::InvalidInput)
     );
 }

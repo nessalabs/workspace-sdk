@@ -26,7 +26,6 @@ pub use i_connection::{
     IConnectionProcess, ProcessEnd, ProcessExit, RunOutput, SocketForward, MAX_RUN_OUTPUT,
     MAX_SOCKET_PATH, MAX_STDERR,
 };
-pub(crate) use i_machines::removable;
 pub use i_machines::{ICreationSite, IMachines, Idempotency, Submitted};
 pub use i_provider::IProvider;
 #[cfg(feature = "portability")]

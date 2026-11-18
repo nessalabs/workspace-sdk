@@ -34,12 +34,8 @@ async fn boat_passes_the_machines_contract() {
     )
     .await;
     assert_eq!(made.machine(), "bx_23456789");
-    // Boat accepts a removal but never confirms it.
-    assert_eq!(
-        cloud.remove(&made).await,
-        Err(MachineError::Provider),
-        "the fixture refuses deletions"
-    );
+    // The removal is asked of Boat; this fixture refuses every deletion.
+    assert_eq!(cloud.remove(&made).await, Err(MachineError::Provider));
     assert_eq!(server.state.lock().unwrap().deleted, 1);
 }
 
@@ -79,10 +75,12 @@ fn a_lifetime_is_carried_in_whole_seconds_rounded_up() {
             .lifetime(),
         Some(2)
     );
-    assert_eq!(
-        spec(Lifetime::Hard(Duration::from_secs(u64::from(u32::MAX) + 1))),
-        Err(MachineError::InvalidInput)
-    );
+    for too_long in [Duration::from_secs(u64::from(u32::MAX) + 1), Duration::MAX] {
+        assert_eq!(
+            spec(Lifetime::Hard(too_long)),
+            Err(MachineError::InvalidInput)
+        );
+    }
     assert_eq!(
         spec(Lifetime::Idle(Duration::from_secs(600))),
         Err(MachineError::InvalidInput)

@@ -1,7 +1,6 @@
 //! Use cases coordinate domain operations through injected ports.
 #[cfg(feature = "portability")]
 mod directory_observer;
-mod find_or_create;
 mod machines;
 #[cfg(feature = "portability")]
 mod recovery_service;
@@ -15,7 +14,6 @@ mod workspace_sdk_builder;
 
 #[cfg(feature = "portability")]
 pub use directory_observer::{DirectoryChanges, DirectoryObserver};
-pub use find_or_create::{find_or_create, CreationFailure, CreationOrigin};
 pub use machines::{MachineUse, Machines, RestReport, RestTask};
 #[cfg(feature = "portability")]
 pub use recovery_service::{

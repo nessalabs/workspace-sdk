@@ -65,7 +65,7 @@ pub(crate) async fn contract(cloud: &dyn IMachines, case: Case) -> Made {
         cloud
             .ready(&case.request, made.machine(), &case.other)
             .await,
-        Err(MachineError::AdmissionRejected(_) | MachineError::InvalidInput)
+        Err(MachineError::AdmissionRejected(_))
     ));
     cloud
         .stop(made.machine(), StopReason::Closed)

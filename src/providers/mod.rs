@@ -4,6 +4,7 @@
 pub mod agent37;
 #[cfg(feature = "container")]
 mod container;
+mod creation;
 mod i_command_runner;
 mod local;
 mod managed;
@@ -19,6 +20,7 @@ mod supervisor_deployment;
 mod system_command_runner;
 #[cfg(feature = "container")]
 pub use container::{ContainerAttachOptions, ContainerConfig, ContainerProvider};
+pub use creation::{find_or_create, CreationFailure, CreationOrigin};
 pub use i_command_runner::ICommandRunner;
 pub use local::{LocalAttachOptions, LocalConfig, LocalProvider};
 pub use native_command::NativeCommand;

@@ -10,6 +10,7 @@
 //!                   ready(machine, proven) ◄┘   (proven compared exactly)
 //!                   stop(machine, reason)       remove(made) if Remove
 //! ```
+use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fmt, time::Duration};
 
 /// The most variables one machine is made with.
@@ -96,7 +97,9 @@ impl fmt::Debug for MachineRequest {
 /// against one left running and billing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Lifetime {
-    /// Never: only its caller stops it.
+    /// No limit the caller asks for. A cloud whose backstop is idle sleep
+    /// still sleeps it after its longest idle time; it keeps its disk, and
+    /// [`crate::ports::IMachines::ready`] wakes it.
     Unlimited,
     /// After it has run this long, whatever moves through it.
     Hard(Duration),
@@ -144,11 +147,15 @@ impl Backstop {
 
 /// What a machine was proven to run when it was admitted: its cloud's own
 /// identity for it and, where the cloud reports one, an immutable digest.
-/// A later readiness compares both exactly, so a machine that changed what
-/// it runs is refused.
+/// A later readiness checks the machine against it, the digest exactly where
+/// there is one, so a machine that changed what it runs is refused. Parts of
+/// the identity a cloud cannot read again (such as Agent37's revision) are
+/// kept for records only.
 ///
-/// The identity is opaque to callers: save it and hand it back.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// The identity is opaque to callers: save it (it serializes as
+/// `{identity, digest}`) and hand it back; loading it checks it again.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "ProvenRecord")]
 pub struct Proven {
     identity: String,
     digest: Option<String>,
@@ -181,7 +188,24 @@ impl Proven {
     }
 }
 
-/// Whether a machine a creation answered may be removed.
+/// A saved [`Proven`], checked by [`Proven::new`] when loaded.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProvenRecord {
+    identity: String,
+    #[serde(default)]
+    digest: Option<String>,
+}
+impl TryFrom<ProvenRecord> for Proven {
+    type Error = MachineError;
+    fn try_from(record: ProvenRecord) -> Result<Self, MachineError> {
+        Self::new(record.identity, record.digest)
+    }
+}
+
+/// Whether a machine a creation answered may be removed. Boat's own
+/// `boat_machines::Disposition` maps onto it: `RollbackNewVm` is
+/// [`Self::Remove`], `RetainTarget` is [`Self::Retain`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Disposition {
     /// It is the caller's alone: made under its key. It may be removed.
@@ -268,6 +292,16 @@ impl Made {
     /// Whether it may be removed.
     pub fn disposition(&self) -> Disposition {
         self.disposition
+    }
+    /// Refuse to remove one that may be in use elsewhere.
+    ///
+    /// # Errors
+    /// [`MachineError::InvalidInput`] unless it is [`Disposition::Remove`].
+    pub fn removable(&self) -> Result<(), MachineError> {
+        match self.disposition {
+            Disposition::Remove => Ok(()),
+            Disposition::Retain => Err(MachineError::InvalidInput),
+        }
     }
 }
 

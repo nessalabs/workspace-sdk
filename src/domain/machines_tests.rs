@@ -82,3 +82,27 @@ fn a_proof_is_plain_and_bounded() {
     }
     assert!(Proven::new("x".repeat(MAX_PROVEN + 1), None).is_err());
 }
+
+#[test]
+fn a_saved_proof_is_checked_again_when_loaded() {
+    let proof = Proven::new("agent37:t@1#1".into(), Some("sha256:a".into())).unwrap();
+    let saved = serde_json::to_string(&proof).unwrap();
+    assert_eq!(saved, r#"{"identity":"agent37:t@1#1","digest":"sha256:a"}"#);
+    assert_eq!(serde_json::from_str::<Proven>(&saved).unwrap(), proof);
+    assert!(serde_json::from_str::<Proven>(r#"{"identity":"has space"}"#).is_err());
+    assert!(serde_json::from_str::<Proven>(r#"{"identity":"x","extra":1}"#).is_err());
+}
+
+#[test]
+fn only_a_machine_made_for_the_caller_alone_is_removable() {
+    let proof = Proven::new("x".into(), None).unwrap();
+    assert!(
+        Made::restore("m".into(), proof.clone(), Disposition::Remove)
+            .removable()
+            .is_ok()
+    );
+    assert_eq!(
+        Made::restore("m".into(), proof, Disposition::Retain).removable(),
+        Err(MachineError::InvalidInput)
+    );
+}

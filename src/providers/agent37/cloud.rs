@@ -21,9 +21,10 @@ use crate::{
         Backstop, Disposition, Lifetime, MachineError, MachineRequest, Made, Proven, RefusalCause,
         Refused, StopReason,
     },
-    ports::{removable, IMachines},
+    ports::IMachines,
 };
 use async_trait::async_trait;
+use std::time::Duration;
 
 const PROVEN_PREFIX: &str = "agent37:";
 
@@ -51,7 +52,12 @@ impl Agent37Cloud {
     fn spec(&self, request: &MachineRequest) -> Result<MachineSpec, MachineError> {
         let idle = match request.lifetime() {
             Lifetime::Unlimited => *IDLE.end(),
-            Lifetime::Idle(idle) => idle,
+            // Whole seconds, rounded up, so it never sleeps sooner than asked.
+            Lifetime::Idle(idle) => Duration::from_secs(
+                idle.as_secs()
+                    .checked_add(u64::from(idle.subsec_nanos() > 0))
+                    .ok_or(MachineError::InvalidInput)?,
+            ),
             Lifetime::Hard(_) => return Err(MachineError::InvalidInput),
         };
         let spec = MachineSpec::new(request.template(), idle, request.variables().clone())
@@ -100,7 +106,11 @@ impl IMachines for Agent37Cloud {
         self.machines.stop(machine).await.map_err(error)
     }
     async fn remove(&self, made: &Made) -> Result<(), MachineError> {
-        removable(made)?;
+        made.removable()?;
+        // Another cloud's machine is never asked of this one.
+        if !made.proven().identity().starts_with(PROVEN_PREFIX) {
+            return Err(MachineError::InvalidInput);
+        }
         self.machines.delete(made.machine()).await.map_err(error)
     }
 }

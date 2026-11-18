@@ -10,7 +10,7 @@
 //!
 //! Agent37 takes no idempotency key, so a creation tags its instance with
 //! the caller's key, and the SDK's one creation algorithm
-//! ([`crate::application::find_or_create`]) looks for that tag before and
+//! ([`crate::providers::find_or_create`]) looks for that tag before and
 //! after asking. Two creations with one key at the same moment can still
 //! make two instances: callers serialize creations per key, as the SDK's
 //! records do, and [`Agent37Machines::create`] refuses to choose between
@@ -23,8 +23,8 @@ use super::{
     spec::MachineSpec,
 };
 use crate::{
-    application::{find_or_create, CreationFailure, CreationOrigin},
     ports::{ICreationSite, Idempotency, Submitted},
+    providers::{find_or_create, CreationFailure, CreationOrigin},
 };
 use async_trait::async_trait;
 use std::{collections::BTreeMap, time::Duration};
