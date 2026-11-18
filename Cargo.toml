@@ -50,6 +50,8 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"], optional = true }
 webpki-roots = { version = "1", optional = true }
 zeroize = "1"
+# Signs for the in-process SSH agent, so a private key is never on disk.
+ed25519-dalek = { version = "2", default-features = false, features = ["std", "zeroize"] }
 
 [[bin]]
 name = "workspace-supervisor"
