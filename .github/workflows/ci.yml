@@ -21,6 +21,31 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: scripts/quality-gate.sh
 
+  # The OpenSSH connection against a real sshd, directly and through
+  # Agent37's own tunnel and a stand-in WebSocket edge. sshd runs unprivileged,
+  # so it logs in only the account running it: the tests run as `user`.
+  local-sshd:
+    timeout-minutes: 30
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update && sudo apt-get install -y openssh-server openssh-client netcat-openbsd python3
+      - name: Make the account the tests log in as
+        run: |
+          sudo useradd --create-home user
+          sudo usermod -p '*' user
+          sudo mkdir -p /run/sshd
+      - name: Build the tests
+        run: |
+          binary=$(cargo test --locked --features agent37 --lib --no-run --message-format=json \
+            | jq -r 'select(.profile.test == true and .target.kind == ["lib"]) | .executable')
+          install -m 0755 "$binary" /tmp/workspace-sdk-tests
+      - name: Run the sshd-backed tests as user
+        working-directory: /tmp
+        run: sudo -u user -H /tmp/workspace-sdk-tests providers::openssh --ignored --test-threads=2
+
   live-artifacts:
     timeout-minutes: 30
     if: github.event_name == 'workflow_dispatch'

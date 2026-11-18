@@ -202,7 +202,7 @@ impl Agent37Machines {
         let new = NewInstance {
             template: spec.template(),
             name: &name,
-            region: &spec.region,
+            region: spec.region.code(),
             resources: spec.size,
             metadata: BTreeMap::from([(KEY_TAG, key)]),
             env: &spec.variables,

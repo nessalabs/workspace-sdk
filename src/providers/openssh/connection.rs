@@ -181,6 +181,59 @@ pub(in crate::providers) struct SshConnection {
     _guard: Option<Box<dyn Send + Sync>>,
 }
 
+/// Whether this host's `nc` reaches a Unix socket with `-U`, which a
+/// tunnel's ProxyCommand needs. macOS and OpenBSD netcat do; netcat
+/// traditional and busybox do not, and ssh would only report the
+/// connection closed. Asked by having `nc -U` reach a socket, until once
+/// it does.
+async fn unix_netcat() -> Result<()> {
+    static FOUND: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if FOUND.load(std::sync::atomic::Ordering::Relaxed) {
+        return Ok(());
+    }
+    let found = async {
+        let Ok(directory) = tempfile::Builder::new()
+            .prefix("wsdk-nc-")
+            .tempdir_in("/tmp")
+        else {
+            return false;
+        };
+        let socket = directory.path().join("probe");
+        let Ok(listener) = tokio::net::UnixListener::bind(&socket) else {
+            return false;
+        };
+        let Ok(mut child) = Command::new("nc")
+            .arg("-U")
+            .arg(&socket)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()
+        else {
+            return false;
+        };
+        let reached = tokio::select! {
+            accepted = listener.accept() => accepted.is_ok(),
+            // An nc without -U exits at once.
+            _ = child.wait() => false,
+            () = tokio::time::sleep(Duration::from_secs(5)) => false,
+        };
+        let _ = child.kill().await;
+        reached
+    }
+    .await;
+    if found {
+        FOUND.store(true, std::sync::atomic::Ordering::Relaxed);
+        Ok(())
+    } else {
+        Err(connection_error(
+            "a tunnel needs an nc that reaches Unix sockets (nc -U), \
+             as macOS and OpenBSD netcat do; install netcat-openbsd",
+        ))
+    }
+}
+
 fn connection_error(message: &str) -> Error {
     Error::Provider {
         provider: "ssh".into(),
@@ -219,6 +272,7 @@ impl SshConnection {
                 if socket.parent() != Some(directory.path()) || !plain_path(socket) {
                     return Err(connection_error("a tunnel's socket is not its own"));
                 }
+                unix_netcat().await?;
                 // Learnt by the master, then held to.
                 String::new()
             }

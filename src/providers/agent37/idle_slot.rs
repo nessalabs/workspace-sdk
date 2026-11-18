@@ -5,17 +5,18 @@ use std::{
     sync::{Arc, Weak},
     time::Duration,
 };
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, time::Instant};
 
 struct Slot<T> {
     value: Option<T>,
-    /// Bumped on every use; a reaper drops the value only if no use came
-    /// after the one that started it.
-    generation: u64,
+    /// When the value goes, unless a use moves it later.
+    deadline: Instant,
+    /// Whether the one reaper is waiting on the deadline.
+    reaping: bool,
 }
 
-/// A value shared while it is in use. Each use starts its own reaper,
-/// which drops the value after the idle time unless a later use came.
+/// A value shared while it is in use. One reaper waits on a deadline each
+/// use moves on, and drops the value once the deadline passes unmoved.
 pub(super) struct IdleSlot<T> {
     slot: Arc<Mutex<Slot<T>>>,
     idle: Duration,
@@ -25,7 +26,8 @@ impl<T: Clone + Send + 'static> IdleSlot<T> {
         Self {
             slot: Arc::new(Mutex::new(Slot {
                 value: None,
-                generation: 0,
+                deadline: Instant::now(),
+                reaping: false,
             })),
             idle,
         }
@@ -58,17 +60,24 @@ impl<T: Clone + Send + 'static> IdleSlot<T> {
         }
     }
     fn stamp(&self, slot: &mut Slot<T>) {
-        slot.generation += 1;
-        let generation = slot.generation;
+        slot.deadline = Instant::now() + self.idle;
+        if slot.reaping {
+            return;
+        }
+        slot.reaping = true;
         let weak: Weak<Mutex<Slot<T>>> = Arc::downgrade(&self.slot);
-        let idle = self.idle;
+        let mut deadline = slot.deadline;
         tokio::spawn(async move {
-            tokio::time::sleep(idle).await;
-            if let Some(slot) = weak.upgrade() {
+            loop {
+                tokio::time::sleep_until(deadline).await;
+                let Some(slot) = weak.upgrade() else { return };
                 let mut slot = slot.lock().await;
-                if slot.generation == generation {
+                if slot.deadline <= Instant::now() {
                     slot.value = None;
+                    slot.reaping = false;
+                    return;
                 }
+                deadline = slot.deadline;
             }
         });
     }
@@ -95,6 +104,31 @@ mod tests {
         tokio::time::sleep(Duration::from_secs(30)).await;
         tokio::task::yield_now().await;
         assert_eq!(Arc::strong_count(&value), 1, "dropped with no request");
+        // A later value gets a reaper of its own.
+        slot.get_or_make(|_| true, || async { Ok::<_, ()>(value.clone()) })
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_secs(121)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(Arc::strong_count(&value), 1, "dropped again");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn many_uses_share_one_reaper() {
+        let slot = IdleSlot::new(Duration::from_secs(120));
+        slot.get_or_make(|_| true, || async { Ok::<_, ()>(1) })
+            .await
+            .unwrap();
+        let before = tokio::runtime::Handle::current()
+            .metrics()
+            .num_alive_tasks();
+        for _ in 0..50 {
+            slot.touch().await;
+        }
+        let after = tokio::runtime::Handle::current()
+            .metrics()
+            .num_alive_tasks();
+        assert_eq!(before, after, "touches start no tasks");
     }
 
     #[tokio::test(start_paused = true)]

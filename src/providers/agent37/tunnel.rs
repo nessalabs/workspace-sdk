@@ -31,7 +31,7 @@ const MAX_MESSAGE: usize = 1024 * 1024;
 
 /// A tunnel being served. Dropping it stops accepting and ends every
 /// connection it carries: they are the accepting task's, and end with it.
-pub(super) struct Tunnel {
+pub(in crate::providers) struct Tunnel {
     accepting: tokio::task::JoinHandle<()>,
 }
 impl Drop for Tunnel {
@@ -42,7 +42,7 @@ impl Drop for Tunnel {
 
 impl Tunnel {
     /// Serve the tunnel to `instance` on `socket`, which must not exist.
-    pub(super) fn serve(
+    pub(in crate::providers) fn serve(
         config: &Agent37Config,
         instance: &str,
         socket: &Path,

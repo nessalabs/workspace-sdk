@@ -7,22 +7,62 @@ use std::{collections::BTreeMap, time::Duration};
 pub const IDLE: std::ops::RangeInclusive<Duration> =
     Duration::from_secs(300)..=Duration::from_secs(86_400);
 
-/// An instance's shape, as Agent37 sells it. Omitted, the smallest.
+/// The shapes a `default` instance comes in: vCPUs, memory in GB, and the
+/// disk range in GB. Agent37 answers any other combination with
+/// `invalid_request`, or quietly gives a request for more cores the
+/// shape's own cores.
+const SHAPES: [(u8, u16, std::ops::RangeInclusive<u16>); 4] = [
+    (2, 4, 2..=12),
+    (4, 8, 2..=20),
+    (4, 16, 2..=40),
+    (4, 32, 2..=80),
+];
+
+/// An instance's shape, one of those Agent37 sells. Omitted, the smallest.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct Size {
-    /// vCPUs.
-    pub cpu: u8,
-    /// Memory, in GB.
-    pub memory: u16,
-    /// Disk, in GB.
-    pub disk: u16,
+    cpu: u8,
+    memory: u16,
+    disk: u16,
+}
+impl Size {
+    /// `cpu` vCPUs, `memory` GB of memory and `disk` GB of disk.
+    ///
+    /// # Errors
+    /// [`Agent37Failure::InvalidInput`] unless `cpu` and `memory` name a
+    /// shape Agent37 sells and `disk` is within that shape's range.
+    pub fn new(cpu: u8, memory: u16, disk: u16) -> Result<Self, Agent37Failure> {
+        SHAPES
+            .iter()
+            .any(|(c, m, disks)| *c == cpu && *m == memory && disks.contains(&disk))
+            .then_some(Self { cpu, memory, disk })
+            .ok_or(Agent37Failure::InvalidInput)
+    }
+}
+
+/// Where machines run. The machines here are Agent37's `default`
+/// instances, which run only in `us`: `eu` and `ap-south` take VM and
+/// performance instances alone, at another price, so they are not offered.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Region {
+    /// The United States.
+    #[default]
+    Us,
+}
+impl Region {
+    pub(super) fn code(self) -> &'static str {
+        match self {
+            Self::Us => "us",
+        }
+    }
 }
 
 /// What every machine for one purpose is made from.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MachineSpec {
     pub(super) template: String,
-    pub(super) region: String,
+    pub(super) region: Region,
     pub(super) size: Option<Size>,
     pub(super) idle: Duration,
     pub(super) variables: BTreeMap<String, String>,
@@ -64,7 +104,7 @@ impl MachineSpec {
         }
         Ok(Self {
             template,
-            region: "us".into(),
+            region: Region::Us,
             size: None,
             idle,
             variables,
@@ -73,6 +113,11 @@ impl MachineSpec {
     /// The same machines in another shape.
     pub fn with_size(mut self, size: Size) -> Self {
         self.size = Some(size);
+        self
+    }
+    /// The same machines in another region.
+    pub fn in_region(mut self, region: Region) -> Self {
+        self.region = region;
         self
     }
     /// The pinned template.
