@@ -1,12 +1,12 @@
 mod branding;
 mod configuration;
-mod connection;
 mod deletion;
 mod error;
 mod locator;
 pub mod machines;
 mod provider;
 mod refusal;
+mod ssh_route;
 mod target;
 pub use configuration::{SandboxAttachOptions, SandboxCreateOptions};
 pub use provider::SandboxProvider;

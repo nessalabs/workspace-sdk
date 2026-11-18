@@ -12,6 +12,9 @@ publish = false
 default = ["boat"]
 boat = ["dep:sandbox_client", "dep:reqwest", "dep:serde_path_to_error"]
 space = ["dep:reqwest"]
+# Agent37 Cloud instances: machines made, woken and stopped through its
+# Sandbox API, and connections over its authenticated SSH tunnel.
+agent37 = ["dep:reqwest", "dep:tokio-tungstenite", "dep:futures-util", "dep:rustls", "dep:webpki-roots"]
 # Docker/Podman-compatible container provider.
 container = []
 # Workspace portability: checkpoints, sync, handoff, recovery, Git worktree
@@ -42,6 +45,11 @@ tempfile = "3"
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "process", "time", "io-util", "fs", "sync", "signal"] }
 uuid = { version = "1", features = ["v4", "serde"] }
+tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect", "handshake", "rustls-tls-webpki-roots"], optional = true }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"], optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"], optional = true }
+webpki-roots = { version = "1", optional = true }
+zeroize = "1"
 
 [[bin]]
 name = "workspace-supervisor"

@@ -2,6 +2,8 @@ mod locator;
 mod managed_backend;
 mod protocol;
 mod target;
+#[cfg(feature = "agent37")]
+pub(in crate::providers) use locator::decode_reference;
 pub(in crate::providers) use locator::{decode, Locator};
 pub(in crate::providers) use managed_backend::ManagedBackend;
 pub(in crate::providers) use protocol::{
