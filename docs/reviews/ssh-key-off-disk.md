@@ -52,6 +52,7 @@ final scope.
 | Q5 / A-P3 | P3 | No `# Errors`; a silent client held a slot for ever | Fixed: documented; 10 s per request read |
 | A-P3 | P3 | A client that never reads blocked a reply write for ever | Fixed: the write has the same 10 s bound |
 | A-P3 | P3 | The base64 copy of the key was not wiped | Fixed: `Zeroizing` |
+| Codex (PR) | P2 | A label over 29 bytes grew the key's buffer after the seed was in it, freeing an unwiped copy; loading grew its base64 copy too | Fixed: every secret buffer is made at its final size; tested for label lengths 0 to 200 |
 | Q6, Q7, Q8, Q10, A-P3 | P3 | Docs: claims too broad, drop order, `/tmp` twice, long lines; `KEY_TYPE` twice | Fixed |
 
 ## Residual limitations

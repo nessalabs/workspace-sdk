@@ -108,12 +108,23 @@ fn public_line(key: &SigningKey) -> String {
 
 /// `key` as an unencrypted OpenSSH private key file, as `ssh-keygen` writes
 /// one.
+///
+/// Every buffer that holds the secret is made at its final size first: a
+/// `Vec` that grew would free its old allocation without wiping it, and
+/// `Zeroizing` wipes only the last one.
 fn openssh_file(key: &SigningKey, comment: &str, check: [u8; 4]) -> Zeroizing<Vec<u8>> {
     let public = key.verifying_key();
+    // Two check words, then the key type, public key, pair and comment,
+    // each with a 4-byte length, then up to 7 bytes of padding.
+    let unpadded = 8 + (4 + KEY_TYPE.len()) + (4 + 32) + (4 + 64) + (4 + comment.len());
+    let section_size = unpadded.next_multiple_of(8);
+    let public_size = 4 + KEY_TYPE.len() + 4 + 32;
+    let body_size =
+        b"openssh-key-v1\0".len() + (4 + 4) * 2 + 4 + 4 + (4 + public_size) + (4 + section_size);
     let mut pair = Zeroizing::new(Vec::with_capacity(64));
     pair.extend_from_slice(key.as_bytes());
     pair.extend_from_slice(public.as_bytes());
-    let mut section = Zeroizing::new(Vec::with_capacity(160));
+    let mut section = Zeroizing::new(Vec::with_capacity(section_size));
     section.extend_from_slice(&check);
     section.extend_from_slice(&check);
     put_string(&mut section, KEY_TYPE);
@@ -126,7 +137,7 @@ fn openssh_file(key: &SigningKey, comment: &str, check: [u8; 4]) -> Zeroizing<Ve
         section.push(pad);
         pad += 1;
     }
-    let mut body = Zeroizing::new(Vec::with_capacity(320));
+    let mut body = Zeroizing::new(Vec::with_capacity(body_size));
     body.extend_from_slice(b"openssh-key-v1\0");
     put_string(&mut body, b"none");
     put_string(&mut body, b"none");
@@ -135,7 +146,9 @@ fn openssh_file(key: &SigningKey, comment: &str, check: [u8; 4]) -> Zeroizing<Ve
     put_string(&mut body, &public_blob(key));
     put_string(&mut body, &section);
     let encoded = Zeroizing::new(base64::engine::general_purpose::STANDARD.encode(&*body));
-    let mut file = Zeroizing::new(Vec::with_capacity(encoded.len() + 100));
+    let lines = encoded.len().div_ceil(70);
+    let file_size = ARMOUR_BEGIN.len() + 1 + encoded.len() + lines + ARMOUR_END.len() + 1;
+    let mut file = Zeroizing::new(Vec::with_capacity(file_size));
     file.extend_from_slice(ARMOUR_BEGIN.as_bytes());
     file.push(b'\n');
     for line in encoded.as_bytes().chunks(70) {
@@ -144,6 +157,9 @@ fn openssh_file(key: &SigningKey, comment: &str, check: [u8; 4]) -> Zeroizing<Ve
     }
     file.extend_from_slice(ARMOUR_END.as_bytes());
     file.push(b'\n');
+    debug_assert_eq!(section.len(), section_size);
+    debug_assert_eq!(body.len(), body_size);
+    debug_assert_eq!(file.len(), file_size);
     file
 }
 
@@ -153,8 +169,10 @@ fn openssh_file(key: &SigningKey, comment: &str, check: [u8; 4]) -> Zeroizing<Ve
 fn openssh_seed(file: &[u8]) -> Option<Zeroizing<[u8; 32]>> {
     let text = std::str::from_utf8(file).ok()?.trim();
     let body = text.strip_prefix(ARMOUR_BEGIN)?.strip_suffix(ARMOUR_END)?;
-    let body: Zeroizing<String> =
-        Zeroizing::new(body.chars().filter(|c| !c.is_ascii_whitespace()).collect());
+    // Made at its final size, so no unwiped copy is left behind by growth.
+    let mut joined = Zeroizing::new(String::with_capacity(body.len()));
+    joined.extend(body.chars().filter(|c| !c.is_ascii_whitespace()));
+    let body = joined;
     let decoded = Zeroizing::new(
         base64::engine::general_purpose::STANDARD
             .decode(body.as_bytes())
