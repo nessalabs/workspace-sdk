@@ -14,6 +14,8 @@ mod provider;
 mod spec;
 mod target;
 mod tunnel;
+#[cfg(test)]
+pub(in crate::providers) use tunnel::Tunnel;
 
 pub use config::{Agent37Config, ApiKey, DEFAULT_API, DEFAULT_TUNNEL};
 pub use failure::{AdmissionRefusal, Agent37Failure};

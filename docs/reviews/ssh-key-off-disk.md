@@ -17,8 +17,8 @@ open.
   this account's `/tmp/wsdk-ssh-*` directories that are older than 60 s and
   whose lock can be taken (or, for a directory made by an older build,
   whose master does not answer a non-blocking connect).
-- The tunnel's `ProxyCommand` loses a second `exec`: ssh already runs it as
-  `exec <command>`, and `exec exec nc` fails when the user's shell is bash.
+- The tunnel's `ProxyCommand` loses a second `exec`. `main` made the same
+  fix in #22 while this was in review; the merge keeps `main`'s version.
 
 ## Commands and results
 

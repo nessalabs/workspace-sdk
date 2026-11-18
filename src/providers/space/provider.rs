@@ -2,7 +2,7 @@ use super::{configuration::SpaceAttachOptions, target::SpaceTarget, SpaceConfig}
 use crate::{
     domain::*,
     ports::{IBackend, IProvider},
-    providers::managed::ManagedBackend,
+    providers::managed::{self, ManagedBackend},
     Error, Result,
 };
 use async_trait::async_trait;
@@ -41,13 +41,7 @@ impl SpaceProvider {
     }
     fn locator(&self, id: &WorkspaceId, options: SpaceAttachOptions) -> Result<Locator> {
         options.validate()?;
-        let parent = options
-            .root
-            .rsplit_once('/')
-            .expect("validated absolute root")
-            .0;
-        let control = format!("{parent}/.workspace-sdk/{id}");
-        super::configuration::path(&control)?;
+        let control = managed::control_beside(&options.root, id, super::configuration::path)?;
         Ok(Locator {
             version: 1,
             api: self.config.api.as_str().into(),
@@ -113,21 +107,12 @@ impl IProvider for SpaceProvider {
         Ok(Arc::new(backend))
     }
     async fn connect(&self, reference: &WorkspaceRef) -> Result<Arc<dyn IBackend>> {
-        if reference.version != 1 || reference.provider != self.id {
-            return Err(Error::InvalidInput(
-                "SPACE reference version/provider mismatch".into(),
-            ));
-        }
-        let locator: Locator = reference.locator.decode()?;
+        let locator: Locator = managed::decode_reference(reference, &self.id)?;
         let expected = self.locator(
             &reference.id,
             SpaceAttachOptions::new(&locator.sandbox_id, &locator.root),
         )?;
-        if locator != expected {
-            return Err(Error::InvalidInput(
-                "SPACE locator does not match the configured identity".into(),
-            ));
-        }
+        managed::require_same(&locator, &expected, "SPACE")?;
         let backend = self.backend(reference.clone(), locator);
         // Probe only existing native identity. Missing state is never initialized
         // or replaced during reconnection.
