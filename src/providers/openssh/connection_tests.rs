@@ -227,17 +227,7 @@ impl Machine {
                     });
                 }
                 let socket = directory.join("tunnel.sock");
-                let listener = tokio::net::UnixListener::bind(&socket)?;
-                let task = tokio::spawn(async move {
-                    while let Ok((mut local, _)) = listener.accept().await {
-                        tokio::spawn(async move {
-                            if let Ok(mut remote) = tokio::net::TcpStream::connect(endpoint).await {
-                                let _ =
-                                    tokio::io::copy_bidirectional(&mut local, &mut remote).await;
-                            }
-                        });
-                    }
-                });
+                let guard = carry_to(endpoint, &socket).await;
                 Ok(Route {
                     user: "user".into(),
                     key,
@@ -245,13 +235,87 @@ impl Machine {
                         socket,
                         host: "machine.test".into(),
                     },
-                    guard: Some(Box::new(AbortOnDrop(task))),
+                    guard: Some(guard),
                 })
             },
             forward,
         )
         .await
     }
+}
+
+/// The tunnel to the machine's sshd at `endpoint`, served on `socket`.
+/// With Agent37 built, it is Agent37's own tunnel, through a WebSocket edge
+/// that stands in for Agent37's: each message it carries is one write to
+/// sshd. Without it, a plain bridge.
+#[cfg(feature = "agent37")]
+async fn carry_to(endpoint: std::net::SocketAddr, socket: &Path) -> Box<dyn Send + Sync> {
+    use futures_util::{SinkExt, StreamExt};
+    use tokio::io::AsyncWriteExt;
+    use tokio_tungstenite::tungstenite::Message;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let edge = listener.local_addr().unwrap();
+    let serving = tokio::spawn(async move {
+        while let Ok((stream, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                let Ok(ws) = tokio_tungstenite::accept_async(stream).await else {
+                    return;
+                };
+                let Ok(sshd) = tokio::net::TcpStream::connect(endpoint).await else {
+                    return;
+                };
+                let (mut to_client, mut from_client) = ws.split();
+                let (mut from_sshd, mut to_sshd) = sshd.into_split();
+                let up = async {
+                    while let Some(Ok(message)) = from_client.next().await {
+                        if let Message::Binary(bytes) = message {
+                            if to_sshd.write_all(&bytes).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                    let _ = to_sshd.shutdown().await;
+                };
+                let down = async {
+                    let mut buffer = vec![0u8; 16 * 1024];
+                    loop {
+                        match tokio::io::AsyncReadExt::read(&mut from_sshd, &mut buffer).await {
+                            Ok(0) | Err(_) => break,
+                            Ok(read) => {
+                                let message = Message::binary(buffer[..read].to_vec());
+                                if to_client.send(message).await.is_err() {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    let _ = to_client.close().await;
+                };
+                tokio::join!(up, down);
+            });
+        }
+    });
+    let config = crate::providers::agent37::Agent37Config::new(
+        crate::providers::agent37::ApiKey::new("sk_live_fixture").unwrap(),
+    )
+    .with_tunnel(&format!("ws://{edge}/{{id}}/ssh"))
+    .unwrap();
+    let tunnel = crate::providers::agent37::Tunnel::serve(&config, "ab12cd34ef", socket).unwrap();
+    Box::new((tunnel, AbortOnDrop(serving)))
+}
+#[cfg(not(feature = "agent37"))]
+async fn carry_to(endpoint: std::net::SocketAddr, socket: &Path) -> Box<dyn Send + Sync> {
+    let listener = tokio::net::UnixListener::bind(socket).unwrap();
+    let task = tokio::spawn(async move {
+        while let Ok((mut local, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                if let Ok(mut remote) = tokio::net::TcpStream::connect(endpoint).await {
+                    let _ = tokio::io::copy_bidirectional(&mut local, &mut remote).await;
+                }
+            });
+        }
+    });
+    Box::new(AbortOnDrop(task))
 }
 
 struct AbortOnDrop(tokio::task::JoinHandle<()>);

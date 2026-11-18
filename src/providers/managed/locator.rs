@@ -33,3 +33,35 @@ pub(in crate::providers) fn decode_reference<T: serde::de::DeserializeOwned>(
     }
     reference.locator.decode()
 }
+
+/// The control root of an attached workspace: `.workspace-sdk/{id}` beside
+/// its root, so the SDK's state never sits inside the files it serves.
+/// `check` is the provider's own rule for a path it can address.
+#[cfg(any(feature = "space", feature = "agent37"))]
+pub(in crate::providers) fn control_beside(
+    root: &str,
+    id: &WorkspaceId,
+    check: impl Fn(&str) -> Result<()>,
+) -> Result<String> {
+    let parent = root.rsplit_once('/').map_or("", |(parent, _)| parent);
+    let control = format!("{parent}/.workspace-sdk/{id}");
+    check(&control)?;
+    Ok(control)
+}
+
+/// Refuse a stored locator unless it is the one this registration would
+/// make for the same workspace now.
+#[cfg(any(feature = "space", feature = "agent37"))]
+pub(in crate::providers) fn require_same<L: PartialEq>(
+    stored: &L,
+    expected: &L,
+    provider: &str,
+) -> Result<()> {
+    if stored == expected {
+        Ok(())
+    } else {
+        Err(Error::InvalidInput(format!(
+            "{provider} locator does not match the configured identity"
+        )))
+    }
+}

@@ -7,22 +7,59 @@ use std::{collections::BTreeMap, time::Duration};
 pub const IDLE: std::ops::RangeInclusive<Duration> =
     Duration::from_secs(300)..=Duration::from_secs(86_400);
 
-/// An instance's shape, as Agent37 sells it. Omitted, the smallest.
+/// The shapes a `default` instance comes in: vCPUs, memory in GB, and the
+/// disk range in GB. Agent37 answers any other combination with
+/// `invalid_request`, or silently caps a request for more cores at the
+/// shape's own.
+const SHAPES: [(u8, u16, std::ops::RangeInclusive<u16>); 4] = [
+    (2, 4, 2..=12),
+    (4, 8, 2..=20),
+    (4, 16, 2..=40),
+    (4, 32, 2..=80),
+];
+
+/// An instance's shape, one of those Agent37 sells. Omitted, the smallest.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct Size {
+    cpu: u8,
+    memory: u16,
+    disk: u16,
+}
+impl Size {
+    /// `cpu` vCPUs, `memory` GB of memory and `disk` GB of disk.
+    ///
+    /// # Errors
+    /// [`Agent37Failure::InvalidInput`] unless `cpu` and `memory` name a
+    /// shape Agent37 sells and `disk` is within that shape's range.
+    pub fn new(cpu: u8, memory: u16, disk: u16) -> Result<Self, Agent37Failure> {
+        SHAPES
+            .iter()
+            .any(|(c, m, disks)| *c == cpu && *m == memory && disks.contains(&disk))
+            .then_some(Self { cpu, memory, disk })
+            .ok_or(Agent37Failure::InvalidInput)
+    }
     /// vCPUs.
-    pub cpu: u8,
+    pub fn cpu(self) -> u8 {
+        self.cpu
+    }
     /// Memory, in GB.
-    pub memory: u16,
+    pub fn memory(self) -> u16 {
+        self.memory
+    }
     /// Disk, in GB.
-    pub disk: u16,
+    pub fn disk(self) -> u16 {
+        self.disk
+    }
 }
 
 /// What every machine for one purpose is made from.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MachineSpec {
     pub(super) template: String,
-    pub(super) region: String,
+    /// Always `us`: these are Agent37's `default` instances, which run
+    /// nowhere else (`eu` and `ap-south` take VM and performance instances
+    /// alone, at another price), so no other region is offered.
+    pub(super) region: &'static str,
     pub(super) size: Option<Size>,
     pub(super) idle: Duration,
     pub(super) variables: BTreeMap<String, String>,
@@ -64,7 +101,7 @@ impl MachineSpec {
         }
         Ok(Self {
             template,
-            region: "us".into(),
+            region: "us",
             size: None,
             idle,
             variables,

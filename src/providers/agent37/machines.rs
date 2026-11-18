@@ -202,7 +202,7 @@ impl Agent37Machines {
         let new = NewInstance {
             template: spec.template(),
             name: &name,
-            region: &spec.region,
+            region: spec.region,
             resources: spec.size,
             metadata: BTreeMap::from([(KEY_TAG, key)]),
             env: &spec.variables,
@@ -239,7 +239,8 @@ impl Agent37Machines {
 
     /// Make `instance` ready to use: check it still runs what it was
     /// admitted under, start it if it is stopped or asleep, and wait until
-    /// it runs, within the budget.
+    /// it runs, within the budget. A timeout can cut short a start that
+    /// Agent37 in fact accepted: the instance may yet come up.
     ///
     /// # Errors
     /// [`Agent37Failure::AdmissionRejected`] when it no longer runs the
@@ -248,6 +249,18 @@ impl Agent37Machines {
     pub async fn ready(&self, instance: &str, admitted: &Admission) -> Result<(), Agent37Failure> {
         valid_instance(instance)?;
         let deadline = Instant::now() + self.budget;
+        // The budget bounds every request too, not only the waits between
+        // them: a slow answer ends in Timeout, never past it.
+        tokio::time::timeout_at(deadline, self.ready_by(instance, admitted, deadline))
+            .await
+            .map_err(|_| Agent37Failure::Timeout)?
+    }
+    async fn ready_by(
+        &self,
+        instance: &str,
+        admitted: &Admission,
+        deadline: Instant,
+    ) -> Result<(), Agent37Failure> {
         let mut started = false;
         loop {
             // A read that fails is tried again until the deadline: it
@@ -303,6 +316,13 @@ impl Agent37Machines {
     pub async fn stop(&self, instance: &str) -> Result<(), Agent37Failure> {
         valid_instance(instance)?;
         let deadline = Instant::now() + self.budget;
+        // As in `ready`, the budget bounds each request. A stop cut short
+        // may still have been taken: the instance may or may not be running.
+        tokio::time::timeout_at(deadline, self.stop_by(instance, deadline))
+            .await
+            .map_err(|_| Agent37Failure::Timeout)?
+    }
+    async fn stop_by(&self, instance: &str, deadline: Instant) -> Result<(), Agent37Failure> {
         loop {
             if let Some(found) = self.read(instance).await? {
                 match found.status {

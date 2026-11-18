@@ -379,12 +379,28 @@ fn a_spec_takes_only_a_pinned_template_and_plain_variables() {
             "{name}"
         );
     }
-    let sized = spec().with_size(Size {
-        cpu: 4,
-        memory: 8,
-        disk: 20,
-    });
+    let sized = spec().with_size(Size::new(4, 8, 20).unwrap());
     assert_eq!(sized.template_name(), "nessa-runtime");
+    for (cpu, memory, disk) in [(2, 4, 12), (4, 32, 2), (4, 16, 40), (4, 32, 80)] {
+        assert!(
+            Size::new(cpu, memory, disk).is_ok(),
+            "{cpu}/{memory}/{disk}"
+        );
+    }
+    // Shapes Agent37 does not sell, and disks outside a shape's range.
+    for (cpu, memory, disk) in [
+        (2, 4, 13),
+        (4, 32, 81),
+        (4, 8, 1),
+        (8, 64, 48),
+        (16, 32, 20),
+        (2, 8, 6),
+    ] {
+        assert!(
+            Size::new(cpu, memory, disk).is_err(),
+            "{cpu}/{memory}/{disk}"
+        );
+    }
 }
 
 #[test]
@@ -434,4 +450,43 @@ async fn an_instance_still_being_made_is_not_judged_yet() {
     let found = server.machines.create(&spec(), KEY).await.unwrap();
     assert_eq!(found.instance(), "eeeeeeeeee");
     assert!(!found.made());
+}
+
+/// A slow answer is bounded by the budget too: `ready` and `stop` give up
+/// when it is spent, not after the request returns.
+#[tokio::test]
+async fn a_slow_answer_ends_within_the_budget() {
+    let router = Router::new().route(
+        "/v1/instances/{id}",
+        get(|| async {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+            Json(instance("ab12cd34ef", "running", Some(KEY)))
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}/v1", listener.local_addr().unwrap());
+    let task = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+    let machines = Agent37Machines::new(
+        Agent37Config::new(ApiKey::new("sk_live_fixture").unwrap())
+            .with_api_base(&base)
+            .unwrap(),
+    )
+    .unwrap()
+    .with_budget(Duration::from_secs(1));
+    let admitted = Admission::restore(TEMPLATE.into(), Some(3), DIGEST.into()).unwrap();
+    let began = std::time::Instant::now();
+    assert_eq!(
+        machines.ready("ab12cd34ef", &admitted).await,
+        Err(Agent37Failure::Timeout)
+    );
+    assert_eq!(
+        machines.stop("ab12cd34ef").await,
+        Err(Agent37Failure::Timeout)
+    );
+    assert!(
+        began.elapsed() < Duration::from_secs(4),
+        "{:?}",
+        began.elapsed()
+    );
+    task.abort();
 }

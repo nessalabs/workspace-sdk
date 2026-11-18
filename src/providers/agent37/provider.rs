@@ -90,14 +90,7 @@ impl Agent37Provider {
         valid_instance(&options.instance_id)
             .map_err(|_| Error::InvalidInput("not an Agent37 instance id".into()))?;
         validate_remote_path(&options.root)?;
-        let parent = options
-            .root
-            .rsplit_once('/')
-            .map(|(parent, _)| parent)
-            .filter(|parent| !parent.is_empty())
-            .unwrap_or("");
-        let control = format!("{parent}/.workspace-sdk/{id}");
-        validate_remote_path(&control)?;
+        let control = managed::control_beside(&options.root, id, validate_remote_path)?;
         Ok(Locator {
             version: 1,
             instance: options.instance_id,
@@ -171,11 +164,7 @@ impl IProvider for Agent37Provider {
                 root: locator.root.clone(),
             },
         )?;
-        if locator != expected {
-            return Err(Error::InvalidInput(
-                "Agent37 locator does not match the configured identity".into(),
-            ));
-        }
+        managed::require_same(&locator, &expected, "Agent37")?;
         let backend = self.backend(reference.clone(), locator);
         // Missing state is never initialized or replaced on reconnection.
         backend.ensure_ready().await?;
