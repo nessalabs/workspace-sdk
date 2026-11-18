@@ -2,6 +2,9 @@
 mod backend_capabilities;
 mod i_backend;
 mod i_connection;
+mod i_machines;
+#[cfg(test)]
+pub(crate) mod i_machines_contract;
 mod i_provider;
 #[cfg(feature = "portability")]
 mod i_recovery_repository;
@@ -23,6 +26,8 @@ pub use i_connection::{
     IConnectionProcess, ProcessEnd, ProcessExit, RunOutput, SocketForward, MAX_RUN_OUTPUT,
     MAX_SOCKET_PATH, MAX_STDERR,
 };
+pub(crate) use i_machines::removable;
+pub use i_machines::{ICreationSite, IMachines, Idempotency, Submitted};
 pub use i_provider::IProvider;
 #[cfg(feature = "portability")]
 pub use i_recovery_repository::IRecoveryRepository;

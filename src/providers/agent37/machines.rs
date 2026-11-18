@@ -9,10 +9,12 @@
 //! ```
 //!
 //! Agent37 takes no idempotency key, so a creation tags its instance with
-//! the caller's key and looks for that tag before and after asking. Two
-//! creations with one key at the same moment can still make two instances:
-//! callers serialize creations per key, as the SDK's records do, and
-//! [`Agent37Machines::create`] refuses to choose between two it finds.
+//! the caller's key, and the SDK's one creation algorithm
+//! ([`crate::application::find_or_create`]) looks for that tag before and
+//! after asking. Two creations with one key at the same moment can still
+//! make two instances: callers serialize creations per key, as the SDK's
+//! records do, and [`Agent37Machines::create`] refuses to choose between
+//! two it finds.
 use super::{
     api::{Api, Instance, NewInstance, Refusal, Status},
     config::Agent37Config,
@@ -20,6 +22,11 @@ use super::{
     identity::Agent37Identity,
     spec::MachineSpec,
 };
+use crate::{
+    application::{find_or_create, CreationFailure, CreationOrigin},
+    ports::{ICreationSite, Idempotency, Submitted},
+};
+use async_trait::async_trait;
 use std::{collections::BTreeMap, time::Duration};
 use tokio::time::Instant;
 
@@ -191,50 +198,19 @@ impl Agent37Machines {
     /// refuses.
     pub async fn create(&self, spec: &MachineSpec, key: &str) -> Result<Created, Agent37Failure> {
         valid_key(key)?;
-        if let Some(found) = self.find(key).await? {
-            return judged(found, spec, key, false);
-        }
-        let name = format!(
-            "{}-{}",
-            spec.template_name(),
-            &key[key.len().saturating_sub(12)..]
-        );
-        let new = NewInstance {
-            template: spec.template(),
-            name: &name,
-            region: spec.region,
-            resources: spec.size,
-            metadata: BTreeMap::from([(KEY_TAG, key)]),
-            env: &spec.variables,
-            auto_sleep: true,
-            idle_timeout_seconds: spec.idle.as_secs(),
+        let site = Creation {
+            api: &self.api,
+            spec,
         };
-        let made = match self.api.create(&new).await {
-            Ok(made) => made,
-            // No answer: it may have been made, and may still be starting.
-            Err(Refusal::Unknown) => match self.find(key).await {
-                Ok(Some(found)) => found,
-                _ => return Err(Agent37Failure::ProvisioningUncertain),
-            },
-            Err(refusal) => return Err(refusal.into()),
-        };
-        judged(made, spec, key, true)
-    }
-
-    /// The live instance tagged `key`, if there is one.
-    async fn find(&self, key: &str) -> Result<Option<Instance>, Agent37Failure> {
-        let mut tagged = self
-            .api
-            .instances()
-            .await?
-            .into_iter()
-            .filter(|instance| instance.tag(KEY_TAG) == Some(key))
-            .filter(|instance| !matches!(instance.status, Status::Deleting | Status::Deleted));
-        let first = tagged.next();
-        if tagged.next().is_some() {
-            return Err(Agent37Failure::Ambiguous);
-        }
-        Ok(first)
+        let (instance, origin) =
+            find_or_create(&site, key)
+                .await
+                .map_err(|failure| match failure {
+                    CreationFailure::Uncertain => Agent37Failure::ProvisioningUncertain,
+                    CreationFailure::Ambiguous => Agent37Failure::Ambiguous,
+                    CreationFailure::Site(failure) => failure,
+                })?;
+        judged(instance, spec, key, origin != CreationOrigin::FoundBefore)
     }
 
     /// Make `instance` ready to use: check it still runs what it was
@@ -359,6 +335,55 @@ impl Agent37Machines {
     }
 }
 
+/// Making one instance from a spec, for the SDK's creation algorithm.
+struct Creation<'a> {
+    api: &'a Api,
+    spec: &'a MachineSpec,
+}
+#[async_trait]
+impl ICreationSite for Creation<'_> {
+    type Target = Instance;
+    type Error = Agent37Failure;
+    fn idempotency(&self) -> Idempotency {
+        Idempotency::Tagged
+    }
+    /// The live instances tagged `key`.
+    async fn find(&self, key: &str) -> Result<Vec<Instance>, Agent37Failure> {
+        Ok(self
+            .api
+            .instances()
+            .await?
+            .into_iter()
+            .filter(|instance| instance.tag(KEY_TAG) == Some(key))
+            .filter(|instance| !matches!(instance.status, Status::Deleting | Status::Deleted))
+            .collect())
+    }
+    async fn submit(&self, key: &str) -> Result<Submitted<Instance>, Agent37Failure> {
+        let spec = self.spec;
+        let name = format!(
+            "{}-{}",
+            spec.template_name(),
+            &key[key.len().saturating_sub(12)..]
+        );
+        let new = NewInstance {
+            template: spec.template(),
+            name: &name,
+            region: spec.region,
+            resources: spec.size,
+            metadata: BTreeMap::from([(KEY_TAG, key)]),
+            env: &spec.variables,
+            auto_sleep: true,
+            idle_timeout_seconds: spec.idle.as_secs(),
+        };
+        match self.api.create(&new).await {
+            Ok(made) => Ok(Submitted::Named(made)),
+            // No answer: it may have been made, and may still be starting.
+            Err(Refusal::Unknown) => Ok(Submitted::Unknown),
+            Err(refusal) => Err(refusal.into()),
+        }
+    }
+}
+
 /// `instance` as a creation's answer: admitted, or refused with why.
 fn judged(
     instance: Instance,
@@ -442,4 +467,4 @@ fn valid_key(key: &str) -> Result<(), Agent37Failure> {
 
 #[cfg(test)]
 #[path = "machines_tests.rs"]
-mod tests;
+pub(in crate::providers::agent37) mod tests;
