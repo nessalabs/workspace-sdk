@@ -2,7 +2,7 @@ mod locator;
 mod managed_backend;
 mod protocol;
 mod target;
-#[cfg(feature = "agent37")]
+#[cfg(any(feature = "space", feature = "agent37"))]
 pub(in crate::providers) use locator::decode_reference;
 #[cfg(any(feature = "space", feature = "agent37"))]
 pub(in crate::providers) use locator::{control_beside, require_same};

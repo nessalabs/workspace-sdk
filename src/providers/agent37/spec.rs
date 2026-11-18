@@ -9,8 +9,8 @@ pub const IDLE: std::ops::RangeInclusive<Duration> =
 
 /// The shapes a `default` instance comes in: vCPUs, memory in GB, and the
 /// disk range in GB. Agent37 answers any other combination with
-/// `invalid_request`, or quietly gives a request for more cores the
-/// shape's own cores.
+/// `invalid_request`, or silently caps a request for more cores at the
+/// shape's own.
 const SHAPES: [(u8, u16, std::ops::RangeInclusive<u16>); 4] = [
     (2, 4, 2..=12),
     (4, 8, 2..=20),
@@ -38,23 +38,17 @@ impl Size {
             .then_some(Self { cpu, memory, disk })
             .ok_or(Agent37Failure::InvalidInput)
     }
-}
-
-/// Where machines run. The machines here are Agent37's `default`
-/// instances, which run only in `us`: `eu` and `ap-south` take VM and
-/// performance instances alone, at another price, so they are not offered.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum Region {
-    /// The United States.
-    #[default]
-    Us,
-}
-impl Region {
-    pub(super) fn code(self) -> &'static str {
-        match self {
-            Self::Us => "us",
-        }
+    /// vCPUs.
+    pub fn cpu(self) -> u8 {
+        self.cpu
+    }
+    /// Memory, in GB.
+    pub fn memory(self) -> u16 {
+        self.memory
+    }
+    /// Disk, in GB.
+    pub fn disk(self) -> u16 {
+        self.disk
     }
 }
 
@@ -62,7 +56,10 @@ impl Region {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MachineSpec {
     pub(super) template: String,
-    pub(super) region: Region,
+    /// Always `us`: these are Agent37's `default` instances, which run
+    /// nowhere else (`eu` and `ap-south` take VM and performance instances
+    /// alone, at another price), so no other region is offered.
+    pub(super) region: &'static str,
     pub(super) size: Option<Size>,
     pub(super) idle: Duration,
     pub(super) variables: BTreeMap<String, String>,
@@ -104,7 +101,7 @@ impl MachineSpec {
         }
         Ok(Self {
             template,
-            region: Region::Us,
+            region: "us",
             size: None,
             idle,
             variables,
@@ -113,11 +110,6 @@ impl MachineSpec {
     /// The same machines in another shape.
     pub fn with_size(mut self, size: Size) -> Self {
         self.size = Some(size);
-        self
-    }
-    /// The same machines in another region.
-    pub fn in_region(mut self, region: Region) -> Self {
-        self.region = region;
         self
     }
     /// The pinned template.

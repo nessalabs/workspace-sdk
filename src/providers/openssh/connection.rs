@@ -36,7 +36,10 @@ use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
     process::Stdio,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     time::Duration,
 };
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
@@ -184,11 +187,12 @@ pub(in crate::providers) struct SshConnection {
 /// Whether this host's `nc` reaches a Unix socket with `-U`, which a
 /// tunnel's ProxyCommand needs. macOS and OpenBSD netcat do; netcat
 /// traditional and busybox do not, and ssh would only report the
-/// connection closed. Asked by having `nc -U` reach a socket, until once
-/// it does.
+/// connection closed. Probed by connecting `nc -U` to a scratch socket; a
+/// success is remembered for the process, a failure is not, so a host
+/// without it pays up to the probe's 5 s on each tunnelled connect.
 async fn unix_netcat() -> Result<()> {
-    static FOUND: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-    if FOUND.load(std::sync::atomic::Ordering::Relaxed) {
+    static FOUND: AtomicBool = AtomicBool::new(false);
+    if FOUND.load(Ordering::Relaxed) {
         return Ok(());
     }
     let found = async {
@@ -214,6 +218,8 @@ async fn unix_netcat() -> Result<()> {
             return false;
         };
         let reached = tokio::select! {
+            // A connection made counts, even by an nc that then quit.
+            biased;
             accepted = listener.accept() => accepted.is_ok(),
             // An nc without -U exits at once.
             _ = child.wait() => false,
@@ -224,7 +230,7 @@ async fn unix_netcat() -> Result<()> {
     }
     .await;
     if found {
-        FOUND.store(true, std::sync::atomic::Ordering::Relaxed);
+        FOUND.store(true, Ordering::Relaxed);
         Ok(())
     } else {
         Err(connection_error(

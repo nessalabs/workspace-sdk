@@ -35,15 +35,19 @@ jobs:
       - name: Make the account the tests log in as
         run: |
           sudo useradd --create-home user
+          # A locked account ('!') is refused even a key login.
           sudo usermod -p '*' user
           sudo mkdir -p /run/sshd
       - name: Build the tests
         run: |
           binary=$(cargo test --locked --features agent37 --lib --no-run --message-format=json \
             | jq -r 'select(.profile.test == true and .target.kind == ["lib"]) | .executable')
+          # Out of the runner's home, which user cannot read.
           install -m 0755 "$binary" /tmp/workspace-sdk-tests
       - name: Run the sshd-backed tests as user
         working-directory: /tmp
+        # Each test starts its own sshd; two at a time keeps ports and
+        # processes few on a small runner. jq comes with the runner image.
         run: sudo -u user -H /tmp/workspace-sdk-tests providers::openssh --ignored --test-threads=2
 
   live-artifacts:

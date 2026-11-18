@@ -11,8 +11,9 @@ struct Slot<T> {
     value: Option<T>,
     /// When the value goes, unless a use moves it later.
     deadline: Instant,
-    /// Whether the one reaper is waiting on the deadline.
-    reaping: bool,
+    /// The one reaper waiting on the deadline. One that ended, or died
+    /// with its runtime, is replaced on the next use.
+    reaper: Option<tokio::task::JoinHandle<()>>,
 }
 
 /// A value shared while it is in use. One reaper waits on a deadline each
@@ -27,7 +28,7 @@ impl<T: Clone + Send + 'static> IdleSlot<T> {
             slot: Arc::new(Mutex::new(Slot {
                 value: None,
                 deadline: Instant::now(),
-                reaping: false,
+                reaper: None,
             })),
             idle,
         }
@@ -61,25 +62,30 @@ impl<T: Clone + Send + 'static> IdleSlot<T> {
     }
     fn stamp(&self, slot: &mut Slot<T>) {
         slot.deadline = Instant::now() + self.idle;
-        if slot.reaping {
+        if slot
+            .reaper
+            .as_ref()
+            .is_some_and(|reaper| !reaper.is_finished())
+        {
             return;
         }
-        slot.reaping = true;
         let weak: Weak<Mutex<Slot<T>>> = Arc::downgrade(&self.slot);
         let mut deadline = slot.deadline;
-        tokio::spawn(async move {
+        slot.reaper = Some(tokio::spawn(async move {
             loop {
                 tokio::time::sleep_until(deadline).await;
                 let Some(slot) = weak.upgrade() else { return };
                 let mut slot = slot.lock().await;
                 if slot.deadline <= Instant::now() {
                     slot.value = None;
-                    slot.reaping = false;
+                    // Gone under the lock, so a use that comes next never
+                    // sees this reaper as still waiting.
+                    slot.reaper = None;
                     return;
                 }
                 deadline = slot.deadline;
             }
-        });
+        }));
     }
 }
 
@@ -116,7 +122,8 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn many_uses_share_one_reaper() {
         let slot = IdleSlot::new(Duration::from_secs(120));
-        slot.get_or_make(|_| true, || async { Ok::<_, ()>(1) })
+        let value = Arc::new(());
+        slot.get_or_make(|_| true, || async { Ok::<_, ()>(value.clone()) })
             .await
             .unwrap();
         let before = tokio::runtime::Handle::current()
@@ -129,6 +136,10 @@ mod tests {
             .metrics()
             .num_alive_tasks();
         assert_eq!(before, after, "touches start no tasks");
+        // The one reaper still drops the value once the last touch is old.
+        tokio::time::sleep(Duration::from_secs(121)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(Arc::strong_count(&value), 1, "dropped by the one reaper");
     }
 
     #[tokio::test(start_paused = true)]

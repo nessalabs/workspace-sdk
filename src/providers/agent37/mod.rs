@@ -13,14 +13,16 @@ mod machines;
 mod provider;
 mod spec;
 mod target;
-pub(in crate::providers) mod tunnel;
+mod tunnel;
+#[cfg(test)]
+pub(in crate::providers) use tunnel::Tunnel;
 
 pub use config::{Agent37Config, ApiKey, DEFAULT_API, DEFAULT_TUNNEL};
 pub use failure::{AdmissionRefusal, Agent37Failure};
 pub use identity::Agent37Identity;
 pub use machines::{Admission, Agent37Machines, Created, Observed};
 pub use provider::{Agent37AttachOptions, Agent37Provider};
-pub use spec::{MachineSpec, Region, Size, IDLE};
+pub use spec::{MachineSpec, Size, IDLE};
 
 #[cfg(test)]
 mod live_tests;

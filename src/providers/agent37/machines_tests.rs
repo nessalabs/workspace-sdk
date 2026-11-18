@@ -1,5 +1,5 @@
 use super::*;
-use crate::providers::agent37::{ApiKey, Region, Size};
+use crate::providers::agent37::{ApiKey, Size};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -379,18 +379,23 @@ fn a_spec_takes_only_a_pinned_template_and_plain_variables() {
             "{name}"
         );
     }
-    let sized = spec()
-        .with_size(Size::new(4, 8, 20).unwrap())
-        .in_region(Region::Us);
+    let sized = spec().with_size(Size::new(4, 8, 20).unwrap());
     assert_eq!(sized.template_name(), "nessa-runtime");
-    for (cpu, memory, disk) in [(2, 4, 12), (4, 32, 2), (4, 16, 40)] {
+    for (cpu, memory, disk) in [(2, 4, 12), (4, 32, 2), (4, 16, 40), (4, 32, 80)] {
         assert!(
             Size::new(cpu, memory, disk).is_ok(),
             "{cpu}/{memory}/{disk}"
         );
     }
     // Shapes Agent37 does not sell, and disks outside a shape's range.
-    for (cpu, memory, disk) in [(2, 4, 13), (4, 8, 1), (8, 64, 48), (16, 32, 20), (2, 8, 6)] {
+    for (cpu, memory, disk) in [
+        (2, 4, 13),
+        (4, 32, 81),
+        (4, 8, 1),
+        (8, 64, 48),
+        (16, 32, 20),
+        (2, 8, 6),
+    ] {
         assert!(
             Size::new(cpu, memory, disk).is_err(),
             "{cpu}/{memory}/{disk}"

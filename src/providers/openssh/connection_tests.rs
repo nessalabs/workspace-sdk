@@ -258,13 +258,13 @@ async fn carry_to(endpoint: std::net::SocketAddr, socket: &Path) -> Box<dyn Send
     let serving = tokio::spawn(async move {
         while let Ok((stream, _)) = listener.accept().await {
             tokio::spawn(async move {
-                let Ok(socket) = tokio_tungstenite::accept_async(stream).await else {
+                let Ok(ws) = tokio_tungstenite::accept_async(stream).await else {
                     return;
                 };
                 let Ok(sshd) = tokio::net::TcpStream::connect(endpoint).await else {
                     return;
                 };
-                let (mut to_client, mut from_client) = socket.split();
+                let (mut to_client, mut from_client) = ws.split();
                 let (mut from_sshd, mut to_sshd) = sshd.into_split();
                 let up = async {
                     while let Some(Ok(message)) = from_client.next().await {
@@ -300,8 +300,7 @@ async fn carry_to(endpoint: std::net::SocketAddr, socket: &Path) -> Box<dyn Send
     )
     .with_tunnel(&format!("ws://{edge}/{{id}}/ssh"))
     .unwrap();
-    let tunnel =
-        crate::providers::agent37::tunnel::Tunnel::serve(&config, "ab12cd34ef", socket).unwrap();
+    let tunnel = crate::providers::agent37::Tunnel::serve(&config, "ab12cd34ef", socket).unwrap();
     Box::new((tunnel, AbortOnDrop(serving)))
 }
 #[cfg(not(feature = "agent37"))]

@@ -202,7 +202,7 @@ impl Agent37Machines {
         let new = NewInstance {
             template: spec.template(),
             name: &name,
-            region: spec.region.code(),
+            region: spec.region,
             resources: spec.size,
             metadata: BTreeMap::from([(KEY_TAG, key)]),
             env: &spec.variables,
@@ -239,7 +239,8 @@ impl Agent37Machines {
 
     /// Make `instance` ready to use: check it still runs what it was
     /// admitted under, start it if it is stopped or asleep, and wait until
-    /// it runs, within the budget.
+    /// it runs, within the budget. A timeout can cut short a start that
+    /// Agent37 in fact accepted: the instance may yet come up.
     ///
     /// # Errors
     /// [`Agent37Failure::AdmissionRejected`] when it no longer runs the
