@@ -32,8 +32,9 @@ const WAKE: Duration = Duration::from_secs(300);
 ///
 /// Each [`Connections::connection`](crate::ports::Connections::connection) to one
 /// of its workspaces authorizes a new SSH key on the machine, which Boat
-/// cannot revoke; the key's private half is deleted with the connection.
-/// Connections need `ssh` and `ssh-keygen` on this machine, and Linux with
+/// cannot revoke; the key's private half is only ever in this process's
+/// memory, and is dropped with the connection. Connections need `ssh` on
+/// this machine, and Linux with
 /// `/proc` on the workspace's.
 ///
 /// With [`SandboxProvider::from_machines`], every workspace it creates is a

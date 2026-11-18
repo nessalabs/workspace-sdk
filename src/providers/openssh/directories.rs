@@ -18,12 +18,15 @@ use fs2::FileExt;
 use std::{
     fs::File,
     os::unix::fs::MetadataExt,
-    path::{Path, PathBuf},
+    path::Path,
     sync::Once,
     time::{Duration, SystemTime},
 };
 
 const PREFIX: &str = "wsdk-ssh-";
+/// Where connection directories are made: a short path, so the master's
+/// socket fits a Unix socket address.
+const PARENT: &str = "/tmp";
 /// A directory younger than this is never swept: its maker may not have
 /// taken the lock yet.
 const SWEEP_AFTER: Duration = Duration::from_secs(60);
@@ -36,16 +39,22 @@ pub(super) struct ConnectionDirectory {
 }
 
 impl ConnectionDirectory {
-    /// Make a new directory under `/tmp`, sweeping stale ones first, once
-    /// per process.
+    /// Make a new directory under [`PARENT`]. The first one a process
+    /// makes also starts a sweep of stale ones, on a blocking thread of the
+    /// runtime when there is one: nothing waits for it.
     pub(super) fn make() -> Result<Self> {
         static SWEPT: Once = Once::new();
-        SWEPT.call_once(|| sweep(Path::new("/tmp"), SWEEP_AFTER));
-        Self::make_in(Path::new("/tmp"))
+        SWEPT.call_once(|| {
+            let sweeping = || sweep(Path::new(PARENT), SWEEP_AFTER);
+            match tokio::runtime::Handle::try_current() {
+                Ok(runtime) => drop(runtime.spawn_blocking(sweeping)),
+                Err(_) => sweeping(),
+            }
+        });
+        Self::make_in(Path::new(PARENT))
     }
 
-    /// Make a new directory under `parent`. A short parent: the master's
-    /// socket must fit a Unix socket address.
+    /// Make a new directory under `parent`.
     pub(super) fn make_in(parent: &Path) -> Result<Self> {
         let directory = tempfile::Builder::new()
             .prefix(PREFIX)
@@ -101,10 +110,29 @@ fn abandoned(path: &Path) -> bool {
         Ok(lock) => lock.try_lock_exclusive().is_ok(),
         // Made before there was a lock: owned while its master answers.
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            let control: PathBuf = path.join("control");
-            std::os::unix::net::UnixStream::connect(control).is_err()
+            !answers(&path.join("control"))
         }
+
         Err(_) => false,
+    }
+}
+
+/// Whether something listens on the Unix socket `path`. Never waits: a
+/// listener whose backlog is full counts as answering.
+fn answers(path: &Path) -> bool {
+    let Ok(address) = socket2::SockAddr::unix(path) else {
+        return false;
+    };
+    let Ok(socket) = socket2::Socket::new(socket2::Domain::UNIX, socket2::Type::STREAM, None)
+    else {
+        return false;
+    };
+    if socket.set_nonblocking(true).is_err() {
+        return false;
+    }
+    match socket.connect(&address) {
+        Ok(()) => true,
+        Err(error) => error.kind() == std::io::ErrorKind::WouldBlock,
     }
 }
 

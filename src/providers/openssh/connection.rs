@@ -10,10 +10,11 @@
 //!                 wrapper that ends the command's session with it
 //! files:          a session through the master
 //! drop:     keeper ends (its directory is removed) ─► master ends
-//!           ─► agent, tunnel and directory removed
+//!           ─► directory removed ─► agent and tunnel end
 //! ```
 //!
-//! The private key is never written to disk: ssh signs in through an agent
+//! The connection never writes the private key to disk (nor does making
+//! one, [`KeyPair::generate`]): ssh signs in through an agent
 //! this process serves on a socket in the connection's directory
 //! ([`super::agent`]). A process killed outright leaves that directory (its
 //! socket, public key and learnt host key) behind; the next process to
@@ -22,8 +23,8 @@
 //! Through a tunnel the machine's host key cannot be known beforehand: the
 //! master learns it, and every later session of the connection must match
 //! it. The tunnel's own authentication (TLS and the provider's credential)
-//! is what identifies the machine. A process that is killed outright (not dropped) also leaves its master
-//! running until the machine or the network ends it. A client cut off by a
+//! is what identifies the machine. A process that is killed outright (not
+//! dropped) also leaves its master running until the machine or the network ends it. A client cut off by a
 //! network partition is seen only when sshd notices, which may take hours
 //! with its default settings. Endpoints are taken by address: an IPv6
 //! address's scope is not kept.
@@ -232,7 +233,7 @@ impl SshConnection {
             }
         };
         tokio::fs::write(directory.path().join("hosts"), hosts).await?;
-        let signer = Signer::new(route.key.private(), route.key.public())?;
+        let signer = Signer::new(&route.key);
         tokio::fs::write(
             directory.path().join("key.pub"),
             format!("{}\n", route.key.public()),

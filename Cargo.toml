@@ -52,6 +52,7 @@ webpki-roots = { version = "1", optional = true }
 zeroize = "1"
 # Signs for the in-process SSH agent, so a private key is never on disk.
 ed25519-dalek = { version = "2", default-features = false, features = ["std", "zeroize"] }
+getrandom = "0.2"
 
 [[bin]]
 name = "workspace-supervisor"

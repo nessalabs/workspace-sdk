@@ -15,17 +15,18 @@ impl Agent37Identity {
     /// A key pair the application saved earlier.
     ///
     /// # Errors
-    /// [`Agent37Failure::InvalidInput`] unless `private` is an OpenSSH
-    /// private key file and `public` one `ssh-ed25519` public key.
+    /// [`Agent37Failure::InvalidInput`] unless `private` is an unencrypted
+    /// OpenSSH private key file holding one ed25519 key, and `public` is
+    /// that key's `ssh-ed25519` line.
     pub fn new(private: Vec<u8>, public: &str) -> Result<Self, Agent37Failure> {
         KeyPair::new(private, public)
             .map(Self)
             .map_err(|_| Agent37Failure::InvalidInput)
     }
-    /// A new key pair, made by the system's `ssh-keygen`, labelled `label`.
+    /// A new key pair, made in memory, labelled `label`.
     ///
     /// # Errors
-    /// [`Agent37Failure::Provider`] when `ssh-keygen` fails or is missing.
+    /// [`Agent37Failure::Provider`] when the system gives no randomness.
     pub async fn generate(label: &str) -> Result<Self, Agent37Failure> {
         KeyPair::generate(label)
             .await

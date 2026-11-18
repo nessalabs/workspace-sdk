@@ -593,11 +593,7 @@ async fn with_its_master_gone_a_connection_refuses_new_commands_and_files() {
 async fn only_a_run_with_input_is_compressed() {
     let directory = ConnectionDirectory::make_in(Path::new("/tmp")).unwrap();
     let key = KeyPair::generate("test").await.unwrap();
-    let agent = Agent::serve(
-        Signer::new(key.private(), key.public()).unwrap(),
-        &directory.path().join("agent"),
-    )
-    .unwrap();
+    let agent = Agent::serve(Signer::new(&key), &directory.path().join("agent")).unwrap();
     let connection = SshConnection {
         master: Mutex::new(Some(
             tokio::process::Command::new("sleep")
@@ -744,7 +740,13 @@ async fn a_killed_process_leaves_no_key_and_its_directory_is_swept() {
         .arg(directory.join("control"))
         .status();
 
-    // The next process to connect sweeps what is left.
-    super::super::directories::sweep(Path::new("/tmp"), Duration::ZERO);
+    // The next process to connect sweeps what is left, once it is old
+    // enough not to be one just being made.
+    let then = std::time::SystemTime::now() - Duration::from_secs(600);
+    std::fs::File::open(&directory)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(then))
+        .unwrap();
+    super::super::directories::sweep(Path::new("/tmp"), Duration::from_secs(60));
     assert!(!directory.exists());
 }

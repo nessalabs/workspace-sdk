@@ -11,7 +11,7 @@ independent subagent, read only, four rounds.
 | # | Sev | Finding | Disposition |
 | --- | --- | --- | --- |
 | P2-1 | P2 | Tunnel host key "pinning" bypassable: every dial used `accept-new`, which learns a key of a new type | Fixed: the master's single learnt key is pinned; later dials use `StrictHostKeyChecking=yes` and that key's `HostKeyAlgorithms` (the first fix set but never used it; caught on re-review) |
-| P2-2 | P2 | The workspace-wide private key is written to `/tmp/wsdk-ssh-*/key` and survives a SIGKILL | Residual, accepted (below) |
+| P2-2 | P2 | The workspace-wide private key is written to `/tmp/wsdk-ssh-*/key` and survives a SIGKILL | Fixed by #20: see [the key-off-disk review](ssh-key-off-disk.md) |
 | P2-3 | P2 | A whole new connection per private request, terminal input included | Fixed: private requests share one link while its master lives |
 | P2-4 | P2 | A sleeping instance admitted but not dialable within SSH's wait; exec not retried on codes that never started | Fixed: `ensure`, `connection` and `private` wake first; exec retried only on `try_again` |
 | P2-5 | P2 | A lost private request reported as a plain failure | Fixed: reported as "may have run", never resent |
@@ -21,7 +21,7 @@ independent subagent, read only, four rounds.
 | P3 | P3 | `nc -U` assumed on the host; open connections hold the instance awake | Documented here: macOS and OpenBSD netcat have `-U`; the link idles out |
 | P3 | P3 | One sleeping reaper task per use | Follow-up: a single resettable reaper |
 
-## Residual risk: the key on disk (P2-2)
+## Residual risk: the key on disk (P2-2), since fixed
 
 The file is the workspace's one registered key, valid for **every**
 instance of the Agent37 workspace, not a per-connection key as on Boat. It

@@ -24,7 +24,7 @@ fn sign_request(blob: &[u8], data: &[u8]) -> Vec<u8> {
 #[tokio::test]
 async fn the_agent_lists_its_one_key_and_signs_only_with_it() {
     let pair = KeyPair::generate("agent-test").await.unwrap();
-    let signer = Signer::new(pair.private(), pair.public()).unwrap();
+    let signer = Signer::new(&pair);
     let blob = signer.blob.clone();
     let directory = tempfile::tempdir().unwrap();
     let socket = directory.path().join("agent");
@@ -60,7 +60,7 @@ async fn the_agent_lists_its_one_key_and_signs_only_with_it() {
     // Another key, a malformed request or any other kind is refused, and
     // the same stream keeps working.
     let other = KeyPair::generate("other").await.unwrap();
-    let other = Signer::new(other.private(), other.public()).unwrap();
+    let other = Signer::new(&other);
     for refused in [
         sign_request(&other.blob, b"x"),
         vec![SIGN_REQUEST, 0, 0],
@@ -80,8 +80,7 @@ async fn an_oversized_request_closes_the_stream() {
     let pair = KeyPair::generate("agent-test").await.unwrap();
     let directory = tempfile::tempdir().unwrap();
     let socket = directory.path().join("agent");
-    let _agent =
-        Agent::serve(Signer::new(pair.private(), pair.public()).unwrap(), &socket).unwrap();
+    let _agent = Agent::serve(Signer::new(&pair), &socket).unwrap();
     let mut stream = UnixStream::connect(&socket).await.unwrap();
     stream
         .write_all(&((MAX_REQUEST + 1) as u32).to_be_bytes())
@@ -97,7 +96,7 @@ async fn a_dropped_agent_stops_answering() {
     let pair = KeyPair::generate("agent-test").await.unwrap();
     let directory = tempfile::tempdir().unwrap();
     let socket = directory.path().join("agent");
-    let agent = Agent::serve(Signer::new(pair.private(), pair.public()).unwrap(), &socket).unwrap();
+    let agent = Agent::serve(Signer::new(&pair), &socket).unwrap();
     drop(agent);
     tokio::task::yield_now().await;
     let listed = tokio::process::Command::new("ssh-add")
@@ -107,24 +106,4 @@ async fn a_dropped_agent_stops_answering() {
         .await
         .unwrap();
     assert!(!listed.status.success());
-}
-
-#[tokio::test]
-async fn a_key_that_does_not_match_its_public_half_is_refused() {
-    let one = KeyPair::generate("one").await.unwrap();
-    let two = KeyPair::generate("two").await.unwrap();
-    assert!(Signer::new(one.private(), two.public()).is_err());
-    assert!(Signer::new(b"not a key", one.public()).is_err());
-    // An encrypted key cannot be used without its passphrase.
-    let directory = tempfile::tempdir().unwrap();
-    let path = directory.path().join("key");
-    let made = std::process::Command::new("ssh-keygen")
-        .args(["-q", "-t", "ed25519", "-N", "secret", "-f"])
-        .arg(&path)
-        .status()
-        .unwrap();
-    assert!(made.success());
-    let private = std::fs::read(&path).unwrap();
-    let public = std::fs::read_to_string(path.with_extension("pub")).unwrap();
-    assert!(Signer::new(&private, public.trim()).is_err());
 }
