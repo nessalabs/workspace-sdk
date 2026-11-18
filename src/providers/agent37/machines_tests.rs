@@ -435,3 +435,42 @@ async fn an_instance_still_being_made_is_not_judged_yet() {
     assert_eq!(found.instance(), "eeeeeeeeee");
     assert!(!found.made());
 }
+
+/// A slow answer is bounded by the budget too: `ready` and `stop` give up
+/// when it is spent, not after the request returns.
+#[tokio::test]
+async fn a_slow_answer_ends_within_the_budget() {
+    let router = Router::new().route(
+        "/v1/instances/{id}",
+        get(|| async {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+            Json(instance("ab12cd34ef", "running", Some(KEY)))
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}/v1", listener.local_addr().unwrap());
+    let task = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+    let machines = Agent37Machines::new(
+        Agent37Config::new(ApiKey::new("sk_live_fixture").unwrap())
+            .with_api_base(&base)
+            .unwrap(),
+    )
+    .unwrap()
+    .with_budget(Duration::from_secs(1));
+    let admitted = Admission::restore(TEMPLATE.into(), Some(3), DIGEST.into()).unwrap();
+    let began = std::time::Instant::now();
+    assert_eq!(
+        machines.ready("ab12cd34ef", &admitted).await,
+        Err(Agent37Failure::Timeout)
+    );
+    assert_eq!(
+        machines.stop("ab12cd34ef").await,
+        Err(Agent37Failure::Timeout)
+    );
+    assert!(
+        began.elapsed() < Duration::from_secs(4),
+        "{:?}",
+        began.elapsed()
+    );
+    task.abort();
+}
