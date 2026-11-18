@@ -135,7 +135,7 @@ impl Drop for Agent {
 }
 
 /// Answer `stream`'s requests until it ends, sends one too large, or is
-/// silent for [`REQUEST_TIMEOUT`].
+/// silent, or leaves a reply unread, for [`REQUEST_TIMEOUT`].
 async fn serve_client(mut stream: UnixStream, signer: &Signer) -> std::io::Result<()> {
     loop {
         let reply = match tokio::time::timeout(REQUEST_TIMEOUT, read_request(&mut stream)).await {
@@ -145,7 +145,11 @@ async fn serve_client(mut stream: UnixStream, signer: &Signer) -> std::io::Resul
         };
         let mut framed = Vec::with_capacity(4 + reply.len());
         put_string(&mut framed, &reply);
-        stream.write_all(&framed).await?;
+        // A client that never reads is dropped too, not waited on.
+        match tokio::time::timeout(REQUEST_TIMEOUT, stream.write_all(&framed)).await {
+            Ok(written) => written?,
+            Err(_) => return Ok(()),
+        }
     }
 }
 

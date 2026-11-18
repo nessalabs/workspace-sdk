@@ -6,6 +6,7 @@ use ed25519_dalek::SigningKey;
 use zeroize::Zeroizing;
 
 /// The most an OpenSSH private key file takes here.
+#[cfg_attr(not(feature = "agent37"), allow(dead_code))] // Only a stored key is loaded.
 const MAX_PRIVATE: usize = 16 * 1024;
 const KEY_TYPE: &[u8] = b"ssh-ed25519";
 const ARMOUR_BEGIN: &str = "-----BEGIN OPENSSH PRIVATE KEY-----";
@@ -32,6 +33,7 @@ impl KeyPair {
     /// [`Error::InvalidInput`] unless `private` is an unencrypted OpenSSH
     /// private key file holding exactly one ed25519 key, and `public` is
     /// that key's well-formed `ssh-ed25519` line.
+    #[cfg_attr(not(feature = "agent37"), allow(dead_code))] // Only a stored key is loaded.
     pub fn new(private: Vec<u8>, public: &str) -> Result<Self> {
         let private = Zeroizing::new(private);
         let invalid = || Error::InvalidInput("not an unencrypted ed25519 OpenSSH key pair".into());
@@ -74,6 +76,7 @@ impl KeyPair {
         })
     }
     /// The private key file.
+    #[cfg_attr(not(feature = "agent37"), allow(dead_code))] // Only a stored key is loaded.
     pub fn private(&self) -> &[u8] {
         &self.private
     }
@@ -145,6 +148,7 @@ fn openssh_file(key: &SigningKey, comment: &str, check: [u8; 4]) -> Zeroizing<Ve
 
 /// The 32-byte seed of the one unencrypted ed25519 key in an OpenSSH
 /// private key file.
+#[cfg_attr(not(feature = "agent37"), allow(dead_code))] // Only a stored key is loaded.
 fn openssh_seed(file: &[u8]) -> Option<Zeroizing<[u8; 32]>> {
     let text = std::str::from_utf8(file).ok()?.trim();
     let body = text.strip_prefix(ARMOUR_BEGIN)?.strip_suffix(ARMOUR_END)?;
