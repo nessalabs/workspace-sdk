@@ -65,8 +65,8 @@ pub trait IMachines: Send + Sync {
     ///
     /// # Errors
     /// [`MachineError::InvalidInput`], with nothing asked, unless `made` is
-    /// [`Disposition::Remove`](crate::domain::machines::Disposition::Remove) ([`Made::removable`]). [`MachineError::CleanupUncertain`] when the
-    /// cloud accepted the removal but does not confirm it.
+    /// removable ([`Made::removable`]). [`MachineError::CleanupUncertain`]
+    /// when the cloud accepted the removal but does not confirm it.
     async fn remove(&self, made: &Made) -> Result<(), MachineError>;
 }
 
@@ -102,10 +102,9 @@ pub trait ICreationSite: Send + Sync {
     /// How a retry finds an earlier attempt's target.
     fn idempotency(&self) -> Idempotency;
     /// Every live target tagged `key`. Asked only of a
-    /// [`Idempotency::Tagged`] cloud, which must answer it; by default none.
-    async fn find(&self, _key: &str) -> Result<Vec<Self::Target>, Self::Error> {
-        Ok(Vec::new())
-    }
+    /// [`Idempotency::Tagged`] cloud; required of every cloud, so a tagged
+    /// one can never forget it and make a duplicate on each retry.
+    async fn find(&self, key: &str) -> Result<Vec<Self::Target>, Self::Error>;
     /// Ask the cloud to make a target under `key`: tagged with it, or
     /// with it as the cloud's own idempotency key.
     async fn submit(&self, key: &str) -> Result<Submitted<Self::Target>, Self::Error>;

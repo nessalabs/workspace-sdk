@@ -247,6 +247,10 @@ impl ICreationSite for Creation<'_> {
     fn idempotency(&self) -> Idempotency {
         Idempotency::Native
     }
+    async fn find(&self, _key: &str) -> Result<Vec<Value>, MachineFailure> {
+        // Never asked: Boat takes the key itself.
+        Ok(Vec::new())
+    }
     /// The creation acknowledgement, read raw.
     async fn submit(&self, key: &str) -> Result<Submitted<Value>, MachineFailure> {
         let (boat, spec, deadline) = (self.boat, self.spec, self.deadline);

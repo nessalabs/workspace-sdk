@@ -18,7 +18,8 @@ The existing `BoatMachines` and `Agent37Machines` APIs are unchanged, so nessa-a
 
 ## Commands and results
 
-- `cargo clippy --locked --all-targets -D warnings` passes with `--all-features`, default features, `--no-default-features`, `--features agent37` and `--features portability`.
+- `cargo clippy --locked --all-targets -D warnings` passes with `--all-features`, default features, `--no-default-features`,
+  `--features agent37`, `--features portability` and `--features container`.
 - `cargo test --features boat,agent37 --lib` passes. That includes 8 algorithm tests (lost answer, duplicate, find failure before and after a lost answer, native path, certain refusal), both clouds' contract tests, and the unchanged Boat and Agent37 suites. Agent37's "still being made" case is `an_instance_still_being_made_is_not_judged_yet`.
 - The full gate is in the pull request.
 
@@ -41,12 +42,16 @@ reviewer (A), subagents, read only.
 | Q2 | P2 | Providers imported `crate::application::find_or_create`, inverting the layers | Fixed: moved to `providers::creation` |
 | Q3 | P2 | #19 is half met: the managed records' `domain::Admission`/`RefusalKind` stay Boat-shaped beside `Proven`/`RefusalCause` | Deferred, recorded on #19 with a follow-up issue: moving the saved records needs a serde migration |
 | Q4 | P2 | The contract accepted two outcomes for a foreign proof | Fixed (as A3) |
-| Q5 | P3 | `ICreationSite::find` required of a Native cloud | Fixed: default answers none |
+| Q5 | P3 | `ICreationSite::find` required of a Native cloud | Kept required after re-review: a default would let a tagged cloud forget it and duplicate on every retry |
 | Q6 | P3 | Two `Disposition` types | Documented: the domain's names the mapping |
 | Q7 | P3 | `Proven` said "save it" but could not be serialized | Fixed: serde with `try_from`, checked again on load; tested |
 | Q8 | P3 | Agent37's duplicate-after-lost-answer is now `Ambiguous` | Kept: nessa-agent#1356 maps it as it maps `ProvisioningUncertain` |
 
 ## Residual limitations
+
+- The shared contract has no case for an unknown machine (`Missing`) or a
+  refused creation: Boat's fixture answers every VM id with one receipt.
+  Each cloud's own suite covers its refusals.
 
 - Creation on a Tagged cloud is safe only while attempts for one key are serialized. The SDK's per-workspace record does that within one process; across processes the caller must. Two tagged targets are reported, never chosen between.
 - Agent37 has no hard lifetime. An open connection's keepalives keep an instance awake.
