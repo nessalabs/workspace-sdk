@@ -585,9 +585,11 @@ impl Dialer {
                 };
                 command.args(["-o", "CheckHostIP=no"]);
                 if dial {
+                    // ssh itself runs the command with `exec`; a second
+                    // `exec` is refused by dash, Debian's /bin/sh.
                     command
                         .arg("-o")
-                        .arg(format!("ProxyCommand=exec nc -U {}", socket.display()));
+                        .arg(format!("ProxyCommand=nc -U {}", socket.display()));
                 }
             }
         }
