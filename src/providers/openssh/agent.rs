@@ -15,7 +15,7 @@
 //! agent answers just the two requests ssh needs to sign in, for its one
 //! key, and fails everything else. A process killed outright leaves the
 //! socket file behind, never the key.
-use super::keys::{public_blob, put_string, take_string, KeyPair};
+use super::keys::{public_blob, put_string, take_string, KeyPair, KEY_TYPE};
 use crate::Result;
 use ed25519_dalek::{Signer as _, SigningKey};
 use std::{path::Path, sync::Arc, time::Duration};
@@ -37,7 +37,6 @@ const MAX_CLIENTS: usize = 32;
 /// How long a client may take to send a whole request, or to start the
 /// next one: ssh asks at once, so a silent client is dropped.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
-const KEY_TYPE: &[u8] = b"ssh-ed25519";
 
 /// An ed25519 key that signs in memory.
 pub(super) struct Signer {

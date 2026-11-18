@@ -24,9 +24,9 @@
 //! master learns it, and every later session of the connection must match
 //! it. The tunnel's own authentication (TLS and the provider's credential)
 //! is what identifies the machine. A process that is killed outright (not
-//! dropped) also leaves its master running until the machine or the network ends it. A client cut off by a
-//! network partition is seen only when sshd notices, which may take hours
-//! with its default settings. Endpoints are taken by address: an IPv6
+//! dropped) also leaves its master running until the machine or the
+//! network ends it. A client cut off by a network partition is seen only
+//! when sshd notices, which may take hours with its default settings. Endpoints are taken by address: an IPv6
 //! address's scope is not kept.
 use super::{
     agent::{Agent, Signer},

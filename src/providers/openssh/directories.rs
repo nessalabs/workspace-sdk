@@ -112,7 +112,6 @@ fn abandoned(path: &Path) -> bool {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             !answers(&path.join("control"))
         }
-
         Err(_) => false,
     }
 }

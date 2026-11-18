@@ -8,7 +8,8 @@ use zeroize::Zeroizing;
 /// The most an OpenSSH private key file takes here.
 #[cfg_attr(not(feature = "agent37"), allow(dead_code))] // Only a stored key is loaded.
 const MAX_PRIVATE: usize = 16 * 1024;
-const KEY_TYPE: &[u8] = b"ssh-ed25519";
+/// The one key type here, as SSH names it.
+pub(super) const KEY_TYPE: &[u8] = b"ssh-ed25519";
 const ARMOUR_BEGIN: &str = "-----BEGIN OPENSSH PRIVATE KEY-----";
 const ARMOUR_END: &str = "-----END OPENSSH PRIVATE KEY-----";
 
