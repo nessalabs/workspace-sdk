@@ -655,6 +655,9 @@ async fn with_its_master_gone_a_connection_refuses_new_commands_and_files() {
 /// a stream, whose bytes are small and live, is not.
 #[tokio::test]
 async fn only_a_run_with_input_is_compressed() {
+    let directory = ConnectionDirectory::make_in(Path::new("/tmp")).unwrap();
+    let key = KeyPair::generate("test").await.unwrap();
+    let agent = Agent::serve(Signer::new(&key), &directory.path().join("agent")).unwrap();
     let connection = SshConnection {
         master: Mutex::new(Some(
             tokio::process::Command::new("sleep")
@@ -665,7 +668,7 @@ async fn only_a_run_with_input_is_compressed() {
         )),
         keeper: Mutex::new(None),
         dialer: Dialer {
-            directory: tempfile::tempdir().unwrap(),
+            directory,
             user: "user".into(),
             dial: Dial::Direct {
                 endpoint: "127.0.0.1:22".parse().unwrap(),
@@ -674,6 +677,7 @@ async fn only_a_run_with_input_is_compressed() {
             learnt: std::sync::OnceLock::new(),
         },
         forwarded: None,
+        _agent: agent,
         _guard: None,
     };
     let compressed = |on: bool| {
@@ -687,4 +691,126 @@ async fn only_a_run_with_input_is_compressed() {
     };
     assert!(compressed(true));
     assert!(!compressed(false));
+    // ssh signs in through the connection's agent alone, naming its key by
+    // the public half: no private key file is ever handed to it.
+    let arguments: Vec<_> = connection
+        .session_bound_command("true", false)
+        .unwrap()
+        .as_std()
+        .get_args()
+        .map(|a| a.to_string_lossy().into_owned())
+        .collect();
+    let directory = connection.dialer.directory.path();
+    let agent = format!("IdentityAgent={}", directory.join("agent").display());
+    let public = directory.join("key.pub").display().to_string();
+    assert!(arguments.windows(2).any(|w| w == ["-o", agent.as_str()]));
+    assert!(arguments.windows(2).any(|w| w == ["-i", public.as_str()]));
+    assert_eq!(arguments.iter().filter(|a| *a == "-i").count(), 1);
+    assert!(!arguments
+        .iter()
+        .any(|a| a.starts_with("IdentityAgent=") && *a != agent));
+}
+
+/// Run by [`a_killed_process_leaves_no_key_and_its_directory_is_swept`] in
+/// a process of its own: connect to the machine the environment names, say
+/// where the connection's directory is, and wait to be killed.
+#[tokio::test]
+#[ignore = "a helper the kill test runs in its own process"]
+async fn kill_helper() {
+    let Ok(port) = std::env::var("WSDK_KILL_PORT") else {
+        return;
+    };
+    let host_key = std::env::var("WSDK_KILL_HOST_KEY").unwrap();
+    let authorized = std::env::var("WSDK_KILL_AUTHORIZED").unwrap();
+    let connection = SshConnection::connect(
+        |_| async move {
+            let key = KeyPair::generate("killed").await?;
+            std::fs::write(&authorized, key.public())?;
+            Ok(Route {
+                user: "user".into(),
+                key,
+                dial: Dial::Direct {
+                    endpoint: ([127, 0, 0, 1], port.parse().unwrap()).into(),
+                    host_key,
+                },
+                guard: None,
+            })
+        },
+        None,
+    )
+    .await
+    .unwrap();
+    println!("directory {}", connection.dialer.directory.path().display());
+    tokio::time::sleep(Duration::from_secs(600)).await;
+}
+
+/// The files of a connection's directory, and whether any holds a private
+/// key.
+fn holds_a_private_key(directory: &Path) -> bool {
+    std::fs::read_dir(directory)
+        .unwrap()
+        .flatten()
+        .any(|entry| {
+            std::fs::read(entry.path())
+                .is_ok_and(|bytes| bytes.windows(11).any(|w| w == b"PRIVATE KEY"))
+        })
+}
+
+#[tokio::test]
+#[ignore = "needs a local sshd and an account named user"]
+async fn a_killed_process_leaves_no_key_and_its_directory_is_swept() {
+    let machine = Machine::start(false).await;
+    let mut helper = tokio::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "providers::openssh::connection::tests::kill_helper",
+            "--ignored",
+            "--nocapture",
+        ])
+        .env("WSDK_KILL_PORT", machine.port.to_string())
+        .env("WSDK_KILL_HOST_KEY", &machine.host_key)
+        .env(
+            "WSDK_KILL_AUTHORIZED",
+            machine.place.path().join("authorized"),
+        )
+        .stdout(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let mut lines = BufReader::new(helper.stdout.take().unwrap()).lines();
+    let directory = tokio::time::timeout(Duration::from_secs(30), async {
+        while let Some(line) = lines.next_line().await.unwrap() {
+            if let Some(path) = line.strip_prefix("directory ") {
+                return PathBuf::from(path);
+            }
+        }
+        panic!("the helper did not connect");
+    })
+    .await
+    .unwrap();
+
+    // Connected: the key is in memory only.
+    assert!(directory.join("agent").exists());
+    assert!(!directory.join("key").exists());
+    assert!(!holds_a_private_key(&directory));
+
+    // Killed outright: no destructor runs, and still no key is left.
+    helper.start_kill().unwrap();
+    helper.wait().await.unwrap();
+    assert!(!holds_a_private_key(&directory));
+    // Its master outlives it; end it, as the machine or network would.
+    let _ = std::process::Command::new("pkill")
+        .args(["-KILL", "-f"])
+        .arg(directory.join("control"))
+        .status();
+
+    // The next process to connect sweeps what is left, once it is old
+    // enough not to be one just being made.
+    let then = std::time::SystemTime::now() - Duration::from_secs(600);
+    std::fs::File::open(&directory)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(then))
+        .unwrap();
+    super::super::directories::sweep(Path::new("/tmp"), Duration::from_secs(60));
+    assert!(!directory.exists());
 }

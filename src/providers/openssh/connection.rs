@@ -10,18 +10,29 @@
 //!                 wrapper that ends the command's session with it
 //! files:          a session through the master
 //! drop:     keeper ends (its directory is removed) ─► master ends
-//!           ─► key and tunnel removed
+//!           ─► directory removed ─► agent and tunnel end
 //! ```
+//!
+//! The connection never writes the private key to disk (nor does making
+//! one, [`KeyPair::generate`]): ssh signs in through an agent
+//! this process serves on a socket in the connection's directory
+//! ([`super::agent`]). A process killed outright leaves that directory (its
+//! socket, public key and learnt host key) behind; the next process to
+//! connect sweeps it ([`super::directories`]).
 //!
 //! Through a tunnel the machine's host key cannot be known beforehand: the
 //! master learns it, and every later session of the connection must match
 //! it. The tunnel's own authentication (TLS and the provider's credential)
-//! is what identifies the machine. A process that is killed outright (not dropped) also leaves its master
-//! running until the machine or the network ends it. A client cut off by a
-//! network partition is seen only when sshd notices, which may take hours
-//! with its default settings. Endpoints are taken by address: an IPv6
-//! address's scope is not kept.
-use super::KeyPair;
+//! is what identifies the machine. A process that is killed outright (not
+//! dropped) also leaves its master running until the machine or the
+//! network ends it. A client cut off by a network partition is seen only
+//! when sshd notices, which may take hours with its default settings.
+//! Endpoints are taken by address: an IPv6 address's scope is not kept.
+use super::{
+    agent::{Agent, Signer},
+    directories::ConnectionDirectory,
+    KeyPair,
+};
 use crate::{
     ports::{
         ConnectionStream, FileChannel, IConnection, IConnectionProcess, ProcessEnd, ProcessExit,
@@ -128,8 +139,8 @@ exit "$s"
 const KEEPER: &str = "d=$(mktemp -d) || exit 1; echo \"$d\"; cat >/dev/null; rm -rf \"$d\"";
 
 /// How a connection reaches its machine, as its provider authorized it.
-/// The connection writes the key and any pinned host key into its own
-/// private directory.
+/// The connection keeps the key in memory, and writes its public half and
+/// any pinned host key into its own private directory.
 pub(in crate::providers) struct Route {
     /// The account the key signs in as.
     pub user: String,
@@ -166,7 +177,7 @@ pub(in crate::providers) enum Dial {
 
 /// The ssh command lines of one connection.
 struct Dialer {
-    directory: tempfile::TempDir,
+    directory: ConnectionDirectory,
     user: String,
     dial: Dial,
     /// Through a tunnel, the host key algorithms of the key the master
@@ -180,6 +191,8 @@ pub(in crate::providers) struct SshConnection {
     keeper: Mutex<Option<Child>>,
     dialer: Dialer,
     forwarded: Option<String>,
+    /// Signs in for every ssh of this connection; it outlives the master.
+    _agent: Agent,
     /// The route's own state, such as a tunnel; it outlives the master.
     _guard: Option<Box<dyn Send + Sync>>,
 }
@@ -262,11 +275,7 @@ impl SshConnection {
         F: FnOnce(PathBuf) -> Fut,
         Fut: Future<Output = Result<Route>>,
     {
-        // A short path: the master's socket must fit a Unix socket address.
-        let directory = tempfile::Builder::new()
-            .prefix("wsdk-ssh-")
-            .permissions(std::os::unix::fs::PermissionsExt::from_mode(0o700))
-            .tempdir_in("/tmp")?;
+        let directory = ConnectionDirectory::make()?;
         let route = authorize(directory.path().to_owned()).await?;
         let hosts = match &route.dial {
             Dial::Direct { host_key, .. } => {
@@ -284,7 +293,13 @@ impl SshConnection {
             }
         };
         tokio::fs::write(directory.path().join("hosts"), hosts).await?;
-        write_private(&directory.path().join("key"), route.key.private()).await?;
+        let signer = Signer::new(&route.key);
+        tokio::fs::write(
+            directory.path().join("key.pub"),
+            format!("{}\n", route.key.public()),
+        )
+        .await?;
+        let agent = Agent::serve(signer, &directory.path().join("agent"))?;
         if route.user.is_empty()
             || !route
                 .user
@@ -309,6 +324,7 @@ impl SshConnection {
             keeper: Mutex::new(None),
             dialer,
             forwarded: None,
+            _agent: agent,
             _guard: route.guard,
         };
         if let Some(forward) = forward {
@@ -434,9 +450,9 @@ impl SshConnection {
 
 impl Drop for SshConnection {
     fn drop(&mut self) {
-        // The keeper first, so its directory goes; then the master. Its key
-        // and socket files may go with `directory` while it is still ending:
-        // it has read the key, and nothing uses the socket once it is dead.
+        // The keeper first, so its directory goes; then the master. Its
+        // socket files may go with `directory` while it is still ending:
+        // nothing uses them once it is dead.
         for slot in [&mut self.keeper, &mut self.master] {
             if let Some(child) = slot.get_mut().ok().and_then(Option::take) {
                 kill_and_reap(child);
@@ -556,8 +572,6 @@ impl Dialer {
             "-o",
             "IdentitiesOnly=yes",
             "-o",
-            "IdentityAgent=none",
-            "-o",
             "ForwardAgent=no",
             "-o",
             "ForwardX11=no",
@@ -603,9 +617,16 @@ impl Dialer {
                 "ConnectTimeout=10",
                 "-o",
                 "LogLevel=ERROR",
-                "-i",
+                "-o",
             ])
-            .arg(directory.join("key"))
+            // Only this connection's agent, and only its one key: the
+            // public half names it, and the agent signs with it.
+            .arg(format!(
+                "IdentityAgent={}",
+                directory.join("agent").display()
+            ))
+            .arg("-i")
+            .arg(directory.join("key.pub"))
             .arg("-S")
             .arg(if shared {
                 directory.join("control")
@@ -623,18 +644,6 @@ impl Dialer {
             .kill_on_drop(true);
         command
     }
-}
-
-/// Write `private` to `path`, readable by this account alone.
-async fn write_private(path: &Path, private: &[u8]) -> Result<()> {
-    let mut file = tokio::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(path)
-        .await?;
-    file.write_all(private).await?;
-    Ok(file.sync_all().await?)
 }
 
 /// A path ssh can carry in an option unquoted: printable ASCII with no

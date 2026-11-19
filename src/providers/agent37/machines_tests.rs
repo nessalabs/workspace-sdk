@@ -415,21 +415,27 @@ fn ids_and_keys_are_checked_before_anything_is_sent() {
     }
 }
 
-#[test]
-fn neither_key_is_ever_printed() {
+#[tokio::test]
+async fn neither_key_is_ever_printed() {
     let key = ApiKey::new("sk_live_secret").unwrap();
     assert!(!format!("{key:?}").contains("secret"));
     let config = Agent37Config::new(key);
     assert!(!format!("{config:?}").contains("secret"));
     assert!(ApiKey::new("sk live").is_err());
     assert!(ApiKey::new("").is_err());
-    let identity = Agent37Identity::new(
+    let identity = Agent37Identity::generate("printed").await.unwrap();
+    let private = String::from_utf8(identity.private_key().to_vec()).unwrap();
+    let body = private.lines().nth(1).unwrap();
+    assert!(!format!("{identity:?}").contains(body));
+    assert!(!format!("{identity:?}").contains("PRIVATE"));
+    // A file that only looks like a key, or a key with another's public half.
+    assert!(Agent37Identity::new(
         b"-----BEGIN OPENSSH PRIVATE KEY-----\nsecretbytes\n-----END OPENSSH PRIVATE KEY-----\n"
             .to_vec(),
         PUBLIC,
     )
-    .unwrap();
-    assert!(!format!("{identity:?}").contains("secretbytes"));
+    .is_err());
+    assert!(Agent37Identity::new(identity.private_key().to_vec(), PUBLIC).is_err());
     assert!(Agent37Identity::new(b"not a key".to_vec(), PUBLIC).is_err());
     assert!(Agent37Identity::new(identity.private_key().to_vec(), "ssh-rsa AAAA").is_err());
     assert!(Agent37Identity::new(identity.private_key().to_vec(), "ssh-ed25519 AAAA").is_err());
