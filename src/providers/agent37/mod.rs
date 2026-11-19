@@ -2,9 +2,11 @@
 //! made from pinned templates, reached over an authenticated SSH tunnel.
 //!
 //! [`Agent37Machines`] makes, admits, wakes, stops and deletes a caller's
-//! instances; [`Agent37Provider`] attaches a ready one as a workspace and
+//! instances, and [`Agent37Cloud`] offers them as a provider-neutral
+//! [`crate::ports::IMachines`]; [`Agent37Provider`] attaches a ready one as a workspace and
 //! opens live connections into it.
 mod api;
+mod cloud;
 mod config;
 mod failure;
 mod identity;
@@ -17,6 +19,7 @@ mod tunnel;
 #[cfg(test)]
 pub(in crate::providers) use tunnel::Tunnel;
 
+pub use cloud::Agent37Cloud;
 pub use config::{Agent37Config, ApiKey, DEFAULT_API, DEFAULT_TUNNEL};
 pub use failure::{AdmissionRefusal, Agent37Failure};
 pub use identity::Agent37Identity;

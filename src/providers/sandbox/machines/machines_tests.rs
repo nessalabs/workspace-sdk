@@ -241,7 +241,7 @@ fn sandbox() -> Value {
     value["sandbox"]["state"] = json!("ready");
     value
 }
-struct State {
+pub(in crate::providers::sandbox::machines) struct State {
     environment: Value,
     receipt: Value,
     created: usize,
@@ -263,15 +263,17 @@ struct State {
     /// The idempotency key a creation must carry.
     expected_key: String,
     /// Deletions asked; Boat refuses each.
-    deleted: usize,
+    pub(in crate::providers::sandbox::machines) deleted: usize,
     /// The workspace's ownership marker, readable only while the VM runs.
     owner: Option<Value>,
+    /// Whether a stop is answered; refused like any other command if not.
+    pub(in crate::providers::sandbox::machines) answers_stop: bool,
 }
-struct Server {
+pub(in crate::providers::sandbox::machines) struct Server {
     base: String,
-    machines: BoatMachines,
+    pub(in crate::providers::sandbox::machines) machines: BoatMachines,
     events: Arc<Events>,
-    state: Arc<Mutex<State>>,
+    pub(in crate::providers::sandbox::machines) state: Arc<Mutex<State>>,
     task: JoinHandle<()>,
 }
 impl Drop for Server {
@@ -279,7 +281,7 @@ impl Drop for Server {
         self.task.abort();
     }
 }
-async fn server() -> Server {
+pub(in crate::providers::sandbox::machines) async fn server() -> Server {
     let state = Arc::new(Mutex::new(State {
         environment: environment(),
         receipt: sandbox(),
@@ -299,6 +301,7 @@ async fn server() -> Server {
         expected_key: KEY.into(),
         deleted: 0,
         owner: None,
+        answers_stop: false,
     }));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}/api/v1", listener.local_addr().unwrap());
@@ -309,6 +312,7 @@ async fn server() -> Server {
     let commands = state.clone();
     let delete = state.clone();
     let files = state.clone();
+    let stop = state.clone();
     let router = Router::new()
         .route("/api/v1/me", get(|| async move { Json(json!({"ok":true,"type":"me","user":{"id":"11111111-1111-4111-8111-111111111111"}})) }))
         .route("/api/v1/environments", get(move || { let env=env.lock().unwrap().environment.clone(); async move { Json(json!({"ok":true,"type":"environments.list","environments":[env]})) } }))
@@ -322,6 +326,7 @@ async fn server() -> Server {
         .route("/api/v1/sandboxes/{id}", get(move || { let mut state=read.lock().unwrap(); state.info_reads+=1; if state.receipt["sandbox"]["state"]==json!("archiving") { if state.archiving_reads==0 { state.receipt["sandbox"]["state"]=json!("archived"); } else { state.archiving_reads-=1; } } let body=state.startup_receipts.pop_front().unwrap_or_else(|| state.read_override.as_ref().unwrap_or(&state.receipt).clone()); async { Json(body) } }).delete(move || { let mut state=delete.lock().unwrap(); state.deleted+=1; async { axum::http::StatusCode::FORBIDDEN } }))
         .route("/api/v1/sandboxes/{id}/resume", post(move |Json(request):Json<Value>| { let mut state=resume.lock().unwrap(); assert_eq!(request["ttlSeconds"],json!(state.expected_ttl)); state.resumed+=1; state.receipt["sandbox"]["wipePendingUntilRestart"]=json!(false); if state.drift_on_resume { state.environment["passSecrets"]=json!(true); } state.receipt["sandbox"]["state"]=json!("ready"); async move { Json(json!({"ok":true,"type":"sandbox.resumed","id":VM,"status":"ready"})) } }))
         .route("/api/v1/sandboxes/{id}/files", get(move || { let state=files.lock().unwrap(); let running=state.receipt["sandbox"]["state"]==json!("ready"); let owner=state.owner.clone().filter(|_| running); async move { match owner { Some(owner) => { use base64::Engine; let content=base64::engine::general_purpose::STANDARD.encode(owner.to_string()); (axum::http::StatusCode::OK, Json(json!({"ok":true,"type":"file","content":content,"encoding":"base64"}))) } None => (axum::http::StatusCode::CONFLICT, Json(json!({"ok":false}))) } } }))
+        .route("/api/v1/sandboxes/{id}/stop", post(move || { let mut state=stop.lock().unwrap(); let answered=state.answers_stop; if answered { state.receipt["sandbox"]["state"]=json!("archived"); } else { state.commands+=1; } async move { if answered { (axum::http::StatusCode::OK, Json(json!({"ok":true,"type":"sandbox.stopped","id":VM,"status":"archived"}))) } else { (axum::http::StatusCode::FORBIDDEN, Json(json!({"ok":false}))) } } }))
         .fallback(move || { commands.lock().unwrap().commands+=1; async { axum::http::StatusCode::FORBIDDEN } });
     let task = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
     let events = Arc::new(Events::default());
@@ -334,7 +339,7 @@ async fn server() -> Server {
         task,
     }
 }
-const KEY: &str = "creation-fixture-key";
+pub(in crate::providers::sandbox::machines) const KEY: &str = "creation-fixture-key";
 fn spec() -> MachineSpec {
     spec_lasting(Some(3600))
 }

@@ -10,9 +10,9 @@ use axum::{
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 
-const TEMPLATE: &str = "nessa-runtime@3";
-const DIGEST: &str = "sha256:abc";
-const KEY: &str = "nessa-thread-0001";
+pub(in crate::providers::agent37) const TEMPLATE: &str = "nessa-runtime@3";
+pub(in crate::providers::agent37) const DIGEST: &str = "sha256:abc";
+pub(in crate::providers::agent37) const KEY: &str = "nessa-thread-0001";
 /// An ed25519 public key: the 19-byte header, then 32 key bytes.
 const PUBLIC: &str =
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH";
@@ -30,13 +30,13 @@ enum OnCreate {
 }
 
 #[derive(Default)]
-struct Fake {
-    instances: Vec<Value>,
+pub(in crate::providers::agent37) struct Fake {
+    pub(in crate::providers::agent37) instances: Vec<Value>,
     calls: Vec<String>,
     on_create: Option<OnCreate>,
     next: u32,
 }
-type Shared = Arc<Mutex<Fake>>;
+pub(in crate::providers::agent37) type Shared = Arc<Mutex<Fake>>;
 
 fn instance(id: &str, status: &str, key: Option<&str>) -> Value {
     json!({
@@ -121,9 +121,9 @@ async fn template(Path(name): Path<String>) -> Response {
     }
 }
 
-struct Server {
-    fake: Shared,
-    machines: Agent37Machines,
+pub(in crate::providers::agent37) struct Server {
+    pub(in crate::providers::agent37) fake: Shared,
+    pub(in crate::providers::agent37) machines: Agent37Machines,
     task: tokio::task::JoinHandle<()>,
 }
 impl Drop for Server {
@@ -132,7 +132,7 @@ impl Drop for Server {
     }
 }
 impl Server {
-    async fn start() -> Self {
+    pub(in crate::providers::agent37) async fn start() -> Self {
         let fake = Shared::default();
         let router = Router::new()
             .route("/v1/instances", get(list).post(create))

@@ -3,6 +3,7 @@
 //! - [`workspace`]: target identity, access, resources, files, and lifecycle.
 //! - [`execution`]: process commands, durable run identity, and output.
 //! - [`synchronization`]: sync relationships and resumable handoff progress.
+//! - [`machines`]: a caller's machines on any cloud, as [`crate::ports::IMachines`] answers.
 //!
 //! Immutable file checkpoints and review/apply values live in [`crate::checkpoint::domain`];
 //! workload setup and authentication live in [`crate::runtime::domain`]. Each
@@ -13,6 +14,7 @@
 
 pub mod execution;
 mod identifier;
+pub mod machines;
 pub mod synchronization;
 pub mod workspace;
 

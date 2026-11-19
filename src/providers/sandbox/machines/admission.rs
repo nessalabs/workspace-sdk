@@ -12,6 +12,11 @@ use super::{
     events::MachineEvent,
     spec::{MachineFailure, MachineSpec},
 };
+use crate::{
+    ports::{ICreationSite, Idempotency, Submitted},
+    providers::{find_or_create, CreationFailure},
+};
+use async_trait::async_trait;
 use sandbox_client::{
     CreateSandboxRequest, CreateSandboxResponse, SandboxInfoResponse, SandboxState,
 };
@@ -229,6 +234,60 @@ async fn bounded_json(
     Ok(value)
 }
 
+/// One VM's creation request, for the SDK's creation algorithm.
+struct Creation<'a> {
+    boat: &'a Boat,
+    spec: &'a MachineSpec,
+    deadline: Instant,
+}
+#[async_trait]
+impl ICreationSite for Creation<'_> {
+    type Target = Value;
+    type Error = MachineFailure;
+    fn idempotency(&self) -> Idempotency {
+        Idempotency::Native
+    }
+    async fn find(&self, _key: &str) -> Result<Vec<Value>, MachineFailure> {
+        // Never asked: Boat takes the key itself.
+        Ok(Vec::new())
+    }
+    /// The creation acknowledgement, read raw.
+    async fn submit(&self, key: &str) -> Result<Submitted<Value>, MachineFailure> {
+        let (boat, spec, deadline) = (self.boat, self.spec, self.deadline);
+        let request = boat
+            .request(reqwest::Method::POST, "sandboxes")
+            .header("Idempotency-Key", key)
+            .json(&CreateSandboxRequest {
+                type_: Some(spec.machine_type().into()),
+                ttl_seconds: Some(spec.lifetime()),
+                environment: Some(spec.environment().into()),
+                env: Some(spec.variables().clone().into_iter().collect()),
+                from: Some(spec.image().into()),
+                snapshots: Some(true),
+                ..Default::default()
+            });
+        // Nothing is sent once the budget is spent, so that answer is certain.
+        if Instant::now() >= deadline {
+            return Err(MachineFailure::Provider);
+        }
+        // Once the request may have been sent, only an answer that names no VM
+        // for certain is anything but uncertain.
+        let answered = tokio::time::timeout_at(deadline, async {
+            let response = request.send().await.ok()?;
+            // Even a 4xx says only that this request made nothing: an earlier
+            // attempt with the same key may have, so no answer here is certain.
+            if !response.status().is_success() {
+                return None;
+            }
+            bounded_json(boat, response, Stage::CreateBody).await.ok()
+        })
+        .await
+        .ok()
+        .flatten();
+        Ok(answered.map_or(Submitted::Unknown, Submitted::Named))
+    }
+}
+
 pub(super) async fn create(
     boat: &Boat,
     spec: &MachineSpec,
@@ -237,40 +296,21 @@ pub(super) async fn create(
     deadline: Instant,
 ) -> Result<Created, MachineFailure> {
     let ttl_seconds = spec.lifetime();
-    let request = boat
-        .request(reqwest::Method::POST, "sandboxes")
-        .header("Idempotency-Key", key)
-        .json(&CreateSandboxRequest {
-            type_: Some(spec.machine_type().into()),
-            ttl_seconds: Some(ttl_seconds),
-            environment: Some(spec.environment().into()),
-            env: Some(spec.variables().clone().into_iter().collect()),
-            from: Some(spec.image().into()),
-            snapshots: Some(true),
-            ..Default::default()
-        });
-    // Nothing is sent once the budget is spent, so that answer is certain.
-    if Instant::now() >= deadline {
-        return Err(MachineFailure::Provider);
-    }
-    // Once the request may have been sent, only an answer that names no VM
-    // for certain is anything but uncertain.
-    let value = tokio::time::timeout_at(deadline, async {
-        let response = request
-            .send()
-            .await
-            .map_err(|_| MachineFailure::ProvisioningUncertain)?;
-        // Even a 4xx says only that this request made nothing: an earlier
-        // attempt with the same key may have, so no answer here is certain.
-        if !response.status().is_success() {
-            return Err(MachineFailure::ProvisioningUncertain);
-        }
-        bounded_json(boat, response, Stage::CreateBody)
-            .await
-            .map_err(|_| MachineFailure::ProvisioningUncertain)
-    })
-    .await
-    .map_err(|_| MachineFailure::ProvisioningUncertain)??;
+    let site = Creation {
+        boat,
+        spec,
+        deadline,
+    };
+    // Boat takes the key itself: the SDK's one creation algorithm only
+    // submits, and an answer that names no VM is uncertain.
+    let (value, _) = find_or_create(&site, key)
+        .await
+        .map_err(|failure| match failure {
+            CreationFailure::Site(failure) => failure,
+            CreationFailure::Uncertain | CreationFailure::Ambiguous => {
+                MachineFailure::ProvisioningUncertain
+            }
+        })?;
     // A ready response is an idempotent replay of an older VM. An unknown
     // acknowledgement cannot authorize deletion of the ID it happens to name.
     let acknowledgement = match (

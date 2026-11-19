@@ -7,6 +7,8 @@
 //! image, environment, lifetime and variables, and events go to the caller's
 //! [`IMachineEvents`] sink, so it can keep its own audit.
 //!
+//! [`BoatCloud`] offers them as a provider-neutral [`crate::ports::IMachines`].
+//!
 //! ```text
 //! create:  environment ─► POST /sandboxes (key) ─► wait for start ─► check
 //! ready:   check ─► wait out archiving ─► resume ─► wait ready ─► check
@@ -14,12 +16,14 @@
 //! ```
 mod account;
 mod admission;
+mod cloud;
 mod diagnostics;
 mod environment;
 mod events;
 mod spec;
 
 pub use account::{BoatMachines, Created, Disposition};
+pub use cloud::BoatCloud;
 pub use diagnostics::{Diagnostic, Stage};
 pub use environment::{
     AdmissionRefusal, AdmissionRejection, EnvironmentIdentity, ObservedEnvironment,

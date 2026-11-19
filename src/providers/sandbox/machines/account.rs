@@ -454,4 +454,4 @@ impl BoatMachines {
 
 #[cfg(test)]
 #[path = "machines_tests.rs"]
-mod tests;
+pub(in crate::providers::sandbox::machines) mod tests;
