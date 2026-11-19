@@ -12,14 +12,15 @@ fn age(path: &Path, by: Duration) {
 fn a_directory_whose_owner_is_gone_is_swept_and_a_live_one_kept() {
     let parent = tempfile::tempdir().unwrap();
     let live = ConnectionDirectory::make_in(parent.path()).unwrap();
-    // A process killed outright: the system releases its lock, which
-    // dropping the file models; the directory and its files stay.
-    let killed = ConnectionDirectory::make_in(parent.path()).unwrap();
-    let killed_path = killed.path().to_owned();
+    // A process killed outright: the system releases its lock, and the
+    // directory and its files stay. The lock file is made here and never
+    // taken. Taking it and dropping it would not model that: a test
+    // spawning a process at that moment can hold a forked copy of the
+    // descriptor, and with it the lock, until its exec.
+    let killed_path = parent.path().join(format!("{PREFIX}killed"));
+    std::fs::create_dir(&killed_path).unwrap();
+    File::create(killed_path.join("lock")).unwrap();
     std::fs::write(killed_path.join("hosts"), "").unwrap();
-    let ConnectionDirectory { directory, _lock } = killed;
-    let _ = directory.keep();
-    drop(_lock);
     // One made by an older build: no lock, a key, and no master answering.
     let old = parent.path().join(format!("{PREFIX}old"));
     std::fs::create_dir(&old).unwrap();
